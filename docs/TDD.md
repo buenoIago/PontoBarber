@@ -1,0 +1,2327 @@
+# PontoBarber — TDD
+
+> **Documento:** Technical Design Document
+> **Projeto:** PontoBarber
+> **Versão:** 1.0
+> **Status:** Em revisão
+> **Data:** 16/11/2026
+> **Responsável:** Equipe PontoBarber
+> **PRD/SPEC de referência:** `docs/PRD.md` versão 1.0
+
+## Histórico de alterações
+
+| Versão | Data | Autor | Alteração |
+| --- | --- | --- | --- |
+| 1.0 | 16/11/2026 | Equipe PontoBarber | Criação do documento a partir do PRD 1.0 |
+
+---
+
+# 1. Resumo executivo
+
+O PontoBarber será implementado como uma aplicação web com frontend Angular 22 e backend .NET 10, organizados em um único repositório. O backend segue Clean Architecture com modelagem tática de DDD, expõe uma API REST versionada em `/api/v1`, usa ASP.NET Core Identity com autenticação por cookie e persiste em SQL Server por meio do EF Core 10. O frontend é uma SPA standalone, zoneless, baseada em signals, com Angular Material e CDK.
+
+O isolamento entre barbearias é feito em banco único compartilhado, com `TenantId` obrigatório em todas as entidades de negócio, filtros globais no EF Core e validação de tenant na camada de aplicação. A reserva de horários é o ponto de maior risco técnico: a confirmação ocorre em transação com `sp_getapplock` por profissional e data, seguida de verificação de sobreposição e índice único para impedir duplicidade exata. Processos periódicos, como expiração da sugestão de horário, são executados pelo Quartz.NET com store no SQL Server.
+
+A aplicação é empacotada em containers Linux e tem Azure SQL como banco gerenciado. As decisões ainda não confirmadas pelo produto permanecem marcadas como `Proposto` na seção 19 e na seção 21.
+
+## 1.1. Decisões principais
+
+| Área | Decisão | ADR |
+| --- | --- | --- |
+| Frontend | Angular 22 standalone, zoneless, signals, Angular Material + CDK | ADR-001, ADR-008 |
+| Backend | .NET 10, ASP.NET Core, solução no formato `.slnx` | ADR-002 |
+| Arquitetura | Clean Architecture com DDD tático e monólito modular | ADR-003 |
+| Banco de dados | SQL Server 2022+ com EF Core 10 e migrations versionadas | ADR-004 |
+| Autenticação | ASP.NET Core Identity com cookie httpOnly | ADR-005 |
+| Multi-tenancy | Banco único com `TenantId`, filtros globais e validação na aplicação | ADR-006 |
+| API | REST com controllers, versionamento por URL e ProblemDetails | ADR-007, ADR-017 |
+| Concorrência | Transação + `sp_getapplock` por profissional/data + índice único | ADR-010 |
+| Jobs | Quartz.NET com store no SQL Server | ADR-009 |
+| Datas e horários | UTC no banco, `TimeZoneId` IANA por barbearia | ADR-011 |
+| Testes | MSTest, WebApplicationFactory, Testcontainers e Playwright | ADR-012 |
+| Infraestrutura | Containers Linux, Azure SQL e GitHub Actions | ADR-013, ADR-025 |
+| Observabilidade | Serilog estruturado + OpenTelemetry + health checks | ADR-014 |
+
+---
+
+# 2. Contexto e objetivos
+
+## 2.1. Contexto do produto
+
+O PontoBarber centraliza a gestão de barbearias: cadastro do estabelecimento, catálogo de serviços, horários de funcionamento, disponibilidade dos profissionais, agenda, atendimentos, pagamentos e indicadores. A plataforma atende três perfis — proprietário, barbeiro e cliente — com login compartilhado e cadastros separados para cliente e barbeiro.
+
+O produto é uma aplicação web responsiva, sem aplicativo nativo na V1.0. Cada barbearia opera em um único fuso horário e possui código de convite único e permanente para entrada de profissionais. Agendamentos públicos e manuais são confirmados automaticamente, sem aprovação.
+
+## 2.2. Problema técnico
+
+O sistema precisa garantir quatro propriedades que orientam o desenho:
+
+- **Consistência de agenda:** dois clientes não podem confirmar o mesmo horário do mesmo profissional, mesmo em requisições simultâneas.
+- **Isolamento entre barbearias:** nenhuma consulta ou operação pode expor dados de outro estabelecimento, inclusive em relatórios e listagens.
+- **Preservação histórica:** nome, duração e preço do serviço, dados do agendamento, cancelamentos e pagamentos devem permanecer íntegros após alterações cadastrais, remoção de serviços ou de vínculos.
+- **Rastreabilidade temporal:** horários planejados e reais, janelas de sugestão de 24 horas e indicadores por dia, semana e mês dependem de tratamento correto de fuso horário e calendário.
+
+## 2.3. Objetivos técnicos
+
+- Entregar uma API REST única, versionada e documentada, com contratos explícitos e erros padronizados.
+- Isolar as regras de domínio de agenda, atendimento e pagamento em componentes testáveis sem banco.
+- Garantir que a confirmação de agendamento seja atômica e livre de sobreposição.
+- Aplicar autenticação por cookie e autorização por perfil e por recurso em todas as operações.
+- Manter o histórico imutável por meio de snapshots e registros de eventos do agendamento.
+- Oferecer frontend com carregamento rápido, estado previsível e acessibilidade WCAG 2.1 AA.
+- Operar com deploy reproduzível, migrations compatíveis e observabilidade desde a primeira versão.
+
+## 2.4. Público e operação
+
+| Perfil | Como usa o sistema | Volume esperado |
+| --- | --- | --- |
+| Proprietário | Navegador desktop e mobile; configuração, agenda, dashboard | 1 por barbearia |
+| Barbeiro | Navegador mobile e desktop; agenda, disponibilidade, atendimento e pagamento | 1 a 15 por barbearia |
+| Cliente | Navegador mobile; página pública, agendamento e histórico | Centenas por barbearia |
+
+Premissa de volumetria para a V1.0: até 500 barbearias, até 5.000 profissionais, até 300.000 clientes e até 20.000 agendamentos por dia no pico. O dimensionamento detalhado está na seção 17.
+
+---
+
+# 3. Escopo e não escopo
+
+## 3.1. Escopo técnico desta versão
+
+- API REST `/api/v1` com autenticação por cookie, autorização por perfil e isolamento por tenant.
+- SPA Angular com área pública, área do cliente, área do profissional e área administrativa.
+- Cadastro de cliente e barbeiro, login compartilhado, criação de barbearia e entrada por código de convite.
+- Catálogo de serviços com snapshot por agendamento.
+- Horários de funcionamento, disponibilidade semanal e bloqueios pontuais.
+- Agenda diária, semanal e mensal, com criação manual, cancelamento, remarcação e sugestão de horário.
+- Atendimento com horários reais e pagamento presencial.
+- Dashboard do proprietário com indicadores e próximos agendamentos.
+- Notificações internas persistidas e consultadas por polling.
+- Jobs de expiração de sugestão, fechamento de agendamentos vencidos e limpeza de dados operacionais.
+- Observabilidade, health checks, backups e pipeline de CI/CD.
+
+## 3.2. Fora do escopo
+
+- WhatsApp, e-mail, SMS e integrações de calendário — previstos para versões futuras no PRD.
+- Gateway de pagamento, cobrança online e pagamento antecipado — pagamento é presencial na V1.0.
+- Aplicativo móvel nativo — a V1.0 é web responsiva.
+- Relatórios financeiros avançados e conciliação — não previstos no PRD.
+- Multi-tenant por schema ou por banco — decisão registrada em ADR-006.
+- Microsserviços, mensageria externa e cache distribuído — sem necessidade comprovada na escala inicial.
+- Recuperação de senha por e-mail — depende de provedor ainda não definido (ABT-006).
+- Verificação do telefone comercial — procedimento em aberto no PRD (ABT-005).
+
+## 3.3. Premissas
+
+| ID | Premissa | Impacto se não se confirmar |
+| --- | --- | --- |
+| PREM-001 | Cada barbearia opera em um único fuso horário IANA | Cálculo de disponibilidade e indicadores precisa ser revisto |
+| PREM-002 | A V1.0 opera em uma única região Azure, com latência de banco inferior a 20 ms | Metas de desempenho e escolha de camada do banco mudam |
+| PREM-003 | O volume inicial é de até 500 barbearias e 20.000 agendamentos/dia | Escala horizontal e cache passam a ser necessários antes do previsto |
+| PREM-004 | A verificação do telefone comercial não bloqueia a V1.0 | Cadastro pode exigir fluxo adicional e integração externa |
+| PREM-005 | As metas numéricas dos RNFs são alvos propostos e serão validadas | Testes de carga e SLOs precisam ser recalibrados |
+| PREM-006 | O navegador alvo suporta ES2022, cookies e `Intl` com base IANA | Necessário transpilação adicional e polyfills |
+| PREM-007 | A equipe domina C#, Angular e SQL Server | Curva de aprendizado e prazo são afetados |
+| PREM-008 | O produto não exige CNPJ nem documentos no cadastro | Nenhuma validação cadastral adicional é necessária |
+
+---
+
+# 4. Direcionadores e requisitos
+
+## 4.1. Requisitos funcionais críticos
+
+| ID | Requisito | Módulo/componente | Impacto arquitetural |
+| --- | --- | --- | --- |
+| RF-AUTH-001 a RF-AUTH-010 | Cadastro, login, criação de barbearia e código de convite | `Auth`, `Tenants`, `Professionals` | Identity, cookie, policies e transação de criação de tenant |
+| RF-EMP-001 a RF-EMP-003 | Consulta e edição da barbearia | `Tenants` | Autorização por papel e isolamento por tenant |
+| RF-SERV-001 a RF-SERV-008 | Catálogo de serviços e snapshot | `Services`, `Appointments` | Desativação lógica e cópia de dados no agendamento |
+| RF-HOR-001 a RF-HOR-007 | Funcionamento, disponibilidade e bloqueios | `Scheduling`, `Professionals` | Motor de disponibilidade e conversão de fuso |
+| RF-AGD-001 a RF-AGD-018 | Agenda, criação manual, cancelamento, remarcação e sugestão | `Appointments`, `Scheduling` | Transação de reserva, histórico e job de expiração |
+| RF-ATD-001 a RF-ATD-009 | Atendimento e pagamento | `Appointments`, `Payments` | Máquina de estados e separação de situações |
+| RF-CLI-001 a RF-CLI-006 | Consulta de clientes e edição dos próprios dados | `Customers`, `Appointments` | Consulta derivada de agendamentos e autorização por titular |
+| RF-PROF-001 a RF-PROF-008 | Gestão de vínculos e código de convite | `Professionals` | Vínculo como entidade própria e histórico preservado |
+| RF-DASH-001 a RF-DASH-005 | Indicadores e próximos agendamentos | `Dashboard` | Consultas agregadas por período e tenant |
+| RF-PUB-001 a RF-PUB-006 | Página pública e agendamento | `PublicBooking` | Endpoints anônimos de leitura e confirmação autenticada |
+| RF-CONF-001 a RF-CONF-008 | Configurações gerais e individuais | `Settings` | Autorização diferenciada por papel |
+| RF-NOTIF-001 | Notificações internas | `Notifications` | Persistência, polling e geração por eventos de domínio |
+
+## 4.2. Requisitos não funcionais
+
+| ID | Categoria | Meta | Solução técnica | Como verificar |
+| --- | --- | --- | --- | --- |
+| RNF-DESEMPENHO-001 | Desempenho | Agenda e telas principais em até 2 s no p95 | Lazy loading por rota, consultas projetadas, índices por tenant e período, compressão e cache HTTP de assets | Teste de carga k6 e métricas de p95 no Application Insights |
+| RNF-DESEMPENHO-002 | Desempenho | Disponibilidade em até 1 s no p95 | Consulta única com janelas indexadas e cálculo em memória limitado ao dia | Teste de carga e APM |
+| RNF-DESEMPENHO-003 | Desempenho | Confirmação em até 3 s no p95 | Transação curta com lock por profissional/data e índices de conflito | Teste de concorrência e APM |
+| RNF-SEGURANCA-001 | Segurança | Senhas irreversíveis | Identity com PBKDF2-HMAC-SHA512, 210.000 iterações e salt por usuário | Revisão de configuração e teste de hash |
+| RNF-SEGURANCA-002 | Segurança | 100% das operações críticas validadas no servidor | Autorização por policy e resource handler em todos os endpoints | Testes de autorização por perfil e tenant |
+| RNF-SEGURANCA-003 | Segurança | Código de convite imprevisível | Código aleatório de 8 caracteres em base32 com `RandomNumberGenerator` | Teste estatístico e revisão de código |
+| RNF-CONCORRENCIA-001 | Consistência | Zero reservas conflitantes | `sp_getapplock`, verificação de sobreposição e índice único | Teste de concorrência paralela e teste de integração |
+| RNF-DISPONIBILIDADE-001 | Disponibilidade | 99,5% mensal | Duas instâncias, health checks, Azure SQL com backup e deploy sem downtime | Monitoramento de disponibilidade e relatório mensal |
+| RNF-PRIVACIDADE-001 | Privacidade e LGPD | Acesso por titular e permissão | Minimização, autorização por recurso, logs sem PII e política de retenção | Revisão de privacidade e testes de acesso |
+| RNF-AUDITORIA-001 | Auditoria | Autor, data e hora em cancelamentos e alterações | Histórico de agendamento e campos de auditoria | Testes de histórico e consulta de auditoria |
+| RNF-ACESSIBILIDADE-001 | Acessibilidade | WCAG 2.1 AA nas telas principais | Angular Material, foco, rótulos, contraste e testes axe | Auditoria automatizada axe + revisão manual |
+| RNF-COMPATIBILIDADE-001 | Compatibilidade | Últimas 2 versões de Chrome, Edge, Firefox e Safari | Browserslist, polyfills e layout responsivo | Matriz de testes E2E e checklist manual |
+| RNF-USABILIDADE-001 | Usabilidade | Agendamento sem suporte em até 5 etapas | Wizard com etapas explícitas e resumo | Teste de usabilidade e E2E do fluxo público |
+| RNF-RETENCAO-001 | Retenção | 100% do histórico preservado | Desativação lógica, snapshots e proibição de exclusão física | Testes de histórico e revisão de schema |
+
+## 4.3. Restrições
+
+| Tipo | Restrição | Origem | Consequência |
+| --- | --- | --- | --- |
+| Técnica | .NET 10, Angular 22, SQL Server e EF Core | Solicitação do produto | Stack fechada; bibliotecas devem ser compatíveis |
+| Técnica | Solução no formato `.slnx` | Solicitação do produto | Ferramentas de build precisam suportar o formato |
+| Técnica | Testes com MSTest | Solicitação do produto | Sem xUnit/NUnit no backend |
+| Técnica | Identity com cookies | Solicitação do produto | Sem JWT para a SPA; CSRF precisa ser tratado |
+| Negócio | Pagamento apenas presencial | PRD, seção 4.2 | Nenhuma integração financeira na V1.0 |
+| Negócio | Um serviço por agendamento | PRD, RN-AGD-003 | Modelo simplificado, sem itens de agendamento |
+| Operacional | Equipe pequena e prazo de MVP | Contexto do projeto | Monólito modular, poucos serviços operados |
+| Legal | LGPD | PRD, RNF-PRIVACIDADE-001 | Minimização, retenção definida e logs sem PII |
+
+---
+
+# 5. Arquitetura
+
+## 5.1. Visão de contexto
+
+```mermaid
+flowchart LR
+  C[Cliente] --> WEB[PontoBarber Web]
+  P[Proprietário] --> WEB
+  B[Barbeiro] --> WEB
+  WEB --> API[API PontoBarber]
+  API --> DB[(SQL Server)]
+  API --> JOB[Quartz.NET]
+  JOB --> DB
+  API --> OBS[Observabilidade]
+  WEB --> OBS
+```
+
+O sistema é acessado por navegador. A SPA consome apenas a API do próprio produto; não há integrações externas síncronas na V1.0. A verificação de telefone e o envio por WhatsApp estão fora do escopo e são representados apenas como evolução futura.
+
+## 5.2. Visão de contêineres
+
+```mermaid
+flowchart TB
+  subgraph Browser
+    SPA[Angular 22 SPA]
+  end
+  subgraph Linux Container - Web
+    NGINX[Nginx static + reverse proxy]
+    SPA --> NGINX
+  end
+  subgraph Linux Container - API
+    API[ASP.NET Core .NET 10]
+    Q[Quartz Scheduler]
+  end
+  NGINX -->|/api/v1| API
+  API --> DB[(Azure SQL)]
+  Q --> DB
+  API --> LOG[Serilog + OpenTelemetry Collector]
+  API --> HC[Health checks]
+```
+
+| Contêiner | Responsabilidade | Tecnologia | Comunicação |
+| --- | --- | --- | --- |
+| Web | Servir a SPA e encaminhar `/api` | Nginx + Angular 22 | HTTPS para o navegador; HTTP interno para a API |
+| API | Autenticação, autorização, regras de aplicação e domínio | ASP.NET Core .NET 10 | HTTPS interno, SQL e telemetria |
+| Banco | Persistência relacional e store de jobs | Azure SQL / SQL Server 2022 | TDS 1433 |
+| Jobs | Expirações e rotinas periódicas | Quartz.NET no processo da API | SQL |
+| Observabilidade | Coleta de logs, métricas e traces | Serilog + OpenTelemetry + Application Insights | OTLP/HTTPS |
+
+O scheduler Quartz.NET roda embutido na API, com `quartz.jobStore.clustered=true` e `CheckinMisfireThreshold` de 60 segundos. Com duas instâncias, apenas uma executa cada disparo.
+
+## 5.3. Componentes e módulos
+
+| Componente | Responsabilidade | Dependências permitidas | ADR |
+| --- | --- | --- | --- |
+| `PontoBarber.Domain` | Entidades, value objects, enums, eventos de domínio, regras invariantes | Nenhuma | ADR-003 |
+| `PontoBarber.Application` | Casos de uso, DTOs, validação, autorização de aplicação, portas | Domain | ADR-003 |
+| `PontoBarber.Infrastructure` | EF Core, Identity, Quartz, e-mail futuro, relógio, storage | Application, Domain | ADR-004, ADR-005, ADR-009 |
+| `PontoBarber.Api` | Controllers, filters, middleware, composição, health checks | Application, Infrastructure | ADR-007 |
+| `PontoBarber.Contracts` | DTOs públicos compartilhados com o frontend | Nenhuma | ADR-007 |
+| `PontoBarber.Web` | SPA Angular, rotas, componentes, serviços HTTP | Contracts (gerado) | ADR-001 |
+| `PontoBarber.UnitTests` | Testes de domínio e aplicação | Domain, Application | ADR-012 |
+| `PontoBarber.IntegrationTests` | Testes de API, banco e jobs | Api, Infrastructure | ADR-012 |
+| `PontoBarber.E2ETests` | Fluxos de navegador | Web, Api | ADR-012 |
+
+Módulos de domínio mapeados a partir do PRD:
+
+| Módulo | Bounded context lógico | Agregados principais |
+| --- | --- | --- |
+| `Auth` | Identidade e acesso | `User`, `CustomerProfile`, `ProfessionalProfile` |
+| `Tenants` | Barbearia | `Barbershop`, `BusinessHour` |
+| `Professionals` | Vínculos profissionais | `ProfessionalTenantLink`, `WeeklyAvailability`, `ScheduleBlock` |
+| `Services` | Catálogo | `Service` |
+| `Scheduling` | Disponibilidade e reserva | `AvailabilitySlot` (read model), `BookingPolicy` |
+| `Appointments` | Agenda | `Appointment`, `AppointmentHistory`, `TimeSlotSuggestion` |
+| `Payments` | Financeiro operacional | `Payment` |
+| `Dashboard` | Leitura agregada | Projeções de consulta |
+| `Notifications` | Comunicação interna | `Notification` |
+| `Settings` | Configurações | Visões sobre `Barbershop` e `ProfessionalTenantLink` |
+
+## 5.4. Fronteiras e regras de dependência
+
+- `Domain` não referencia EF Core, ASP.NET Core, Identity, Quartz ou qualquer biblioteca de infraestrutura.
+- `Application` depende de `Domain` e de abstrações próprias (`IApplicationDbContext`, `IClock`, `ITenantContext`, `IIdentityService`).
+- `Infrastructure` implementa as abstrações de `Application`; `Api` depende de `Application` e `Infrastructure` apenas na composição.
+- Controllers não contêm regra de negócio: apenas traduzem HTTP, acionam casos de uso e devolvem `ProblemDetails`.
+- Um módulo não acessa diretamente o `DbContext` de outro; a comunicação ocorre por casos de uso, eventos de domínio ou projeções de leitura.
+- Entidades de outro agregado são referenciadas por identificador, não por navegação cruzada.
+- `Contracts` não referencia `Domain`; os DTOs são tipos primitivos e enums estáveis.
+- O frontend não conhece detalhes de persistência e consome apenas `/api/v1`.
+- Proibido usar `DateTime.Now`, `Guid.NewGuid()` e `Random` diretamente no domínio; usar `IClock` e geradores injetados.
+
+## 5.5. Fluxos críticos
+
+### 5.5.1. Confirmação de agendamento (público e manual)
+
+**Atores:** Cliente autenticado, barbeiro ou proprietário.
+**Entradas:** `tenantId` derivado da rota ou do contexto, `professionalId`, `serviceId`, `start` em UTC, `notes`, `origin`, chave de idempotência.
+**Transações:** uma transação `READ COMMITTED` com `sp_getapplock` exclusivo por `tenantId:professionalId:yyyy-MM-dd`.
+
+1. Validar autenticação, tenant, serviço ativo, profissional ativo e vinculado.
+2. Carregar duração do serviço e calcular `end = start + duration` no fuso da barbearia.
+3. Adquirir `sp_getapplock` com timeout de 5 segundos.
+4. Validar funcionamento da barbearia, disponibilidade semanal, bloqueios e conflitos de agendamento.
+5. Criar `Appointment` com snapshot de nome, duração e preço do serviço.
+6. Persistir, registrar histórico inicial e notificações, e confirmar a transação.
+7. Liberar o lock; em caso de falha, retornar `409` com código `schedule.slot_unavailable`.
+
+**Falhas e compensações:** conflito retorna 409 sem persistência; timeout de lock retorna 503 com `Retry-After: 1`; falha após persistência é resolvida pela transação atômica.
+**Idempotência:** cabeçalho `Idempotency-Key`; a chave é armazenada por 24 horas e devolve a mesma resposta para requisições repetidas.
+
+### 5.5.2. Cancelamento com sugestão de horário
+
+**Atores:** Barbeiro ou proprietário (cancelamento), cliente (decisão).
+**Transações:** transação única para cancelar e reservar a sugestão; job para expiração.
+
+1. Validar que o agendamento está confirmado e não iniciou.
+2. Exigir motivo e novo horário quando a origem for barbeiro.
+3. Cancelar o agendamento com autor e data, preservando o histórico.
+4. Criar `TimeSlotSuggestion` com `ExpiresAtUtc = now + 24h` e reservar o horário sugerido.
+5. Notificar o cliente.
+6. Cliente aceita: transferir o agendamento para o novo horário e manter o histórico.
+7. Cliente rejeita ou job expira: liberar o horário e manter o agendamento original cancelado.
+
+**Falhas e compensações:** se o horário sugerido ficar indisponível antes da criação, retornar 409; se o job falhar, a próxima execução reprocessa por `ExpiresAtUtc` vencido.
+**Idempotência:** aceite e rejeição são idempotentes por `suggestionId` e estado atual.
+
+### 5.5.3. Atendimento e pagamento
+
+**Atores:** Barbeiro.
+**Transações:** transições de estado com verificação de concorrência otimista por `RowVersion`.
+
+1. Iniciar atendimento apenas em agendamento confirmado e no dia do agendamento.
+2. Registrar `ActualStartUtc` com `IClock` e mudar status para `InProgress`.
+3. Finalizar apenas atendimento em andamento; registrar `ActualEndUtc`.
+4. Registrar pagamento com valor não negativo e forma permitida, independente do estado do atendimento.
+5. Atualizar indicadores por consulta agregada, sem tabela de saldo.
+
+**Falhas e compensações:** conflito de concorrência retorna 409; pagamento duplicado no mesmo atendimento é rejeitado por índice único.
+
+### 5.5.4. Login e sessão
+
+1. Cliente ou profissional envia e-mail e senha para `POST /api/v1/auth/login`.
+2. A API valida via `SignInManager`, aplica bloqueio por tentativas e emite cookie `__Host-pb.auth`.
+3. O cookie é `HttpOnly`, `Secure`, `SameSite=Lax`, com expiração deslizante de 8 horas e absoluta de 7 dias.
+4. A SPA consulta `GET /api/v1/auth/me` para obter perfil, tenant ativo e permissões.
+5. Logout remove o cookie e invalida a sessão no servidor.
+
+**Falhas e compensações:** credenciais inválidas retornam 401 genérico; conta bloqueada retorna 423; falha de CSRF retorna 400.
+**Idempotência:** login não é idempotente por natureza; logout é idempotente.
+
+---
+
+# 6. Stack tecnológica
+
+## 6.1. Linguagem e runtime
+
+| Item | Escolha | Versão | Justificativa | ADR |
+| --- | --- | --- | --- | --- |
+| Linguagem backend | C# | 14 | Linguagem da plataforma .NET 10, tipagem forte e suporte a DDD | ADR-002 |
+| Runtime backend | .NET | 10 LTS | Suporte de longo prazo, desempenho e integração com ASP.NET Core | ADR-002 |
+| Linguagem frontend | TypeScript | 5.9 | Tipagem estática e integração com Angular | ADR-001 |
+| Runtime frontend | Node.js | 22 LTS | Necessário apenas para build e testes | ADR-001 |
+| Gerenciador de pacotes backend | NuGet | 6.x | Padrão do ecossistema .NET | ADR-002 |
+| Gerenciador de pacotes frontend | npm | 10.x | Padrão do Angular CLI e do ambiente de CI | ADR-001 |
+| Build backend | `dotnet` CLI + MSBuild | 10 | Compatível com `.slnx` | ADR-002 |
+| Build frontend | Angular CLI + esbuild | 22 | Build rápido e saída otimizada | ADR-001 |
+
+## 6.2. Frameworks
+
+| Camada | Framework | Versão | Papel | ADR |
+| --- | --- | --- | --- | --- |
+| Backend | ASP.NET Core | 10 | API REST, DI, configuração, middleware e health checks | ADR-002 |
+| Backend | ASP.NET Core Identity | 10 | Usuários, senhas, lockout e cookies | ADR-005 |
+| Backend | EF Core | 10 | Mapeamento, migrations e consultas | ADR-004 |
+| Backend | Quartz.NET | 3.15 | Jobs persistentes e clusterizados | ADR-009 |
+| Frontend | Angular | 22 | SPA standalone, zoneless e signals | ADR-001 |
+| Frontend | Angular Material + CDK | 22 | Componentes acessíveis, layout e comportamento | ADR-008 |
+| Testes backend | MSTest | 4.x | Testes unitários e de integração | ADR-012 |
+| Testes frontend | Vitest + Playwright | 3.x / 1.5x | Testes de unidade, componente e E2E | ADR-012 |
+
+## 6.3. Bibliotecas
+
+| Biblioteca | Versão | Papel | Justificativa | Alternativas rejeitadas | Licença/risco |
+| --- | --- | --- | --- | --- | --- |
+| `Microsoft.AspNetCore.Authentication.Cookies` | 10 | Autenticação por cookie | Integrada ao Identity e adequada a SPA same-origin | JWT em `localStorage` — risco de XSS | MIT |
+| `Microsoft.EntityFrameworkCore.SqlServer` | 10 | Provider SQL Server | Suporte oficial, migrations e recursos de lock | Dapper puro — mais código e sem migrations | MIT |
+| `Microsoft.EntityFrameworkCore.Design` | 10 | Geração de migrations | Ferramenta oficial | Scripts SQL manuais — sem versionamento | MIT |
+| `FluentValidation.DependencyInjectionExtensions` | 12.x | Validação de entrada | Regras declarativas e mensagens consistentes | DataAnnotations — limitado para regras compostas | Apache-2.0 |
+| `Serilog.AspNetCore` | 9.x | Logs estruturados | Enriquecimento, sinks e correlação | `ILogger` puro — menos contexto | Apache-2.0 |
+| `Serilog.Sinks.ApplicationInsights` | 5.x | Envio de logs | Integração com Azure Monitor | Sink de arquivo — operação manual | Apache-2.0 |
+| `OpenTelemetry.Extensions.Hosting` | 1.12 | Métricas e traces | Padrão aberto e exportação OTLP | APM proprietário — lock-in | Apache-2.0 |
+| `Quartz.Extensions.Hosting` | 3.15 | Hosted service do scheduler | Integração oficial | `BackgroundService` — sem cluster | Apache-2.0 |
+| `Quartz.Extensions.DependencyInjection` | 3.15 | Injeção de jobs | Integração oficial | — | Apache-2.0 |
+| `Asp.Versioning.Mvc` | 8.x | Versionamento de API | Versionamento por URL e depreciação | Versionamento por header — menos explícito | MIT |
+| `Swashbuckle.AspNetCore` | 9.x | OpenAPI | Documentação e geração de clientes | NSwag — redundante | MIT |
+| `Microsoft.ApplicationInsights.AspNetCore` | 2.23 | Telemetria Azure | Integração com Azure Monitor | SkyWalking — operação própria | MIT |
+| `Testcontainers.MsSql` | 4.x | SQL Server em testes | Isolamento real de banco | LocalDB — indisponível em Linux CI | MIT |
+| `Microsoft.AspNetCore.Mvc.Testing` | 10 | Testes de integração | `WebApplicationFactory` oficial | Servidor HTTP real — mais lento | MIT |
+| `Respawn` | 6.x | Limpeza de banco em testes | Reset rápido entre testes | Recriar banco — lento | MIT |
+| `Angular Material` | 22 | Componentes de UI | Acessibilidade e integração com Angular | Bootstrap — menos integrado | MIT |
+| `@angular/cdk` | 22 | Overlay, a11y e virtual scroll | Base do Material | Implementação própria — custo alto | MIT |
+| `date-fns` + `@date-fns/tz` | 4.x | Datas e fusos no frontend | Imutável, tree-shakeable e com suporte a IANA | Moment.js — legado e maior | MIT |
+
+Bibliotecas deliberadamente ausentes:
+
+| Biblioteca | Motivo da ausência |
+| --- | --- |
+| MediatR | Casos de uso chamados diretamente por serviços de aplicação; menos indireção e licença comercial na versão 13+ |
+| AutoMapper | Mapeamentos explícitos, poucos e testáveis; evita configuração implícita |
+| MassTransit/RabbitMQ | Sem comunicação assíncrona entre serviços na V1.0 |
+| Redis | Sem gargalo mensurável; cache local e índices atendem à escala inicial |
+| NgRx | Signals e serviços com estado local cobrem o estado da SPA |
+| Swagger UI em produção | Exposto apenas em Development e Staging |
+
+## 6.4. Ferramentas de desenvolvimento
+
+| Ferramenta | Versão | Uso |
+| --- | --- | --- |
+| Visual Studio 2022 17.14+ / Rider 2025.2+ | Atual | IDE com suporte a `.slnx` |
+| Angular CLI | 22 | Geração, build, lint e testes |
+| ESLint + `angular-eslint` | 20.x | Lint do frontend |
+| Prettier | 3.x | Formatação do frontend |
+| `dotnet format` | 10 | Formatação e análise do backend |
+| EditorConfig | — | Convenções entre editores |
+| Docker Desktop | 27+ | Ambiente local com SQL Server |
+| Azure Data Studio / SSMS | Atual | Inspeção do banco |
+| k6 | 0.5x | Testes de carga |
+| axe-core + Playwright | 4.x / 1.5x | Acessibilidade automatizada |
+| GitHub Actions | — | CI/CD |
+| OpenSpec | — | Especificações e mudanças |
+
+## 6.5. Matriz de decisão da stack
+
+| Critério | Peso | Angular 22 + .NET 10 | React + Node/NestJS | Vue + Laravel |
+| --- | --- | --- | --- | --- |
+| Produtividade da equipe | 30% | 5 | 3 | 3 |
+| Tipagem e contratos | 20% | 5 | 4 | 3 |
+| Aderência ao solicitado | 20% | 5 | 1 | 1 |
+| Ecossistema e suporte | 15% | 5 | 5 | 4 |
+| Custo operacional | 15% | 4 | 4 | 4 |
+| **Total ponderado** | 100% | **4,85** | **3,35** | **2,95** |
+
+---
+
+# 7. Estrutura do repositório
+
+```text
+PontoBarber/
+├── PontoBarber.slnx
+├── Directory.Build.props
+├── Directory.Packages.props
+├── .editorconfig
+├── .gitignore
+├── AGENTS.md
+├── docs/
+│   ├── PRD.md
+│   ├── TDD.md
+│   └── adr/
+├── openspec/
+│   ├── specs/
+│   └── changes/
+├── src/
+│   ├── backend/
+│   │   ├── PontoBarber.Domain/
+│   │   │   ├── Common/
+│   │   │   ├── Identity/
+│   │   │   ├── Tenants/
+│   │   │   ├── Professionals/
+│   │   │   ├── Services/
+│   │   │   ├── Scheduling/
+│   │   │   ├── Appointments/
+│   │   │   ├── Payments/
+│   │   │   └── Notifications/
+│   │   ├── PontoBarber.Application/
+│   │   │   ├── Abstractions/
+│   │   │   ├── Auth/
+│   │   │   ├── Tenants/
+│   │   │   ├── Professionals/
+│   │   │   ├── Services/
+│   │   │   ├── Scheduling/
+│   │   │   ├── Appointments/
+│   │   │   ├── Payments/
+│   │   │   ├── Dashboard/
+│   │   │   └── Notifications/
+│   │   ├── PontoBarber.Infrastructure/
+│   │   │   ├── Persistence/
+│   │   │   │   ├── Configurations/
+│   │   │   │   ├── Migrations/
+│   │   │   │   └── Interceptors/
+│   │   │   ├── Identity/
+│   │   │   ├── Jobs/
+│   │   │   ├── Time/
+│   │   │   └── DependencyInjection.cs
+│   │   ├── PontoBarber.Api/
+│   │   │   ├── Controllers/
+│   │   │   ├── Filters/
+│   │   │   ├── Middleware/
+│   │   │   ├── Authorization/
+│   │   │   ├── Program.cs
+│   │   │   └── appsettings.json
+│   │   └── PontoBarber.Contracts/
+│   └── frontend/
+│       └── ponto-barber-web/
+│           ├── src/
+│           │   ├── app/
+│           │   │   ├── core/
+│           │   │   ├── shared/
+│           │   │   ├── features/
+│           │   │   │   ├── auth/
+│           │   │   │   ├── dashboard/
+│           │   │   │   ├── schedule/
+│           │   │   │   ├── services/
+│           │   │   │   ├── professionals/
+│           │   │   │   ├── customers/
+│           │   │   │   ├── settings/
+│           │   │   │   ├── public-booking/
+│           │   │   │   └── notifications/
+│           │   │   └── app.routes.ts
+│           │   └── styles/
+│           └── package.json
+├── tests/
+│   ├── PontoBarber.UnitTests/
+│   ├── PontoBarber.IntegrationTests/
+│   ├── PontoBarber.ArchitectureTests/
+│   └── PontoBarber.E2ETests/
+├── deploy/
+│   ├── docker/
+│   │   ├── api.Dockerfile
+│   │   └── web.Dockerfile
+│   ├── nginx/
+│   │   └── default.conf
+│   └── github/
+│       └── workflows/
+└── scripts/
+    ├── db-migrate.ps1
+    └── generate-api-client.ps1
+```
+
+## 7.1. Convenções
+
+- Projetos, namespaces e tipos em PascalCase; variáveis e parâmetros em camelCase; campos privados com `_camelCase`.
+- Rotas da API em kebab-case e plural: `/api/v1/barbershops/{barbershopId}/appointments`.
+- Componentes Angular com sufixo `.component.ts`, serviços `.service.ts`, guards `.guard.ts` e modelos `.models.ts`.
+- Testes nomeados `Metodo_Cenario_Resultado` no backend e `should comportamento when cenario` no frontend.
+- Um caso de uso por classe em `Application`, com sufixo `Handler` ou `Service` e método único `HandleAsync`.
+- DTOs de entrada terminam em `Request`; de saída, em `Response`.
+- Enums de domínio persistidos como `int` e serializados como `string` na API.
+- Nenhum `SELECT *`; consultas sempre projetadas.
+- Imports do frontend por alias `@core`, `@shared`, `@features`.
+- Migrations nomeadas `YYYYMMDDHHmm_Descricao` e nunca editadas após aplicadas em produção.
+
+## 7.2. Organização dos módulos
+
+| Caminho | Módulo | Responsabilidade |
+| --- | --- | --- |
+| `Domain/Identity` | AUTH | Usuários, perfis e regras de vínculo de conta |
+| `Domain/Tenants` | EMP, CONF | Barbearia, horários de funcionamento e configurações |
+| `Domain/Professionals` | PROF, HOR | Vínculo, disponibilidade semanal e bloqueios |
+| `Domain/Services` | SERV | Catálogo e regras de preço e duração |
+| `Domain/Appointments` | AGD, PUB, ATD | Agendamento, histórico, sugestão e atendimento |
+| `Domain/Payments` | ATD, DASH | Pagamento presencial |
+| `Domain/Notifications` | NOTIF | Notificação interna |
+| `Application/Dashboard` | DASH | Projeções e consultas agregadas |
+| `Api/Controllers` | Todos | Contratos HTTP versionados |
+| `frontend/features/public-booking` | PUB | Página pública e wizard de agendamento |
+| `frontend/features/schedule` | AGD, ATD | Agenda diária, semanal e mensal |
+| `frontend/features/settings` | CONF, HOR | Configurações e disponibilidade |
+| `frontend/features/dashboard` | DASH | Indicadores e próximos agendamentos |
+
+---
+
+# 8. Modelo de dados
+
+## 8.1. Entidades
+
+Todas as tabelas de negócio possuem `Id uniqueidentifier`, `TenantId uniqueidentifier` (exceto `Users` e catálogo global), `CreatedAtUtc`, `UpdatedAtUtc` e `RowVersion rowversion`. Chaves primárias são `uniqueidentifier` geradas na aplicação com `Guid.CreateVersion7()`.
+
+| Entidade | Tabela | Descrição | Campos principais | Chave primária |
+| --- | --- | --- | --- | --- |
+| `User` | `AspNetUsers` | Conta de acesso | `Id`, `UserName`, `NormalizedEmail`, `Email`, `PhoneNumber`, `PasswordHash`, `SecurityStamp`, `LockoutEnd`, `AccessFailedCount`, `FullName`, `UserType` | `Id` |
+| `CustomerProfile` | `Customers` | Dados do cliente | `Id`, `UserId`, `FullName`, `Email`, `PhoneNumber`, `IsActive` | `Id` |
+| `ProfessionalProfile` | `Professionals` | Dados do barbeiro | `Id`, `UserId`, `FullName`, `PhoneNumber`, `IsActive` | `Id` |
+| `Barbershop` | `Barbershops` | Barbearia (tenant) | `Id`, `Name`, `CommercialPhone`, `CommercialEmail`, `City`, `Address`, `Instagram`, `InviteCode`, `TimeZoneId`, `OwnerProfessionalId`, `IsActive` | `Id` |
+| `ProfessionalTenantLink` | `ProfessionalTenantLinks` | Vínculo profissional-barbearia | `Id`, `TenantId`, `ProfessionalId`, `Role`, `Status`, `JoinedAtUtc`, `RemovedAtUtc` | `Id` |
+| `Service` | `Services` | Serviço do catálogo | `Id`, `TenantId`, `Name`, `DurationMinutes`, `Price`, `IsActive`, `IsTemplate` | `Id` |
+| `BusinessHour` | `BusinessHours` | Funcionamento por dia | `Id`, `TenantId`, `DayOfWeek`, `OpensAt`, `ClosesAt`, `IsClosed` | `Id` |
+| `WeeklyAvailability` | `WeeklyAvailabilities` | Disponibilidade recorrente | `Id`, `TenantId`, `ProfessionalId`, `DayOfWeek`, `StartsAt`, `EndsAt` | `Id` |
+| `ScheduleBlock` | `ScheduleBlocks` | Bloqueio pontual | `Id`, `TenantId`, `ProfessionalId`, `StartsAtUtc`, `EndsAtUtc`, `Reason` | `Id` |
+| `Appointment` | `Appointments` | Agendamento | `Id`, `TenantId`, `CustomerId`, `ProfessionalId`, `ServiceId`, `StartsAtUtc`, `EndsAtUtc`, `ServiceNameSnapshot`, `DurationMinutesSnapshot`, `PriceSnapshot`, `Notes`, `Origin`, `Status`, `CancelledAtUtc`, `CancelledByUserId`, `CancellationReason`, `ActualStartUtc`, `ActualEndUtc`, `RowVersion` | `Id` |
+| `AppointmentHistory` | `AppointmentHistories` | Eventos do agendamento | `Id`, `TenantId`, `AppointmentId`, `EventType`, `ActorUserId`, `OccurredAtUtc`, `PreviousStartsAtUtc`, `NewStartsAtUtc`, `Details` | `Id` |
+| `TimeSlotSuggestion` | `TimeSlotSuggestions` | Sugestão de novo horário | `Id`, `TenantId`, `AppointmentId`, `ProfessionalId`, `SuggestedStartUtc`, `SuggestedEndUtc`, `Reason`, `Status`, `ExpiresAtUtc`, `RespondedAtUtc` | `Id` |
+| `Payment` | `Payments` | Pagamento do atendimento | `Id`, `TenantId`, `AppointmentId`, `Amount`, `Method`, `RegisteredAtUtc`, `RegisteredByUserId` | `Id` |
+| `Notification` | `Notifications` | Notificação interna | `Id`, `TenantId`, `RecipientUserId`, `Type`, `AppointmentId`, `Message`, `CreatedAtUtc`, `ReadAtUtc` | `Id` |
+| `IdempotencyRecord` | `IdempotencyRecords` | Controle de requisições repetidas | `Id`, `UserId`, `Key`, `RequestHash`, `ResponseJson`, `StatusCode`, `CreatedAtUtc`, `ExpiresAtUtc` | `Id` |
+| `JobExecution` | `QRTZ_*` | Store do Quartz | Tabelas padrão do Quartz | Conforme Quartz |
+
+Value objects mapeados como tipos complexos:
+
+| Value object | Campos | Usado em |
+| --- | --- | --- |
+| `Money` | `Amount decimal(18,2)`, `Currency char(3)` | `Service.Price`, `Payment.Amount`, snapshots |
+| `PhoneNumber` | `CountryCode`, `AreaCode`, `Number` | `CustomerProfile`, `ProfessionalProfile`, `Barbershop` |
+| `TimeRange` | `StartsAt TimeOnly`, `EndsAt TimeOnly` | `BusinessHour`, `WeeklyAvailability` |
+| `InviteCode` | `Value char(8)` | `Barbershop` |
+
+Enums:
+
+| Enum | Valores |
+| --- | --- |
+| `UserType` | `Customer`, `Professional` |
+| `ProfessionalRole` | `Owner`, `Barber` |
+| `LinkStatus` | `Active`, `Inactive`, `Removed` |
+| `AppointmentStatus` | `Confirmed`, `InProgress`, `Completed`, `Cancelled`, `NoShow` |
+| `AppointmentOrigin` | `Public`, `Manual` |
+| `SuggestionStatus` | `Pending`, `Accepted`, `Rejected`, `Expired` |
+| `PaymentMethod` | `Cash`, `Pix`, `DebitCard`, `CreditCard` |
+| `NotificationType` | `AppointmentCreated`, `AppointmentCancelled`, `SuggestionCreated`, `SuggestionAccepted`, `SuggestionRejected`, `SuggestionExpired`, `ServiceStarted`, `ServiceCompleted`, `PaymentRegistered` |
+
+## 8.2. Relacionamentos
+
+| Origem | Relação | Destino | Cardinalidade | Regra |
+| --- | --- | --- | --- | --- |
+| `User` | possui | `CustomerProfile` | 1:0..1 | Apenas usuários do tipo `Customer` |
+| `User` | possui | `ProfessionalProfile` | 1:0..1 | Apenas usuários do tipo `Professional` |
+| `ProfessionalProfile` | possui | `ProfessionalTenantLink` | 1:N | Um vínculo por barbearia; remoção é lógica |
+| `Barbershop` | possui | `ProfessionalTenantLink` | 1:N | Inclui o proprietário como vínculo `Owner` |
+| `Barbershop` | possui | `Service` | 1:N | Serviços são exclusivos do tenant |
+| `Barbershop` | possui | `BusinessHour` | 1:7 | Um registro por dia da semana |
+| `ProfessionalTenantLink` | possui | `WeeklyAvailability` | 1:N | Disponibilidade por dia da semana |
+| `ProfessionalTenantLink` | possui | `ScheduleBlock` | 1:N | Bloqueios pontuais |
+| `Barbershop` | possui | `Appointment` | 1:N | Todo agendamento pertence a um tenant |
+| `CustomerProfile` | realiza | `Appointment` | 1:N | Cliente precisa de conta |
+| `ProfessionalProfile` | atende | `Appointment` | 1:N | Profissional ativo e vinculado |
+| `Service` | origina | `Appointment` | 1:N | Serviço pode estar inativo após o agendamento |
+| `Appointment` | possui | `AppointmentHistory` | 1:N | Histórico imutável |
+| `Appointment` | possui | `TimeSlotSuggestion` | 1:0..1 | Apenas uma sugestão pendente por agendamento |
+| `Appointment` | possui | `Payment` | 1:0..1 | Um pagamento por atendimento na V1.0 |
+| `User` | recebe | `Notification` | 1:N | Notificação por destinatário |
+
+## 8.3. Índices e restrições
+
+| Tabela | Índice/Restrição | Colunas | Objetivo |
+| --- | --- | --- | --- |
+| `AspNetUsers` | `UX_Users_NormalizedEmail` UNIQUE | `NormalizedEmail` | Impedir e-mail duplicado |
+| `Customers` | `UX_Customers_UserId` UNIQUE | `UserId` | Um perfil por usuário |
+| `Professionals` | `UX_Professionals_UserId` UNIQUE | `UserId` | Um perfil por usuário |
+| `Barbershops` | `UX_Barbershops_InviteCode` UNIQUE | `InviteCode` | Código de convite único global |
+| `ProfessionalTenantLinks` | `UX_Links_Tenant_Professional` UNIQUE | `TenantId`, `ProfessionalId` | Um vínculo por par |
+| `ProfessionalTenantLinks` | `IX_Links_Tenant_Status` | `TenantId`, `Status` | Listagem de profissionais |
+| `Services` | `IX_Services_Tenant_Active` | `TenantId`, `IsActive` | Catálogo ativo |
+| `BusinessHours` | `UX_BusinessHours_Tenant_Day` UNIQUE | `TenantId`, `DayOfWeek` | Um horário por dia |
+| `WeeklyAvailabilities` | `IX_Availability_Tenant_Pro_Day` | `TenantId`, `ProfessionalId`, `DayOfWeek` | Motor de disponibilidade |
+| `ScheduleBlocks` | `IX_Blocks_Tenant_Pro_Start` | `TenantId`, `ProfessionalId`, `StartsAtUtc` | Detecção de bloqueios |
+| `Appointments` | `IX_Appointments_Tenant_Pro_Start` | `TenantId`, `ProfessionalId`, `StartsAtUtc` | Agenda e conflitos |
+| `Appointments` | `IX_Appointments_Tenant_Start` | `TenantId`, `StartsAtUtc` | Dashboard e listagens |
+| `Appointments` | `UX_Appointments_Pro_Start_Active` UNIQUE FILTERED | `TenantId`, `ProfessionalId`, `StartsAtUtc` WHERE `Status IN (0,1,2)` | Impedir duplicidade exata de início |
+| `Appointments` | `IX_Appointments_Customer_Start` | `CustomerId`, `StartsAtUtc` | Agendamentos do cliente |
+| `Appointments` | `IX_Appointments_Tenant_Status_Start` | `TenantId`, `Status`, `StartsAtUtc` | Indicadores |
+| `AppointmentHistories` | `IX_History_Appointment_Occurred` | `AppointmentId`, `OccurredAtUtc` | Consulta de histórico |
+| `TimeSlotSuggestions` | `UX_Suggestions_Appointment_Pending` UNIQUE FILTERED | `AppointmentId` WHERE `Status = 0` | Uma sugestão pendente |
+| `TimeSlotSuggestions` | `IX_Suggestions_Status_Expires` | `Status`, `ExpiresAtUtc` | Job de expiração |
+| `Payments` | `UX_Payments_Appointment` UNIQUE | `AppointmentId` | Um pagamento por atendimento |
+| `Notifications` | `IX_Notifications_Recipient_Created` | `RecipientUserId`, `CreatedAtUtc` | Polling e listagem |
+| `Notifications` | `IX_Notifications_Recipient_Unread` | `RecipientUserId`, `ReadAtUtc` | Contador de não lidas |
+| `IdempotencyRecords` | `UX_Idempotency_User_Key` UNIQUE | `UserId`, `Key` | Garantia de idempotência |
+| `IdempotencyRecords` | `IX_Idempotency_Expires` | `ExpiresAtUtc` | Limpeza periódica |
+
+A restrição de sobreposição não pode ser expressa por índice único no SQL Server. Por isso, a garantia é composta por `sp_getapplock` por `tenant:professional:date` e verificação `starts < @end AND ends > @start` dentro da mesma transação.
+
+## 8.4. Migrations e versionamento
+
+- Migrations geradas com `dotnet ef migrations add` no projeto `PontoBarber.Infrastructure` e versionadas no repositório.
+- Aplicação em produção por job de pipeline com `dotnet ef database update` em etapa separada do deploy da API.
+- Estratégia expandir/contrair: adicionar colunas e índices compatíveis, fazer backfill, migrar o código e remover o que ficou obsoleto em release posterior.
+- Toda migration deve ser idempotente e testada contra um banco com dados representativos.
+- Rollback preferencial por correção forward; migrations destrutivas exigem aprovação e backup verificado.
+- O pipeline falha se houver modelo pendente (`dotnet ef migrations has-pending-model-changes`).
+- Scripts SQL de emergência ficam em `deploy/sql` e não substituem migrations.
+- `rowversion` e `CreatedAtUtc` não podem ser alterados manualmente.
+
+## 8.5. Histórico, retenção e privacidade
+
+- `AppointmentHistory` é append-only: sem update nem delete pela aplicação.
+- Serviços e vínculos são desativados, nunca excluídos fisicamente quando referenciados.
+- Snapshots de serviço (`ServiceNameSnapshot`, `DurationMinutesSnapshot`, `PriceSnapshot`) preservam o contrato comercial.
+- Pagamentos permanecem vinculados ao agendamento e nunca são recalculados.
+- Exclusão de conta de cliente: anonimização de nome, e-mail e telefone após 5 anos da última atividade, mantendo o histórico financeiro agregado e o identificador.
+- Logs de aplicação retidos por 90 dias; traces por 30 dias; auditoria por 5 anos.
+- Dados sensíveis (senha, tokens, telefone completo) não aparecem em logs.
+- A política definitiva de retenção depende de ABT-009 e deve ser confirmada antes da operação.
+
+---
+
+# 9. Multi-tenancy e isolamento
+
+| Aspecto | Decisão |
+| --- | --- |
+| Modelo | Banco único compartilhado com `TenantId` |
+| Identificação | `TenantId` na rota (`/api/v1/barbershops/{barbershopId}`), validado contra o vínculo ativo do usuário |
+| Isolamento de consultas | Filtro global do EF Core por `ITenantContext.TenantId` e `IgnoreQueryFilters` proibido fora de jobs internos |
+| Autorização | Policy `TenantMember`, `TenantOwner` e `AppointmentOwner`; resource handlers validam o recurso antes da ação |
+| Migrações | Uma única migration aplicada a todos os tenants |
+| Dados compartilhados | `AspNetUsers`, `Customers`, `Professionals` e o catálogo modelo (`Services.IsTemplate = true`) |
+| Tenant em jobs | Jobs percorrem tenants ativos em lotes e definem o contexto por execução |
+| Tenant em notificações | `TenantId` obrigatório na notificação, exceto avisos globais de conta |
+
+Regras adicionais:
+
+- O `TenantId` nunca é aceito do corpo da requisição; é derivado da rota e do vínculo autenticado.
+- Um usuário pode ter vínculo com mais de uma barbearia. O frontend mantém o tenant ativo em memória e o envia na rota.
+- `CustomerProfile` não pertence a um tenant; o relacionamento com a barbearia é derivado dos agendamentos.
+- Consultas de dashboard e de clientes sempre filtram por `TenantId` e período.
+- O filtro global é aplicado por convenção em todas as entidades que implementam `ITenantOwned`.
+- Testes de isolamento criam dois tenants com dados homônimos e verificam que nenhum endpoint retorna dados cruzados.
+
+**Riscos de vazamento entre tenants:** consultas com `IgnoreQueryFilters`, projeções SQL cruas, jobs sem contexto, cache compartilhado por chave não tenantizada e logs com identificadores de outro tenant.
+
+**Testes de isolamento:** suíte de integração por endpoint com dois tenants; teste de arquitetura que proíbe `IgnoreQueryFilters` fora de `Infrastructure/Jobs`; teste de cache com chave composta por tenant.
+
+---
+
+# 10. APIs e contratos
+
+## 10.1. Convenções
+
+| Item | Decisão |
+| --- | --- |
+| Estilo | REST com controllers |
+| Base path | `/api/v1` |
+| Versionamento | URL segment (`/v1`, `/v2`); versão `1.0` inicial |
+| Formato | JSON UTF-8; datas em ISO 8601 UTC |
+| Autenticação | Cookie de autenticação `__Host-pb.auth` |
+| Autorização | Policies por perfil + resource handlers por recurso |
+| Paginação | `page` (1-based) e `pageSize` (máx. 100), com envelope `items`, `page`, `pageSize`, `total` |
+| Filtros | Query string tipada e validada; intervalos com `from` e `to` em UTC |
+| Ordenação | `sort` com campos permitidos por endpoint |
+| Limites | Rate limit de 100 req/min por usuário e 20 req/min por IP em endpoints públicos |
+| Idempotência | `Idempotency-Key` obrigatório em `POST` de agendamento e de pagamento |
+| CSRF | Token antiforgery obrigatório em `POST`, `PUT`, `PATCH` e `DELETE` autenticados |
+| Erros | RFC 7807 `ProblemDetails` com `code`, `traceId` e `errors` |
+| Concorrência | `If-Match` com `rowVersion` em atualizações de agendamento |
+| Cache | `Cache-Control: no-store` em dados autenticados; assets da SPA com hash e cache longo |
+
+Códigos de erro estáveis:
+
+| Código | HTTP | Significado |
+| --- | --- | --- |
+| `auth.invalid_credentials` | 401 | Credenciais inválidas |
+| `auth.locked_out` | 423 | Conta temporariamente bloqueada |
+| `auth.forbidden` | 403 | Perfil ou recurso não autorizado |
+| `tenant.not_found` | 404 | Barbearia inexistente ou inacessível |
+| `tenant.forbidden` | 403 | Usuário sem vínculo com a barbearia |
+| `tenant.invite_conflict` | 409 | Não foi possível gerar código de convite único |
+| `validation.failed` | 400 | Erros de validação por campo |
+| `schedule.slot_unavailable` | 409 | Horário indisponível ou conflitante |
+| `schedule.outside_business_hours` | 422 | Fora do funcionamento |
+| `schedule.outside_availability` | 422 | Fora da disponibilidade do profissional |
+| `schedule.blocked` | 422 | Período bloqueado |
+| `appointment.invalid_state` | 409 | Transição de estado inválida |
+| `appointment.not_started` | 409 | Operação exige atendimento iniciado |
+| `appointment.already_started` | 409 | Operação não permitida após início |
+| `payment.already_registered` | 409 | Pagamento já registrado |
+| `suggestion.expired` | 409 | Sugestão expirada |
+| `concurrency.conflict` | 409 | `rowversion` divergente |
+| `idempotency.missing_key` | 400 | Chave de idempotência ausente |
+| `rate_limit.exceeded` | 429 | Limite de requisições excedido |
+
+## 10.2. Endpoints
+
+### Autenticação e conta
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/auth/register/customer` | Cadastrar cliente | Anônimo | RF-AUTH-002 |
+| `POST` | `/api/v1/auth/register/professional` | Cadastrar barbeiro | Anônimo | RF-AUTH-003 |
+| `POST` | `/api/v1/auth/login` | Autenticar e emitir cookie | Anônimo | RF-AUTH-004 |
+| `POST` | `/api/v1/auth/logout` | Encerrar sessão | Autenticado | RF-AUTH-004 |
+| `GET` | `/api/v1/auth/me` | Perfil, vínculos e permissões | Autenticado | RF-AUTH-001, RF-AUTH-007 |
+| `PUT` | `/api/v1/auth/me` | Atualizar próprios dados | Autenticado | RF-CLI-005, RF-CLI-006 |
+| `POST` | `/api/v1/auth/change-password` | Alterar senha | Autenticado | RF-AUTH-004 |
+
+### Barbearias e vínculos
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/barbershops` | Criar barbearia e proprietário | Barbeiro | RF-AUTH-005, RF-AUTH-006, RF-AUTH-010 |
+| `GET` | `/api/v1/barbershops/{barbershopId}` | Consultar dados da barbearia | Proprietário, Barbeiro | RF-EMP-001 |
+| `PUT` | `/api/v1/barbershops/{barbershopId}` | Editar dados da barbearia | Proprietário | RF-EMP-002, RF-EMP-003 |
+| `GET` | `/api/v1/barbershops/{barbershopId}/invite-code` | Consultar código de convite | Proprietário | RF-AUTH-008, RF-PROF-008 |
+| `POST` | `/api/v1/barbershops/join` | Entrar por código de convite | Barbeiro | RF-AUTH-009 |
+| `GET` | `/api/v1/barbershops/{barbershopId}/professionals` | Listar profissionais | Proprietário, Barbeiro | RF-PROF-001, RF-PROF-002, RF-PROF-003 |
+| `GET` | `/api/v1/barbershops/{barbershopId}/professionals/{id}` | Consultar profissional | Proprietário, o próprio | RF-PROF-004 |
+| `PUT` | `/api/v1/barbershops/{barbershopId}/professionals/{id}` | Editar dados profissionais | Proprietário, o próprio | RF-PROF-005 |
+| `PATCH` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/status` | Ativar ou desativar | Proprietário | RF-PROF-006 |
+| `DELETE` | `/api/v1/barbershops/{barbershopId}/professionals/{id}` | Remover vínculo | Proprietário | RF-PROF-007 |
+
+### Serviços
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/v1/barbershops/{barbershopId}/services` | Listar serviços | Proprietário, Barbeiro, Cliente autenticado | RF-SERV-007, RF-SERV-008 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/services` | Criar serviço | Proprietário | RF-SERV-002, RF-SERV-005, RF-SERV-006 |
+| `PUT` | `/api/v1/barbershops/{barbershopId}/services/{id}` | Editar serviço | Proprietário | RF-SERV-003, RF-SERV-005, RF-SERV-006 |
+| `DELETE` | `/api/v1/barbershops/{barbershopId}/services/{id}` | Desativar serviço | Proprietário | RF-SERV-004 |
+| `GET` | `/api/v1/service-templates` | Catálogo modelo | Autenticado | RF-SERV-001 |
+
+### Horários, disponibilidade e bloqueios
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/v1/barbershops/{barbershopId}/business-hours` | Consultar funcionamento | Proprietário, Barbeiro | RF-HOR-001 |
+| `PUT` | `/api/v1/barbershops/{barbershopId}/business-hours` | Salvar funcionamento semanal | Proprietário | RF-HOR-001, RF-HOR-002, RF-HOR-003, RF-CONF-002, RF-CONF-003, RF-CONF-004 |
+| `GET` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/availability` | Consultar disponibilidade | Proprietário, o próprio | RF-HOR-004, RF-CONF-007 |
+| `PUT` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/availability` | Salvar disponibilidade semanal | Proprietário, o próprio | RF-HOR-004, RF-CONF-007 |
+| `GET` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/blocks` | Listar bloqueios | Proprietário, o próprio | RF-HOR-005, RF-HOR-006 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/blocks` | Criar bloqueio | Proprietário, o próprio | RF-HOR-006, RF-HOR-007, RF-CONF-008 |
+| `DELETE` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/blocks/{blockId}` | Remover bloqueio | Proprietário, o próprio | RF-HOR-006 |
+
+### Disponibilidade e agendamentos
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/v1/barbershops/{barbershopId}/availability` | Horários livres por serviço, profissional e data | Autenticado e anônimo (público) | RF-PUB-004, RF-HOR-004, RF-AGD-007 |
+| `GET` | `/api/v1/barbershops/{barbershopId}/appointments` | Agenda por período e filtros | Proprietário, Barbeiro | RF-AGD-001, RF-AGD-002, RF-AGD-003, RF-AGD-004 |
+| `GET` | `/api/v1/barbershops/{barbershopId}/appointments/{id}` | Detalhar agendamento | Proprietário, Barbeiro do agendamento, Cliente titular | RF-AGD-009 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments` | Criar agendamento manual | Proprietário, Barbeiro | RF-AGD-005, RF-AGD-006, RF-AGD-007, RF-AGD-008 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/public` | Confirmar agendamento público | Cliente | RF-PUB-003, RF-PUB-005, RF-PUB-006 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/cancel` | Cancelar | Proprietário, Barbeiro do agendamento, Cliente titular | RF-AGD-011, RF-AGD-013, RF-AGD-014, RF-AGD-017 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/reschedule` | Remarcar | Cliente titular, Proprietário, Barbeiro | RF-AGD-012 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/suggestions` | Sugerir novo horário | Barbeiro do agendamento | RF-AGD-015 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/suggestions/{suggestionId}/accept` | Aceitar sugestão | Cliente titular | RF-AGD-016 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/suggestions/{suggestionId}/reject` | Rejeitar sugestão | Cliente titular | RF-AGD-016 |
+| `GET` | `/api/v1/me/appointments` | Agendamentos do cliente | Cliente | RF-AGD-010 |
+| `GET` | `/api/v1/me/appointments/{id}` | Detalhe do próprio agendamento | Cliente titular | RF-AGD-009, RF-AGD-010 |
+
+### Atendimento e pagamento
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/start` | Iniciar atendimento | Barbeiro do agendamento | RF-ATD-002, RF-ATD-003 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/complete` | Finalizar atendimento | Barbeiro do agendamento | RF-ATD-004, RF-ATD-005 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/no-show` | Marcar não comparecimento | Barbeiro do agendamento | RF-ATD-008 |
+| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/payment` | Registrar pagamento | Barbeiro do agendamento | RF-ATD-006, RF-ATD-007 |
+| `GET` | `/api/v1/barbershops/{barbershopId}/payments` | Listar pagamentos por período | Proprietário | RF-ATD-006, RF-DASH-002 |
+
+### Clientes
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/v1/barbershops/{barbershopId}/customers` | Listar e pesquisar clientes com agendamentos | Proprietário | RF-CLI-001, RF-CLI-002, RF-CLI-003 |
+| `GET` | `/api/v1/barbershops/{barbershopId}/customers/{id}` | Consultar cliente relacionado | Proprietário | RF-CLI-002 |
+| `GET` | `/api/v1/me/customer-profile` | Consultar próprios dados | Cliente | RF-CLI-004 |
+| `PUT` | `/api/v1/me/customer-profile` | Editar próprios dados | Cliente | RF-CLI-005, RF-CLI-006 |
+
+### Dashboard e notificações
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/v1/barbershops/{barbershopId}/dashboard` | Indicadores e próximos agendamentos | Proprietário | RF-DASH-001 a RF-DASH-005 |
+| `GET` | `/api/v1/notifications` | Listar notificações e não lidas | Autenticado | RF-NOTIF-001 |
+| `POST` | `/api/v1/notifications/{id}/read` | Marcar como lida | Destinatário | RF-NOTIF-001 |
+| `POST` | `/api/v1/notifications/read-all` | Marcar todas como lidas | Autenticado | RF-NOTIF-001 |
+
+### Página pública
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/v1/public/barbershops/{slug}` | Dados públicos da barbearia | Anônimo | RF-PUB-001, RF-PUB-002 |
+| `GET` | `/api/v1/public/barbershops/{slug}/services` | Serviços ativos | Anônimo | RF-PUB-002 |
+| `GET` | `/api/v1/public/barbershops/{slug}/professionals` | Profissionais ativos | Anônimo | RF-PUB-004 |
+| `GET` | `/api/v1/public/barbershops/{slug}/availability` | Horários livres | Anônimo | RF-PUB-004 |
+
+### Operação
+
+| Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
+| --- | --- | --- | --- | --- |
+| `GET` | `/health/live` | Liveness | Anônimo interno | RNF-DISPONIBILIDADE-001 |
+| `GET` | `/health/ready` | Readiness com banco e jobs | Anônimo interno | RNF-DISPONIBILIDADE-001 |
+| `GET` | `/api/v1/meta/version` | Versão da API e build | Autenticado | Rastreabilidade |
+
+## 10.3. Contratos
+
+### Criar agendamento público
+
+**Entrada:** `POST /api/v1/barbershops/{barbershopId}/appointments/public`
+
+| Campo | Tipo | Obrigatório | Validação |
+| --- | --- | --- | --- |
+| `serviceId` | `guid` | Sim | Serviço ativo do tenant |
+| `professionalId` | `guid` | Sim | Profissional ativo e vinculado |
+| `startsAtUtc` | `datetime` | Sim | UTC, múltiplo de 5 minutos, futuro |
+| `notes` | `string` | Não | Máximo 500 caracteres |
+| `Idempotency-Key` | header `string` | Sim | UUID v4 ou v7, válido por 24 h |
+
+**Saída:** `201 Created` com `Location`.
+
+| Campo | Tipo | Descrição |
+| --- | --- | --- |
+| `id` | `guid` | Identificador do agendamento |
+| `status` | `string` | `Confirmed` |
+| `startsAtUtc` | `datetime` | Início confirmado |
+| `endsAtUtc` | `datetime` | Fim calculado |
+| `serviceName` | `string` | Snapshot do serviço |
+| `price` | `decimal` | Snapshot do preço |
+| `professionalName` | `string` | Nome do profissional |
+| `barbershopName` | `string` | Nome da barbearia |
+
+**Erros:**
+
+| Código | HTTP | Quando ocorre |
+| --- | --- | --- |
+| `validation.failed` | 400 | Campos inválidos |
+| `auth.forbidden` | 403 | Usuário não é cliente |
+| `schedule.slot_unavailable` | 409 | Horário ocupado ou bloqueado |
+| `schedule.outside_business_hours` | 422 | Fora do funcionamento |
+| `schedule.outside_availability` | 422 | Fora da jornada do profissional |
+| `idempotency.missing_key` | 400 | Header ausente |
+
+### Consultar disponibilidade
+
+**Entrada:** `GET /api/v1/public/barbershops/{slug}/availability?serviceId=&professionalId=&date=2026-11-20`
+
+| Campo | Tipo | Obrigatório | Validação |
+| --- | --- | --- | --- |
+| `serviceId` | `guid` | Sim | Serviço ativo |
+| `professionalId` | `guid` | Não | Se ausente, retorna todos |
+| `date` | `date` | Sim | Data local da barbearia, até 90 dias à frente |
+
+**Saída:** `200 OK`.
+
+| Campo | Tipo | Descrição |
+| --- | --- | --- |
+| `date` | `date` | Data consultada |
+| `timeZoneId` | `string` | Fuso IANA da barbearia |
+| `slots` | `array` | Lista de `{ professionalId, startsAtUtc, endsAtUtc, startsAtLocal }` |
+| `hasAvailability` | `boolean` | Indica se há ao menos um horário |
+
+**Erros:**
+
+| Código | HTTP | Quando ocorre |
+| --- | --- | --- |
+| `tenant.not_found` | 404 | Slug inexistente ou inativo |
+| `validation.failed` | 400 | Data fora da janela ou serviço inválido |
+
+### Cancelar agendamento
+
+**Entrada:** `POST /api/v1/barbershops/{barbershopId}/appointments/{id}/cancel`
+
+| Campo | Tipo | Obrigatório | Validação |
+| --- | --- | --- | --- |
+| `reason` | `string` | Condicional | Obrigatório quando o autor é barbeiro ou proprietário |
+| `If-Match` | header `string` | Sim | `rowversion` atual |
+
+**Saída:** `200 OK` com `status`, `cancelledAtUtc`, `cancelledBy` e `historyId`.
+
+**Erros:**
+
+| Código | HTTP | Quando ocorre |
+| --- | --- | --- |
+| `appointment.already_started` | 409 | Atendimento iniciado |
+| `appointment.invalid_state` | 409 | Agendamento já cancelado ou finalizado |
+| `concurrency.conflict` | 409 | `rowversion` divergente |
+| `auth.forbidden` | 403 | Sem permissão sobre o agendamento |
+
+### Registrar pagamento
+
+**Entrada:** `POST /api/v1/barbershops/{barbershopId}/appointments/{id}/payment`
+
+| Campo | Tipo | Obrigatório | Validação |
+| --- | --- | --- | --- |
+| `amount` | `decimal` | Sim | Maior ou igual a zero, duas casas |
+| `method` | `string` | Sim | `Cash`, `Pix`, `DebitCard`, `CreditCard` |
+| `Idempotency-Key` | header `string` | Sim | Válido por 24 h |
+
+**Saída:** `201 Created` com `paymentId`, `amount`, `method`, `registeredAtUtc` e `appointmentPaymentStatus`.
+
+**Erros:**
+
+| Código | HTTP | Quando ocorre |
+| --- | --- | --- |
+| `validation.failed` | 400 | Valor negativo ou forma inválida |
+| `payment.already_registered` | 409 | Já existe pagamento |
+| `appointment.invalid_state` | 409 | Agendamento cancelado ou não compareceu |
+
+### Criar barbearia
+
+**Entrada:** `POST /api/v1/barbershops`
+
+| Campo | Tipo | Obrigatório | Validação |
+| --- | --- | --- | --- |
+| `name` | `string` | Sim | 3 a 120 caracteres |
+| `commercialPhone` | `string` | Sim | E.164 ou formato brasileiro válido |
+| `commercialEmail` | `string` | Sim | E-mail válido |
+| `city` | `string` | Sim | 2 a 100 caracteres |
+| `address` | `string` | Sim | 5 a 200 caracteres |
+| `instagram` | `string` | Não | Máximo 60 caracteres |
+| `timeZoneId` | `string` | Sim | IANA válido |
+
+**Saída:** `201 Created` com `barbershopId`, `slug`, `inviteCode`, `ownerProfessionalId` e `role`.
+
+**Erros:**
+
+| Código | HTTP | Quando ocorre |
+| --- | --- | --- |
+| `validation.failed` | 400 | Campos inválidos |
+| `auth.forbidden` | 403 | Usuário não é barbeiro |
+| `tenant.invite_conflict` | 409 | Colisão de código após 5 tentativas |
+
+## 10.4. Eventos e contratos assíncronos
+
+Não há broker externo na V1.0. Eventos de domínio são processados em processo, após o commit, e materializam notificações e histórico.
+
+| Evento | Produtor | Consumidor | Payload | Garantia |
+| --- | --- | --- | --- | --- |
+| `AppointmentCreated` | `Appointments` | `Notifications` | `appointmentId`, `tenantId`, `customerId`, `professionalId`, `startsAtUtc` | Após commit, pelo menos uma vez |
+| `AppointmentCancelled` | `Appointments` | `Notifications` | `appointmentId`, `tenantId`, `actorUserId`, `reason` | Após commit |
+| `TimeSlotSuggested` | `Appointments` | `Notifications` | `appointmentId`, `suggestionId`, `expiresAtUtc` | Após commit |
+| `TimeSlotSuggestionAccepted` | `Appointments` | `Notifications`, `Appointments` | `appointmentId`, `suggestionId`, `newStartUtc` | Após commit |
+| `TimeSlotSuggestionExpired` | `Jobs` | `Notifications` | `appointmentId`, `suggestionId` | Após commit |
+| `ServiceStarted` | `Appointments` | `Notifications` | `appointmentId`, `actualStartUtc` | Após commit |
+| `ServiceCompleted` | `Appointments` | `Notifications` | `appointmentId`, `actualEndUtc` | Após commit |
+| `PaymentRegistered` | `Payments` | `Notifications` | `appointmentId`, `paymentId`, `amount` | Após commit |
+
+Implementação: eventos de domínio coletados no `DbContext` e despachados por um `SaveChangesInterceptor` após o commit, com gravação de notificações na mesma transação por meio de um outbox leve (`Notifications` como destino idempotente por `EventId`). Consumidores são idempotentes por `EventId`; falhas são registradas e reprocessadas pelo job de reconciliação.
+
+---
+
+# 11. Autenticação, autorização e segurança
+
+## 11.1. Autenticação e sessão
+
+| Item | Decisão |
+| --- | --- |
+| Método de login | E-mail e senha via ASP.NET Core Identity |
+| Hash de senha | PBKDF2-HMAC-SHA512, 210.000 iterações, salt de 128 bits (padrão Identity v3) |
+| Sessão | Cookie `__Host-pb.auth` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`) |
+| Expiração | Deslizante de 8 horas; absoluta de 7 dias |
+| Renovação | Renovação no servidor a cada requisição autenticada; `SecurityStamp` validado a cada 30 minutos |
+| Recuperação de acesso | Fora do escopo da V1.0; procedimento administrativo documentado |
+| MFA | Não na V1.0; previsto para perfis proprietários em versão futura |
+| Bloqueio | 5 tentativas inválidas → 5 minutos; 10 tentativas → 30 minutos |
+| Política de senha | Mínimo 8 caracteres, ao menos uma letra e um número; sem exigência de rotação |
+| CSRF | Antiforgery token com cookie `__Host-pb.csrf` e header `X-CSRF-TOKEN` |
+| CORS | Sem CORS: SPA e API são servidas na mesma origem via Nginx |
+
+Regras complementares:
+
+- Cookies de autenticação nunca são acessíveis por JavaScript.
+- `SecurityStamp` é renovado em troca de senha e em logout global.
+- Login, logout, troca de senha e registro são auditados sem registrar senha.
+- A resposta de login é sempre genérica para credenciais inválidas.
+- Sessões de usuários desativados são invalidadas na próxima validação de `SecurityStamp`.
+- O identificador do tenant ativo não é confiado ao cookie; vem da rota e é validado por vínculo.
+
+## 11.2. Autorização
+
+| Recurso | Proprietário | Barbeiro | Cliente | Regra |
+| --- | --- | --- | --- | --- |
+| Dados da barbearia | Total | Leitura | Nenhum | `TenantOwner` para escrita |
+| Serviços | Total | Leitura | Leitura de ativos | `TenantOwner` para escrita |
+| Horários gerais | Total | Leitura | Nenhum | `TenantOwner` |
+| Disponibilidade própria | Total | Total | Nenhum | Recurso do próprio profissional ou proprietário |
+| Disponibilidade de outro profissional | Leitura | Nenhum | Nenhum | `TenantOwner` |
+| Bloqueios próprios | Total | Total | Nenhum | Recurso do próprio profissional |
+| Agenda da barbearia | Total | Própria agenda | Nenhum | `TenantOwner` ou filtro por profissional |
+| Agendamento próprio do cliente | Leitura | Nenhum | Leitura e ações permitidas | `AppointmentCustomer` |
+| Agendamento de profissional | Total | Própria agenda | Nenhum | `AppointmentProfessional` |
+| Atendimento e pagamento | Própria atuação | Própria agenda | Nenhum | `AppointmentProfessional` |
+| Clientes da barbearia | Leitura | Via agendamentos | Próprios dados | `TenantOwner` e `SelfCustomer` |
+| Profissionais | Total | Próprios dados | Nenhum | `TenantOwner` e `SelfProfessional` |
+| Dashboard | Total | Nenhum | Nenhum | `TenantOwner` |
+| Notificações | Próprias | Próprias | Próprias | `NotificationRecipient` |
+
+**Onde a autorização é aplicada:** policies declaradas nos controllers, validação de aplicação nos casos de uso e `IAuthorizationService` em resource handlers para decisões dependentes do recurso (por exemplo, agendamento do profissional ou do cliente).
+
+**Como o isolamento por tenant é validado:** `ITenantContext` resolve o tenant da rota; um `TenantAuthorizationHandler` verifica vínculo ativo do usuário; o filtro global do EF Core complementa a proteção; toda consulta que usa `IgnoreQueryFilters` exige justificativa e teste dedicado.
+
+## 11.3. Ameaças e mitigações
+
+| Ameaça | Vetor | Impacto | Mitigação |
+| --- | --- | --- | --- |
+| Acesso entre tenants | Manipulação de `barbershopId` na URL | Alto | Vínculo validado por handler, filtro global e testes por endpoint |
+| Sequestro de sessão | XSS ou cookie exposto | Alto | Cookie `HttpOnly` e `Secure`, CSP restritiva, sanitização e sem `innerHTML` |
+| CSRF | Requisição forjada em sessão válida | Alto | Antiforgery token, `SameSite=Lax` e verificação de origem |
+| Força bruta | Tentativas repetidas de login | Médio | Lockout do Identity, rate limit por IP e por conta |
+| Enumeração de contas | Respostas diferentes para e-mail existente | Médio | Resposta genérica e tempo constante |
+| Injeção SQL | Entrada não tratada | Alto | EF Core parametrizado; SQL cru apenas com parâmetros |
+| Abuso de código de convite | Tentativas em massa de códigos | Médio | Código de 8 caracteres, rate limit e registro de tentativas |
+| Upload malicioso | Não aplicável na V1.0 | Baixo | Sem upload de arquivos |
+| Vazamento em logs | PII, senha ou token | Alto | Redação de campos sensíveis e revisão de templates |
+| Dependência vulnerável | Pacote desatualizado | Médio | `dotnet list package --vulnerable`, `npm audit` e Dependabot |
+| Negação de serviço | Requisições custosas repetidas | Médio | Rate limit, limites de paginação e timeout de lock |
+| Adivinhação de IDs | IDs sequenciais | Baixo | GUID v7 e autorização por recurso |
+
+## 11.4. Dados, segredos e privacidade
+
+- **Classificação:** público (catálogo e página pública), interno (agenda e indicadores), confidencial (dados pessoais e pagamentos) e restrito (hash de senha, strings de conexão).
+- **Criptografia em trânsito:** TLS 1.2+ obrigatório; HSTS com `max-age` de 1 ano em produção.
+- **Criptografia em repouso:** TDE no Azure SQL e criptografia de disco gerenciada.
+- **Segredos:** Azure Key Vault em produção; User Secrets em desenvolvimento; variáveis de ambiente em containers. Nenhum segredo no repositório.
+- **Minimização:** apenas nome, e-mail, telefone e dados operacionais necessários; sem CPF, documentos ou dados de pagamento.
+- **LGPD:** base legal de execução de contrato; acesso por titular e por permissão; anonimização após retenção; registro de operações sensíveis.
+- **Auditoria:** histórico de agendamento e logs estruturados de login, criação, cancelamento, atendimento e pagamento.
+- **Logs sensíveis:** e-mail mascarado (`a***@dominio`), telefone mascarado, sem corpo de requisição de login ou senha.
+- **Headers:** CSP, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` restritiva.
+
+---
+
+# 12. Concorrência, consistência e processos assíncronos
+
+## 12.1. Operações críticas
+
+| Operação | Risco | Mecanismo | Limite/transação | ADR |
+| --- | --- | --- | --- | --- |
+| Confirmação de agendamento | Sobreposição de horário | `sp_getapplock` exclusivo + consulta de conflito + índice único filtrado | Lock de 5 s; transação única | ADR-010 |
+| Remarcação | Conflito com novo horário | Mesmo mecanismo da confirmação | Lock de 5 s | ADR-010 |
+| Aceite de sugestão | Horário já ocupado | Lock no profissional e revalidação | Lock de 5 s | ADR-010 |
+| Início/fim de atendimento | Transição concorrente | `rowversion` + verificação de estado | `If-Match` | ADR-021 |
+| Registro de pagamento | Duplicidade | `Idempotency-Key` + índice único por agendamento | 24 h de retenção | ADR-021 |
+| Criação de vínculo | Vínculo duplicado | Índice único `TenantId, ProfessionalId` | — | ADR-006 |
+| Expiração de sugestão | Dupla liberação | Job idempotente com `UPDATE ... WHERE Status = Pending` | Batch de 500 | ADR-009 |
+
+## 12.2. Transações e idempotência
+
+- **Fronteira transacional:** um caso de uso por transação; agendamento, histórico e notificação são persistidos juntos.
+- **Idempotência:** `IdempotencyRecords` com `UserId`, `Key`, `RequestHash`, `ResponseJson` e `ExpiresAtUtc`; requisição repetida com mesmo hash devolve a resposta original; hash divergente retorna 409.
+- **Retries:** até 3 tentativas para deadlock (erro 1205) e timeout de lock, com backoff exponencial de 50, 150 e 400 ms e jitter.
+- **Conflitos:** `DbUpdateConcurrencyException` é convertido em `409 concurrency.conflict` com o estado atual.
+- **Consistência eventual:** notificações e projeções de dashboard são atualizadas após commit; não há consistência eventual em dados financeiros.
+- **Outbox:** notificações são gravadas na mesma transação do evento; um job de reconciliação reprocessa eventos sem notificação.
+- **Transações longas:** proibidas; consultas externas e chamadas HTTP nunca ocorrem dentro da transação.
+
+Implementação do lock:
+
+```sql
+DECLARE @result int;
+EXEC @result = sp_getapplock
+  @Resource = @lockResource,
+  @LockMode = 'Exclusive',
+  @LockOwner = 'Transaction',
+  @LockTimeout = 5000;
+IF @result < 0 THROW 51000, 'schedule.lock_timeout', 1;
+```
+
+O recurso é `pb:schedule:{tenantId}:{professionalId}:{yyyyMMdd}` no fuso da barbearia. O lock é liberado no commit ou rollback.
+
+## 12.3. Jobs e agendamentos
+
+| Job | Gatilho | Frequência | Idempotência | Falha/retry | Alerta |
+| --- | --- | --- | --- | --- | --- |
+| `ExpireTimeSlotSuggestionsJob` | Cron | A cada 5 minutos | `UPDATE` condicional por `Status = Pending AND ExpiresAtUtc <= now` | 3 retries com backoff | Falha ou atraso > 10 min |
+| `CloseOverdueAppointmentsJob` | Cron | A cada 15 minutos | Marca `NoShow` apenas para confirmados com início há mais de 2 h | 3 retries | Atraso > 30 min |
+| `PurgeIdempotencyRecordsJob` | Cron | Diário às 03:00 UTC | Exclusão por `ExpiresAtUtc` | 3 retries | Falha consecutiva 3× |
+| `ReconcileNotificationsJob` | Cron | A cada 10 minutos | Reprocessa eventos sem notificação por `EventId` | 3 retries | Atraso > 20 min |
+| `WarmDashboardJob` | Cron | A cada 30 minutos | Recalcula projeções do dia | 2 retries | Falha consecutiva 3× |
+| `HealthCheckJob` | Cron | A cada minuto | Verifica banco e jobs | — | Indisponibilidade |
+
+Regras:
+
+- Todos os jobs são `[DisallowConcurrentExecution]` e clusterizados.
+- Cada execução registra início, fim, duração, quantidade processada e erros.
+- Jobs operam em lotes de 500 registros para limitar locks.
+- Timezone dos crons é UTC; regras de negócio convertem para o fuso da barbearia.
+- `ExpireTimeSlotSuggestionsJob` notifica cliente, profissional e proprietário ao liberar o horário.
+
+## 12.4. Fuso horário e calendário
+
+- **Armazenamento:** todos os instantes em UTC (`datetime2(3)`), com sufixo `Utc` no nome.
+- **Configuração:** `Barbershop.TimeZoneId` em formato IANA (ex.: `America/Sao_Paulo`), validado na criação.
+- **Conversão:** feita no backend com `TimeZoneInfo.FindSystemTimeZoneById`; no frontend, com `@date-fns/tz`.
+- **Horários de funcionamento e disponibilidade:** armazenados como `TimeOnly` local da barbearia, sem offset.
+- **Bloqueios e agendamentos:** armazenados em UTC, convertidos para o fuso apenas na exibição.
+- **Indicadores:** "Hoje", "Esta semana" e "Este mês" calculados no fuso da barbearia e convertidos para intervalos UTC na consulta.
+- **Semana:** segunda a domingo, conforme ISO 8601.
+- **Horário de verão:** conversão por `TimeZoneInfo`, com tratamento de horários inexistentes ou ambíguos; horários inválidos são rejeitados na validação.
+- **Virada de dia:** agendamentos que cruzam a meia-noite são permitidos apenas se terminarem antes do fechamento do dia seguinte; a validação usa o intervalo UTC e o calendário local.
+- **Limite de agendamento:** até 90 dias à frente.
+- **Formato de API:** ISO 8601 com `Z` (`2026-11-20T14:30:00Z`); o frontend exibe no fuso da barbearia.
+
+---
+
+# 13. Integrações
+
+| Integração | Provedor | Objetivo | Síncrona/assíncrona | Timeout | Retry | Fallback | ADR |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Verificação de telefone | A definir | Validar telefone comercial | Assíncrona | 10 s | 2 | Cadastro segue pendente de verificação | ABT-005 |
+| WhatsApp | A definir | Notificações externas | Assíncrona | 10 s | 3 | Apenas notificação interna | Fora do escopo |
+| Gateway de pagamento | A definir | Cobrança online | Síncrona | 15 s | 2 | Pagamento presencial | Fora do escopo |
+| E-mail transacional | A definir | Recuperação de senha | Assíncrona | 10 s | 3 | Atendimento administrativo | ABT-006 |
+| Application Insights | Azure | Telemetria | Assíncrona | 5 s | 3 | Buffer local e descarte | ADR-014 |
+
+**Contratos e versionamento:** integrações futuras serão isoladas por interfaces em `Application/Abstractions` e adaptadores em `Infrastructure/Integrations`, com contrato versionado e testes de contrato.
+
+**Credenciais:** Azure Key Vault; nenhuma credencial em `appsettings.json` versionado.
+
+**Ambiente de sandbox:** obrigatório para qualquer integração futura antes de produção.
+
+**Monitoramento:** latência, taxa de erro, circuit breaker e alerta de falha consecutiva.
+
+Circuit breaker padrão para integrações futuras: 5 falhas em 30 segundos abre o circuito por 1 minuto, com half-open de uma requisição.
+
+---
+
+# 14. Observabilidade
+
+## 14.1. Logs
+
+| Aspecto | Decisão |
+| --- | --- |
+| Formato | JSON estruturado via Serilog |
+| Níveis | `Verbose` em Development, `Information` em produção, `Warning` para o esperado, `Error` para falhas |
+| Correlação | `TraceId`, `SpanId`, `RequestId` e `TenantId` em todos os eventos |
+| Dados sensíveis | Redação de senha, token, cookie, e-mail e telefone |
+| Retenção | 90 dias no Application Insights; 7 dias em container local |
+| Enriquecimento | `Application`, `Environment`, `Version`, `UserId` (hash), `TenantId` |
+
+Eventos obrigatórios:
+
+| Evento | Nível | Campos |
+| --- | --- | --- |
+| `UserLoggedIn` | Information | `userId`, `userType`, `tenantId` |
+| `UserLoginFailed` | Warning | `emailHash`, `reason`, `ipHash` |
+| `AppointmentCreated` | Information | `appointmentId`, `tenantId`, `professionalId`, `origin` |
+| `AppointmentConflictRejected` | Warning | `tenantId`, `professionalId`, `startsAtUtc` |
+| `AppointmentCancelled` | Information | `appointmentId`, `actorUserId`, `reasonCode` |
+| `PaymentRegistered` | Information | `paymentId`, `appointmentId`, `method` |
+| `TenantIsolationViolation` | Error | `userId`, `requestedTenantId`, `path` |
+| `JobFailed` | Error | `jobName`, `attempt`, `exceptionType` |
+| `MigrationApplied` | Information | `migrationId`, `durationMs` |
+
+## 14.2. Métricas e traces
+
+| Sinal | O que medir | Limite/alerta |
+| --- | --- | --- |
+| Latência | p50, p95 e p99 por endpoint | p95 > 2 s por 5 min |
+| Erros | Taxa de 5xx e 4xx por endpoint | 5xx > 1% por 5 min |
+| Disponibilidade | Health check `/health/ready` | 2 falhas consecutivas |
+| Banco | CPU, DTU/vCore, deadlocks, duração de query | CPU > 80% por 10 min; deadlock > 1/min |
+| Jobs | Execuções, duração, atraso e falhas | Atraso > 10 min ou 2 falhas consecutivas |
+| Concorrência | Timeouts de `sp_getapplock` | > 5 por minuto |
+| Autenticação | Logins falhos e bloqueios | > 50 falhas/min por IP |
+| Frontend | Core Web Vitals (LCP, INP, CLS) | LCP > 2,5 s no p75 |
+| Integrações | Latência e erros por dependência | Erro > 5% por 5 min |
+
+Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient e Quartz; amostragem adaptativa de 10% em produção e 100% em staging.
+
+## 14.3. Alertas e plantão
+
+- **Crítico:** API indisponível, banco indisponível, falha de job de expiração, taxa de erro > 5%.
+- **Alto:** p95 acima da meta por 15 minutos, deadlocks frequentes, fila de sugestões expiradas acumulada.
+- **Médio:** aumento de logins falhos, uso de banco acima de 80%, job atrasado.
+- **Canal:** Azure Monitor Action Group com e-mail e Teams; plantão rotativo da equipe.
+- **Runbooks:** `docs/runbooks/api-down.md`, `docs/runbooks/db-high-cpu.md`, `docs/runbooks/job-failure.md` e `docs/runbooks/rollback.md`.
+- **Postmortem:** obrigatório para incidentes críticos, com causa raiz e ação corretiva.
+
+---
+
+# 15. Testes e qualidade
+
+## 15.1. Estratégia
+
+| Nível | Ferramenta | Escopo | Meta |
+| --- | --- | --- | --- |
+| Unitário | MSTest 4 + FluentAssertions | Entidades, value objects, regras de disponibilidade, cálculo de períodos | ≥ 85% no domínio, ≥ 70% global |
+| Aplicação | MSTest + NSubstitute | Casos de uso, autorização, validação | ≥ 80% em `Application` |
+| Integração | MSTest + `WebApplicationFactory` + Testcontainers | Endpoints, EF Core, Identity, migrations, jobs | Fluxos críticos 100% |
+| Arquitetura | MSTest + NetArchTest | Regras de dependência e proibições | 100% das regras |
+| Contrato | OpenAPI + verificação de DTOs | Compatibilidade entre API e cliente | Sem breaking change em `v1` |
+| Componente | Vitest + Angular TestBed | Componentes, guards, serviços e signals | ≥ 70% no frontend |
+| E2E | Playwright | Jornadas completas por perfil | 100% dos fluxos críticos |
+| Acessibilidade | Playwright + axe-core | Telas principais | Zero violações críticas |
+| Carga | k6 | Agenda, disponibilidade e confirmação | Metas da seção 17 |
+| Segurança | OWASP ZAP baseline + `npm audit`/`dotnet list package` | Superfície HTTP e dependências | Zero alto/crítico |
+
+## 15.2. Cenários críticos
+
+| Cenário | Requisitos | Nível | Resultado esperado |
+| --- | --- | --- | --- |
+| Cadastro de cliente com e-mail duplicado | RF-AUTH-002, CA-AUTH-003 | Integração | 409 e nenhuma conta criada |
+| Login, sessão e logout | RF-AUTH-004 | Integração + E2E | Cookie emitido, `/me` correto e sessão encerrada |
+| Criação de barbearia e código de convite | RF-AUTH-006, RF-AUTH-008 | Integração | Tenant criado, proprietário vinculado e código único |
+| Entrada por código inválido | RF-AUTH-009, CA-AUTH-008 | Integração | 404/422 sem vínculo |
+| Catálogo com serviço inativo | RF-SERV-004, RF-SERV-007 | Integração | Serviço ausente em novos agendamentos |
+| Snapshot de serviço | RF-SERV-008, CA-SERV-007 | Unitário + integração | Nome, duração e preço preservados |
+| Disponibilidade fora do funcionamento | RF-HOR-004, CA-HOR-005 | Unitário | Rejeição com código específico |
+| Bloqueio sobre agendamento existente | RF-HOR-006 | Integração | Bloqueio criado sem alterar agendamentos |
+| Dois agendamentos simultâneos no mesmo horário | RNF-CONCORRENCIA-001, CA-PUB-007 | Concorrência | Apenas um 201; outro recebe 409 |
+| Agendamento fora da disponibilidade | RF-PUB-004 | Integração | 422 `schedule.outside_availability` |
+| Cancelamento após início | RN-AGD-019, CA-AGD-016 | Integração | 409 `appointment.already_started` |
+| Sugestão aceita | RF-AGD-016, CA-AGD-012 | Integração | Horário transferido e histórico preservado |
+| Sugestão expirada | RF-AGD-016, CA-AGD-013 | Integração + job | Horário liberado e notificação criada |
+| Atendimento finalizado sem pagamento | RF-ATD-009, CA-ATD-006 | Integração | Status `Completed` e pagamento `Pending` |
+| Pagamento duplicado | RF-ATD-006 | Integração | 409 `payment.already_registered` |
+| Não comparecimento bloqueia atendimento | RN-ATD-010, CA-ATD-008 | Unitário + integração | Transição rejeitada |
+| Isolamento entre tenants | RNF-SEGURANCA-002 | Integração | Nenhum dado cruzado em 100% dos endpoints |
+| Job de expiração idempotente | RF-AGD-016 | Integração | Execuções repetidas não duplicam efeitos |
+| Dashboard sem dados | RF-DASH-005 | Integração | Indicadores zero |
+| Acessibilidade das telas principais | RNF-ACESSIBILIDADE-001 | E2E + axe | Zero violação crítica |
+| Fluxo público completo | RF-PUB-003 a RF-PUB-006 | E2E | Agendamento visível nas três visões |
+
+## 15.3. Dados e isolamento de testes
+
+- Testes unitários sem banco, com `IClock` e geradores determinísticos.
+- Testes de integração usam SQL Server em container via Testcontainers, com a mesma versão de produção.
+- Cada classe de teste cria um banco ou schema isolado; `Respawn` limpa dados entre testes.
+- Seed mínimo por teste, sem dependência de ordem de execução.
+- Testes de E2E usam banco dedicado e massa criada por API, nunca por acesso direto.
+- Testes de concorrência usam `Task.WhenAll` com 10 requisições simultâneas por horário.
+- Nenhum teste depende de data real; `TestClock` fixa `2026-11-16T12:00:00Z`.
+- Testes de fuso cobrem `America/Sao_Paulo`, `America/Manaus` e um fuso com horário de verão.
+- Dados de teste não contêm PII real.
+
+## 15.4. Quality gates
+
+- Build sem warnings tratados como erro (`TreatWarningsAsErrors=true`).
+- `dotnet format --verify-no-changes` e `dotnet build -warnaserror`.
+- `dotnet test` com cobertura mínima por projeto.
+- `npm run lint`, `npm run format:check`, `npm run test -- --coverage` e `npm run build`.
+- NetArchTest validando dependências e proibições.
+- Verificação de modelo pendente do EF Core.
+- Análise de vulnerabilidades de pacotes e de imagem de container.
+- Revisão por par obrigatória, com pelo menos um aprovador.
+- Nenhum merge com pipeline vermelho ou cobertura abaixo da meta.
+
+---
+
+# 16. Infraestrutura, deploy e CI/CD
+
+## 16.1. Ambientes
+
+| Ambiente | Objetivo | URL | Dados | Acesso |
+| --- | --- | --- | --- | --- |
+| Local | Desenvolvimento e testes | `http://localhost:4200` e `https://localhost:7001` | Seed local e banco em container | Equipe |
+| Staging | Homologação e E2E | `https://staging.pontobarber.app` | Dados sintéticos | Equipe e product owner |
+| Produção | Operação real | `https://app.pontobarber.app` | Dados reais | Equipe restrita |
+
+Configuração por ambiente via `appsettings.{Environment}.json` e variáveis de ambiente; segredos apenas em Key Vault ou User Secrets.
+
+## 16.2. Infraestrutura
+
+| Componente | Serviço | Configuração | Escala |
+| --- | --- | --- | --- |
+| API | Azure Container Apps | 1,0 vCPU, 2 GiB, mínimo 2 réplicas | 2 a 6 réplicas; autoescala por HTTP e CPU |
+| Web | Azure Container Apps ou Static Web Apps | Nginx + assets | 2 réplicas |
+| Banco | Azure SQL Database | Camada General Purpose, 4 vCores, 100 GB, zone redundant em produção | Escala vertical e read replica futura |
+| Jobs | Quartz embutido na API | Cluster com store SQL | Escala junto com a API |
+| Segredos | Azure Key Vault | Acesso por managed identity | — |
+| Telemetria | Application Insights + Log Analytics | 90 dias de logs | — |
+| Registry | Azure Container Registry | Imagens versionadas por SHA | — |
+| DNS/TLS | Azure Front Door + Managed Certificate | HTTPS e WAF | — |
+
+## 16.3. Pipeline
+
+```text
+push/PR
+  -> restore
+  -> build backend
+  -> lint/format frontend
+  -> unit tests backend
+  -> unit tests frontend
+  -> integration tests (SQL container)
+  -> architecture tests
+  -> build frontend
+  -> E2E em staging (main)
+  -> security scan
+  -> docker build + push
+  -> migrate database
+  -> deploy staging
+  -> smoke tests
+  -> deploy production (aprovação manual)
+  -> smoke tests
+```
+
+| Estágio | Ferramenta | Gatilho | Critério de sucesso |
+| --- | --- | --- | --- |
+| Build | GitHub Actions | Push e PR | Compilação sem warnings |
+| Testes | GitHub Actions + Testcontainers | Push e PR | 100% verdes e cobertura mínima |
+| Segurança | Dependabot, CodeQL, Trivy | Push, PR e semanal | Zero vulnerabilidade alta/crítica |
+| Imagem | Docker Buildx | Push em `main` | Imagem publicada com tag SHA |
+| Migration | `dotnet ef database update` | Deploy | Migration aplicada sem erro |
+| Deploy | Azure Container Apps | Aprovação | Revisão saudável e smoke tests OK |
+
+## 16.4. Release, rollback e backup
+
+- **Estratégia de release:** rolling update com duas revisões e tráfego gradual (10% → 50% → 100%).
+- **Rollback:** retorno à revisão anterior em até 5 minutos; migrations seguem expandir/contrair para permitir rollback de código.
+- **Migrations em produção:** aplicadas antes do deploy, compatíveis com a versão anterior e a nova.
+- **Backup:** Azure SQL com backup completo semanal, diferencial a cada 12 horas e log a cada 5 a 10 minutos; retenção de 35 dias com point-in-time restore.
+- **Restauração testada:** trimestral em ambiente isolado, com registro de RTO e RPO.
+- **RTO:** 2 horas; **RPO:** 15 minutos.
+- **Continuidade:** zone redundancy no banco e múltiplas réplicas da API; região secundária documentada para evolução.
+- **Feature flags:** configuração por ambiente para desligar jobs e funcionalidades em incidentes.
+
+---
+
+# 17. Desempenho, capacidade e custos
+
+## 17.1. Metas de desempenho
+
+| Operação | Latência alvo | Throughput | Condição |
+| --- | --- | --- | --- |
+| Carregar agenda semanal | p95 ≤ 2 s | 50 req/s | 1 profissional, 7 dias, 200 agendamentos |
+| Consultar disponibilidade | p95 ≤ 1 s | 100 req/s | 1 serviço, 1 dia, 10 profissionais |
+| Confirmar agendamento | p95 ≤ 3 s | 20 req/s | Com lock e validação |
+| Registrar pagamento | p95 ≤ 1 s | 20 req/s | Um pagamento por atendimento |
+| Dashboard | p95 ≤ 2 s | 10 req/s | 4 indicadores e 10 próximos agendamentos |
+| Login | p95 ≤ 1,5 s | 10 req/s | Hash PBKDF2 |
+| Listar notificações | p95 ≤ 800 ms | 50 req/s | 20 itens por página |
+
+## 17.2. Capacidade
+
+| Recurso | Premissa | Limite | Estratégia de escala |
+| --- | --- | --- | --- |
+| Banco | 500 tenants, 20.000 agendamentos/dia | 4 vCores, 100 GB | Escala vertical; read replica para dashboard |
+| API | 2 réplicas, 1 vCPU cada | 200 req/s | Autoescala até 6 réplicas |
+| Conexões | Pool de 100 por réplica | 600 conexões | Pool configurado e timeout de 30 s |
+| Jobs | 6 jobs recorrentes | Lotes de 500 | Cluster e execução distribuída |
+| Armazenamento | 100 GB em 3 anos | 1 TB | Arquivamento de histórico antigo |
+| Logs | 5 GB/mês | 90 dias | Amostragem e retenção configurada |
+
+## 17.3. Gargalos e otimizações
+
+- **Conflito de agenda:** lock por profissional/data reduz contenção; monitorar timeouts e ajustar timeout de 5 s se necessário.
+- **Consultas de agenda:** índices compostos por tenant, profissional e início; projeção apenas dos campos exibidos.
+- **Dashboard:** projeções agregadas com índices por status e período; cache em memória de 60 segundos por tenant.
+- **Listagem de clientes:** paginação obrigatória e busca por prefixo de nome/e-mail com índice.
+- **Notificações:** polling a cada 60 segundos com `If-None-Match` e contador de não lidas.
+- **Frontend:** lazy loading por feature, `OnPush`, signals, imagens otimizadas e bundle inicial ≤ 300 KB gzip.
+- **Quando escalar:** p95 acima da meta por 15 minutos, CPU > 70% sustentado ou timeouts de lock > 5/min.
+- **Sem cache distribuído na V1.0:** introduzir Redis apenas se o dashboard ou a disponibilidade se tornarem gargalo mensurável.
+
+## 17.4. Custos operacionais
+
+| Item | Custo estimado | Observação |
+| --- | --- | --- |
+| Azure Container Apps (API + Web) | US$ 120–200/mês | 2 réplicas mínimas |
+| Azure SQL General Purpose 4 vCores | US$ 370–450/mês | Com backup e zone redundancy |
+| Application Insights + Log Analytics | US$ 50–100/mês | 90 dias de retenção |
+| Azure Container Registry | US$ 5–20/mês | Camada Basic/Standard |
+| Key Vault + Front Door | US$ 40–80/mês | TLS e WAF |
+| GitHub Actions | US$ 0–50/mês | Minutos inclusos no plano |
+| **Total estimado** | **US$ 585–900/mês** | Antes de impostos e crescimento |
+
+Custos são estimativas para a escala inicial e devem ser revisados trimestralmente.
+
+---
+
+# 18. Riscos técnicos e trade-offs
+
+| Risco | Impacto | Probabilidade | Mitigação | Responsável |
+| --- | --- | --- | --- | --- |
+| Sobreposição de agenda sob concorrência | Alto | Média | Lock por profissional/data, índice único e testes de concorrência | Backend |
+| Vazamento entre tenants | Alto | Baixa | Filtro global, resource handlers e testes por endpoint | Backend e QA |
+| Timeout de lock em pico | Médio | Média | Timeout curto, retry com backoff e monitoramento | Backend |
+| Job de expiração atrasado | Médio | Média | Quartz clusterizado, alerta e reprocessamento idempotente | Backend |
+| Erro de fuso horário | Alto | Média | UTC no banco, IANA por tenant e testes com fusos distintos | Backend e Frontend |
+| Migração incompatível | Alto | Baixa | Expandir/contrair, backup e teste em staging | DevOps |
+| Complexidade do Angular zoneless | Médio | Média | Signals, `OnPush` e revisão de mudanças | Frontend |
+| Cookie e CSRF mal configurados | Alto | Baixa | `__Host-`, `SameSite`, antiforgery e testes de segurança | Backend |
+| Custo do Azure SQL acima do previsto | Médio | Média | Monitorar DTU e revisar camada | DevOps |
+| Dependência de versões pré-lançamento | Médio | Média | Fixar versões e validar compatibilidade no início | Tech lead |
+| Ausência de política de retenção | Alto | Média | Anonimização e política provisória até ABT-009 | Produto e Jurídico |
+| Notificações por polling | Baixo | Alta | Intervalo de 60 s e cache; SignalR em versão futura | Frontend |
+
+## 18.1. Trade-offs aceitos
+
+| Trade-off | Benefício | Custo | Reversibilidade |
+| --- | --- | --- | --- |
+| Monólito modular em vez de microsserviços | Simplicidade operacional e transações locais | Escala acoplada e extração futura | Média |
+| Banco único com `TenantId` | Custo e operação menores | Isolamento lógico, não físico | Média |
+| Cookie em vez de JWT | Proteção contra XSS e sessão revogável | Requer CSRF e same-origin | Alta |
+| Polling em vez de SignalR | Menos complexidade na V1.0 | Latência de até 60 s | Alta |
+| Sem MediatR/AutoMapper | Menos indireção e dependências | Mais código explícito | Alta |
+| Quartz embutido na API | Menos um serviço | Jobs competem por recursos com a API | Alta |
+| Snapshot de serviço no agendamento | Histórico íntegro | Duplicação controlada de dados | Baixa |
+| GUID v7 | Índices mais eficientes que GUID v4 | IDs maiores que `int` | Baixa |
+
+---
+
+# 19. Decisões arquiteturais (ADRs)
+
+## 19.1. Índice
+
+| ID | Título | Status | Data | Substitui |
+| --- | --- | --- | --- | --- |
+| ADR-001 | Angular 22 standalone, zoneless e baseado em signals | Aceito | 16/11/2026 | Nenhum |
+| ADR-002 | .NET 10 com solução no formato `.slnx` | Aceito | 16/11/2026 | Nenhum |
+| ADR-003 | Clean Architecture com DDD tático e monólito modular | Aceito | 16/11/2026 | Nenhum |
+| ADR-004 | SQL Server com EF Core 10 e migrations versionadas | Aceito | 16/11/2026 | Nenhum |
+| ADR-005 | ASP.NET Core Identity com autenticação por cookie | Aceito | 16/11/2026 | Nenhum |
+| ADR-006 | Banco único com `TenantId` e filtros globais | Proposto | 16/11/2026 | Nenhum |
+| ADR-007 | API REST com controllers e versionamento por URL | Aceito | 16/11/2026 | Nenhum |
+| ADR-008 | Angular Material + CDK como biblioteca de UI | Proposto | 16/11/2026 | Nenhum |
+| ADR-009 | Quartz.NET com store no SQL Server | Proposto | 16/11/2026 | Nenhum |
+| ADR-010 | Concorrência de agenda com `sp_getapplock` e índice único | Aceito | 16/11/2026 | Nenhum |
+| ADR-011 | UTC no banco com fuso IANA por barbearia | Aceito | 16/11/2026 | Nenhum |
+| ADR-012 | Testes com MSTest, Testcontainers e Playwright | Aceito | 16/11/2026 | Nenhum |
+| ADR-013 | Containers Linux e Azure SQL na V1.0 | Proposto | 16/11/2026 | Nenhum |
+| ADR-014 | Observabilidade com Serilog e OpenTelemetry | Aceito | 16/11/2026 | Nenhum |
+| ADR-015 | Casos de uso explícitos sem MediatR e sem AutoMapper | Aceito | 16/11/2026 | Nenhum |
+| ADR-016 | Notificações internas por polling na V1.0 | Proposto | 16/11/2026 | Nenhum |
+| ADR-017 | Erros padronizados com ProblemDetails e códigos estáveis | Aceito | 16/11/2026 | Nenhum |
+| ADR-018 | Estado do frontend com signals e serviços, sem NgRx | Aceito | 16/11/2026 | Nenhum |
+| ADR-019 | Acesso a dados com DbContext e query services | Aceito | 16/11/2026 | Nenhum |
+| ADR-020 | Endurecimento de sessão, CSRF e rate limiting | Aceito | 16/11/2026 | Nenhum |
+| ADR-021 | Concorrência otimista com `rowversion` e idempotência | Aceito | 16/11/2026 | Nenhum |
+| ADR-022 | Migrations com estratégia expandir/contrair | Aceito | 16/11/2026 | Nenhum |
+| ADR-023 | Desativação lógica, snapshots e retenção de histórico | Aceito | 16/11/2026 | Nenhum |
+| ADR-024 | Integrações externas por portas e adaptadores | Aceito | 16/11/2026 | Nenhum |
+| ADR-025 | CI/CD com GitHub Actions e Azure Container Apps | Proposto | 16/11/2026 | Nenhum |
+
+## 19.2. Registros
+
+### ADR-001 — Angular 22 standalone, zoneless e baseado em signals
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-DESEMPENHO-001, RNF-USABILIDADE-001, RNF-ACESSIBILIDADE-001
+
+**Contexto:** a SPA precisa de navegação por perfil, agenda com muitas interações e atualização previsível de estado, mantendo bundle pequeno e boa experiência em mobile.
+
+**Decisão:** Angular 22 com componentes standalone, `provideZonelessChangeDetection()`, signals para estado local, `computed` para derivados e `resource`/`httpResource` para carregamento assíncrono. Sem NgModules, sem `zone.js` e sem NgRx.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Angular com NgModules e zone.js | Padrão histórico e mais exemplos | Mais boilerplate e change detection global | Não usa os recursos atuais do framework |
+| React + Vite | Ecossistema amplo | Stack não solicitada e mais decisões a tomar | Fora da preferência do produto |
+| Angular com NgRx | Estado centralizado e devtools | Complexidade e verbosidade para o tamanho da SPA | Signals cobrem o estado necessário |
+
+**Consequências:**
+
+- Positivas: menos boilerplate, change detection previsível, melhor desempenho em listas e agenda.
+- Negativas: exigência de disciplina com signals e `OnPush`; bibliotecas de terceiros podem não ser zoneless.
+- Custos e riscos: curva de aprendizado e necessidade de testes de mudança.
+
+**Critérios de verificação:** `package.json` sem `zone.js`; `provideZonelessChangeDetection` no bootstrap; componentes standalone; ausência de `NgModules`; bundle inicial ≤ 300 KB gzip.
+
+### ADR-002 — .NET 10 com solução no formato `.slnx`
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** Todos os RFs de backend
+
+**Contexto:** o produto exige backend moderno, com suporte de longo prazo, bom desempenho e ferramentas de build simples.
+
+**Decisão:** .NET 10 LTS, C# 14, ASP.NET Core 10 e solução `PontoBarber.slnx` com projetos separados por camada. `Directory.Build.props` centraliza `Nullable`, `ImplicitUsings`, `TreatWarningsAsErrors` e versão do framework; `Directory.Packages.props` centraliza versões.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| .NET 8 LTS | Amplamente adotado | Versão anterior e sem os recursos atuais | Produto pediu .NET 10 |
+| .NET 9 STS | Recursos recentes | Suporte curto | Não é LTS |
+| Node.js/NestJS | Mesma linguagem do frontend | Stack não solicitada | Fora da preferência do produto |
+
+**Consequências:**
+
+- Positivas: LTS, desempenho, tipagem e integração com Azure.
+- Negativas: `.slnx` ainda não é suportado por todas as ferramentas antigas.
+- Custos e riscos: exigir Visual Studio 17.14+ ou Rider atual.
+
+**Critérios de verificação:** `dotnet build PontoBarber.slnx` funciona; `global.json` fixa SDK 10; `Directory.Packages.props` presente.
+
+### ADR-003 — Clean Architecture com DDD tático e monólito modular
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RN-AGD-001 a RN-AGD-021, RN-ATD-001 a RN-ATD-011
+
+**Contexto:** as regras de agenda, atendimento e pagamento são o núcleo do produto e precisam ser testáveis e independentes de banco e HTTP. A equipe é pequena e a escala inicial não justifica serviços distribuídos.
+
+**Decisão:** monólito modular com quatro camadas (`Domain`, `Application`, `Infrastructure`, `Api`), agregados por contexto, eventos de domínio e casos de uso explícitos. Regras de negócio ficam no domínio; orquestração e autorização de aplicação, em `Application`; detalhes técnicos, em `Infrastructure`.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Microsserviços | Escala e isolamento independentes | Complexidade operacional e transações distribuídas | Escala não justifica |
+| Monólito em camadas técnicas | Simples de iniciar | Acoplamento e regras vazando para controllers | Difícil de manter |
+| Vertical slice | Menos camadas | Duplicação de infraestrutura | Não favorece regras compartilhadas de agenda |
+
+**Consequências:**
+
+- Positivas: testabilidade, fronteiras claras e evolução para serviços se necessário.
+- Negativas: mais projetos e mapeamentos explícitos.
+- Custos e riscos: disciplinas de dependência precisam ser verificadas por testes de arquitetura.
+
+**Critérios de verificação:** NetArchTest sem violações; `Domain` sem referências externas; controllers sem regra de negócio.
+
+### ADR-004 — SQL Server com EF Core 10 e migrations versionadas
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-RETENCAO-001, RNF-CONCORRENCIA-001, RNF-AUDITORIA-001
+
+**Contexto:** o domínio é relacional, exige transações, integridade referencial e consultas por período. A stack solicitada inclui SQL Server e EF Core.
+
+**Decisão:** SQL Server 2022+ (Azure SQL em produção) com EF Core 10, configurações por `IEntityTypeConfiguration`, migrations versionadas no repositório e `AsNoTracking` em consultas de leitura.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| PostgreSQL | Recursos avançados de exclusão e JSON | Não é a stack solicitada | Fora da preferência |
+| Dapper + SQL manual | Controle total | Sem migrations e mais código | Custo de manutenção |
+| EF Core com banco em memória | Testes rápidos | Não reproduz SQL Server | Testes de integração usam container |
+
+**Consequências:**
+
+- Positivas: produtividade, migrations e integração com Azure.
+- Negativas: sem constraint de exclusão para intervalos; concorrência resolvida por lock (ADR-010).
+- Custos e riscos: SQL Server e Azure SQL têm custo superior a alternativas open source.
+
+**Critérios de verificação:** migrations aplicadas em CI; `has-pending-model-changes` limpo; consultas críticas sem N+1.
+
+### ADR-005 — ASP.NET Core Identity com autenticação por cookie
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RF-AUTH-001 a RF-AUTH-010, RNF-SEGURANCA-001, RNF-SEGURANCA-002
+
+**Contexto:** o produto tem login compartilhado entre perfis, cadastros separados e não possui integração com provedor de identidade externo.
+
+**Decisão:** ASP.NET Core Identity com `UserManager`, `SignInManager`, hash PBKDF2 e cookie `__Host-pb.auth`. Perfis de negócio (`CustomerProfile`, `ProfessionalProfile`) são entidades separadas ligadas ao usuário.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| JWT em `localStorage` | Stateless e simples para APIs | Vulnerável a XSS e sem revogação fácil | SPA same-origin não precisa |
+| Auth0/Entra External ID | Menos código de autenticação | Custo e dependência externa | Simplicidade e controle |
+| IdentityServer/Duende | OAuth completo | Complexidade e licença | Fora do escopo |
+
+**Consequências:**
+
+- Positivas: sessão revogável, cookie protegido e recursos prontos de lockout.
+- Negativas: necessidade de antiforgery e same-origin.
+- Custos e riscos: recuperação de senha depende de e-mail futuro.
+
+**Critérios de verificação:** cookie com flags corretas; lockout ativo; `SecurityStamp` validado; testes de login e logout.
+
+### ADR-006 — Banco único com `TenantId` e filtros globais
+
+- **Status:** Proposto
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RN-EMP-001, RN-DASH-009, RNF-SEGURANCA-002, RNF-PRIVACIDADE-001
+
+**Contexto:** a escala inicial é de até 500 barbearias, com necessidade de custo baixo e migrations simples. O isolamento físico por banco ou schema aumentaria a operação.
+
+**Decisão:** banco único compartilhado com `TenantId` em todas as entidades de negócio, filtro global do EF Core via `ITenantOwned` e validação de vínculo na aplicação. `TenantId` nunca vem do corpo da requisição.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Schema por tenant | Isolamento intermediário | Migrations e conexões complexas | Custo operacional |
+| Banco por tenant | Isolamento máximo | Provisionamento e custo altos | Escala inicial não justifica |
+| Row-level security nativa | Defesa em profundidade | Configuração e testes adicionais | Pode ser adicionada depois |
+
+**Consequências:**
+
+- Positivas: operação simples, uma migration e custo menor.
+- Negativas: risco de vazamento por consulta incorreta.
+- Custos e riscos: exige testes de isolamento em todos os endpoints e proibição de `IgnoreQueryFilters`.
+
+**Critérios de verificação:** teste com dois tenants em cada endpoint; análise estática proibindo `IgnoreQueryFilters` fora de jobs; filtro global ativo.
+
+### ADR-007 — API REST com controllers e versionamento por URL
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** Todos os RFs expostos por API
+
+**Contexto:** a SPA consome operações transacionais bem definidas e o contrato precisa ser estável e documentado.
+
+**Decisão:** REST com controllers, recursos em plural, `/api/v1`, `Microsoft.AspNetCore.Mvc.Versioning`, OpenAPI gerado e ProblemDetails para erros.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Minimal APIs | Menos cerimônia | Organização manual e menos filtros prontos | Controllers favorecem consistência |
+| GraphQL | Consultas flexíveis | Complexidade de autorização e cache | Não há necessidade |
+| gRPC | Desempenho e contrato binário | Não é consumível diretamente pelo navegador | Inadequado para SPA |
+
+**Consequências:**
+
+- Positivas: contrato claro, documentação e versionamento.
+- Negativas: múltiplos endpoints para a agenda.
+- Custos e riscos: breaking changes exigem nova versão.
+
+**Critérios de verificação:** OpenAPI publicado em staging; endpoint antigo retorna `api-version`; testes de contrato.
+
+### ADR-008 — Angular Material + CDK como biblioteca de UI
+
+- **Status:** Proposto
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-ACESSIBILIDADE-001, RNF-COMPATIBILIDADE-001, RNF-USABILIDADE-001
+
+**Contexto:** a aplicação tem formulários, diálogos, tabelas, seletores de data e navegação; acessibilidade é requisito.
+
+**Decisão:** Angular Material 22 com CDK para overlay, a11y e virtual scroll, tema customizado com tokens e componentes compartilhados em `shared/ui`.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Tailwind + componentes próprios | Liberdade visual | Acessibilidade e consistência manuais | Custo alto |
+| Bootstrap | Simples e conhecido | Menos integrado ao Angular | Acessibilidade e temas limitados |
+| PrimeNG | Muitos componentes | Tema pesado e dependência adicional | Material é suficiente |
+
+**Consequências:**
+
+- Positivas: componentes acessíveis e integração nativa.
+- Negativas: identidade visual próxima do Material.
+- Custos e riscos: customização de tema exige conhecimento de tokens.
+
+**Critérios de verificação:** axe sem violações críticas; tema único; nenhum componente de UI concorrente.
+
+### ADR-009 — Quartz.NET com store no SQL Server
+
+- **Status:** Proposto
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RF-AGD-015, RF-AGD-016, RF-AGD-017
+
+**Contexto:** a sugestão de horário expira em 24 horas e precisa ser liberada mesmo com reinício da API ou múltiplas instâncias.
+
+**Decisão:** Quartz.NET 3.15 com `AdoJobStore` no SQL Server, clusterizado, jobs `[DisallowConcurrentExecution]` e logs por execução.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| `BackgroundService` | Sem dependência extra | Sem persistência e sem coordenação | Não garante expiração |
+| Hangfire | Dashboard e retries | Modelo próprio e licença | Quartz é suficiente |
+| Azure Functions Timer | Serviço gerenciado | Dependência de nuvem e deploy separado | Acoplamento |
+
+**Consequências:**
+
+- Positivas: persistência, cluster e tolerância a reinício.
+- Negativas: tabelas adicionais e configuração.
+- Custos e riscos: jobs competem por recursos com a API.
+
+**Critérios de verificação:** job executa após reinício; apenas uma instância executa; expiração libera horário.
+
+### ADR-010 — Concorrência de agenda com `sp_getapplock` e índice único
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-CONCORRENCIA-001, RN-AGD-007, RN-PUB-007, RN-PUB-008
+
+**Contexto:** duas confirmações simultâneas não podem ocupar o mesmo horário. O SQL Server não oferece constraint de exclusão para intervalos.
+
+**Decisão:** transação única com `sp_getapplock` exclusivo por `tenant:professional:date`, consulta de sobreposição (`starts < @end AND ends > @start`) e índice único filtrado em `(TenantId, ProfessionalId, StartsAtUtc)` para o mesmo início. Timeout de 5 segundos e retorno 409 ou 503.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Apenas validação na aplicação | Simples | Vulnerável a corrida | Não garante consistência |
+| `SERIALIZABLE` | Isolamento forte | Bloqueios amplos e deadlocks | Contenção maior |
+| Fila serializada | Ordenação garantida | Infraestrutura adicional | Complexidade desnecessária |
+
+**Consequências:**
+
+- Positivas: garantia no banco e baixa contenção por profissional/data.
+- Negativas: dependência de SQL Server e timeout em picos.
+- Custos e riscos: monitorar timeouts e deadlocks.
+
+**Critérios de verificação:** teste com 10 requisições simultâneas resulta em um 201; índice presente; timeout monitorado.
+
+### ADR-011 — UTC no banco com fuso IANA por barbearia
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RN-DASH-002 a RN-DASH-005, RNF-AUDITORIA-001
+
+**Contexto:** cada barbearia opera em um único fuso e os indicadores dependem do calendário local. Comparar horários locais sem fuso gera erros em viradas de dia e horário de verão.
+
+**Decisão:** instantes em UTC (`datetime2(3)`), `TimeZoneId` IANA na barbearia, `TimeOnly` para janelas semanais e conversão na borda. `IClock` injetado e proibição de `DateTime.Now`.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Horário local no banco | Simples de exibir | Ambíguo e sem ordenação global | Erros em fusos e viradas |
+| `DateTimeOffset` | Preserva offset | Comparações e índices mais complexos | UTC é suficiente |
+| Fuso fixo `America/Sao_Paulo` | Simples | Não atende barbearias em outros fusos | Premissa do PRD |
+
+**Consequências:**
+
+- Positivas: ordenação correta, indicadores precisos e suporte a múltiplos fusos.
+- Negativas: conversão obrigatória na API e no frontend.
+- Custos e riscos: horários inexistentes no horário de verão precisam ser rejeitados.
+
+**Critérios de verificação:** testes com três fusos; dashboard no fuso da barbearia; nenhum `DateTime.Now` no código.
+
+### ADR-012 — Testes com MSTest, Testcontainers e Playwright
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-CONCORRENCIA-001, RNF-SEGURANCA-002, RNF-RETENCAO-001
+
+**Contexto:** as regras críticas envolvem concorrência, banco real e navegador. Testes apenas unitários não detectariam falhas de SQL, cookie ou acessibilidade.
+
+**Decisão:** MSTest no backend, Testcontainers com SQL Server para integração, `WebApplicationFactory` para API, Respawn para limpeza, Vitest para frontend e Playwright para E2E e acessibilidade.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| xUnit/NUnit | Populares | Não solicitados | Preferência do produto |
+| Banco em memória | Rápido | Não reproduz SQL Server | Falso positivo |
+| Cypress | Bom DX | Menos suporte a múltiplos navegadores | Playwright cobre Chromium, Firefox e WebKit |
+
+**Consequências:**
+
+- Positivas: confiança em SQL real, concorrência e fluxo completo.
+- Negativas: pipeline mais lento.
+- Custos e riscos: containers exigem Docker no CI e na máquina.
+
+**Critérios de verificação:** suíte de integração verde em CI; teste de concorrência presente; E2E dos fluxos críticos.
+
+### ADR-013 — Containers Linux e Azure SQL na V1.0
+
+- **Status:** Proposto
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-DISPONIBILIDADE-001, RNF-COMPATIBILIDADE-001
+
+**Contexto:** o produto precisa de deploy reproduzível, HTTPS, backup gerenciado e baixa operação. Não há restrição de nuvem definida.
+
+**Decisão:** imagens Linux para API e web, Azure Container Apps, Azure SQL, Key Vault e Application Insights. Ambientes local, staging e produção.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| App Service | Menos configuração | Menos controle de containers e escala | Container Apps é mais flexível |
+| VPS + Docker | Custo baixo | Operação, backup e TLS manuais | Custo operacional alto |
+| AWS/GCP | Equivalentes | Sem vantagem para a stack Microsoft | Integração Azure é melhor |
+
+**Consequências:**
+
+- Positivas: deploy versionado, escala e serviços gerenciados.
+- Negativas: custo fixo mensal e dependência de Azure.
+- Custos e riscos: estimativa de US$ 585–900/mês.
+
+**Critérios de verificação:** deploy em staging; rollback em 5 minutos; backup e restauração documentados.
+
+### ADR-014 — Observabilidade com Serilog e OpenTelemetry
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-DISPONIBILIDADE-001, RNF-AUDITORIA-001
+
+**Contexto:** falhas de agenda, jobs e isolamento precisam ser diagnosticadas rapidamente, com correlação entre requisição, banco e job.
+
+**Decisão:** Serilog estruturado com enriquecimento de `TraceId` e `TenantId`, OpenTelemetry para traces e métricas, Application Insights como destino e health checks `/health/live` e `/health/ready`.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| `ILogger` + arquivos | Simples | Difícil correlação e busca | Operação pior |
+| Elastic Stack | Busca poderosa | Operação e custo | Excessivo na V1.0 |
+| Datadog | Excelente APM | Custo elevado | Azure Monitor já incluso |
+
+**Consequências:**
+
+- Positivas: diagnóstico rápido e métricas acionáveis.
+- Negativas: custo de ingestão e necessidade de redação de PII.
+- Custos e riscos: volume de logs deve ser monitorado.
+
+**Critérios de verificação:** trace completo de uma requisição; logs com `TenantId`; alertas configurados.
+
+### ADR-015 — Casos de uso explícitos sem MediatR e sem AutoMapper
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-DESEMPENHO-003, manutenibilidade
+
+**Contexto:** a equipe é pequena e o domínio tem poucos casos de uso por módulo. Indireção adicional aumenta o custo de leitura e depuração.
+
+**Decisão:** serviços de aplicação injetados diretamente nos controllers, com um método público por caso de uso; mapeamentos explícitos em métodos estáticos ou extensões; FluentValidation para entrada.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| MediatR | Desacoplamento e pipeline | Indireção e licença na versão recente | Não necessário |
+| AutoMapper | Menos código de mapeamento | Configuração implícita e erros em runtime | Mapeamentos explícitos são poucos |
+| Minimal APIs + serviços | Menos camadas | Menos convenções | Controllers padronizam |
+
+**Consequências:**
+
+- Positivas: fluxo explícito e fácil de depurar.
+- Negativas: mais código de mapeamento manual.
+- Custos e riscos: disciplinas para não duplicar lógica.
+
+**Critérios de verificação:** ausência de pacotes MediatR/AutoMapper; um método público por caso de uso; validadores registrados.
+
+### ADR-016 — Notificações internas por polling na V1.0
+
+- **Status:** Proposto
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RF-NOTIF-001, RN-NOTIF-001
+
+**Contexto:** as notificações são internas e não há requisito de tempo real. SignalR adicionaria conexões persistentes e escala com sticky sessions.
+
+**Decisão:** notificações persistidas e consultadas por polling a cada 60 segundos, com contador de não lidas e `If-None-Match`.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| SignalR | Tempo real | Conexões, escala e infraestrutura | Sem requisito |
+| SSE | Simples que SignalR | Conexões persistentes | Desnecessário |
+| Web Push | Notificação fora do app | Permissão e service worker | Fora do escopo |
+
+**Consequências:**
+
+- Positivas: simplicidade e menor custo.
+- Negativas: latência de até 60 segundos.
+- Custos e riscos: tráfego periódico adicional.
+
+**Critérios de verificação:** notificação aparece em até 60 s; polling pausa em aba inativa.
+
+### ADR-017 — Erros padronizados com ProblemDetails e códigos estáveis
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-USABILIDADE-001, RNF-SEGURANCA-002
+
+**Contexto:** a SPA precisa distinguir conflito de agenda, validação, autorização e concorrência para orientar o usuário.
+
+**Decisão:** middleware global que converte exceções e resultados em `ProblemDetails` com `code`, `traceId` e `errors`. Códigos estáveis documentados e mapeados no frontend.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Mensagens livres | Simples | Difícil tratar na SPA | Sem contrato |
+| Códigos HTTP apenas | Padrão | Perde granularidade | Insuficiente para agenda |
+| Envelope próprio | Controle | Foge do padrão | ProblemDetails é suficiente |
+
+**Consequências:**
+
+- Positivas: tratamento consistente e tradução para o usuário.
+- Negativas: necessidade de manter catálogo de códigos.
+- Custos e riscos: códigos viram contrato público.
+
+**Critérios de verificação:** todos os erros retornam `application/problem+json`; catálogo de códigos testado.
+
+### ADR-018 — Estado do frontend com signals e serviços, sem NgRx
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-DESEMPENHO-001, RNF-USABILIDADE-001
+
+**Contexto:** o estado da SPA é majoritariamente local por tela, com sessão e tenant ativos globais.
+
+**Decisão:** serviços com `signal` e `computed`, `resource` para carregamento, `localStorage` apenas para preferências não sensíveis e guards funcionais.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| NgRx | Padrão e devtools | Verbosidade e boilerplate | Estado não justifica |
+| RxJS puro | Poderoso | Mais difícil de manter | Signals são mais simples |
+| Estado em componentes | Mínimo | Duplicação entre telas | Serviços compartilhados resolvem |
+
+**Consequências:**
+
+- Positivas: menos código e atualização previsível.
+- Negativas: sem devtools de estado global.
+- Custos e riscos: disciplina para não duplicar estado.
+
+**Critérios de verificação:** ausência de NgRx; estado global restrito a sessão e tenant; componentes com `OnPush`.
+
+### ADR-019 — Acesso a dados com DbContext e query services
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-DESEMPENHO-001, RNF-DESEMPENHO-002
+
+**Contexto:** repositórios genéricos adicionam abstração sem ganho e dificultam consultas projetadas de agenda e dashboard.
+
+**Decisão:** `DbContext` exposto por `IApplicationDbContext` para escrita; consultas de leitura usam query services especializados em `Application` ou `Infrastructure`, com projeção e `AsNoTracking`. Repositórios apenas quando houver necessidade real de abstração.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Repositório genérico | Padronização | Vazamento e consultas ineficientes | Sem ganho |
+| Dapper para leitura | Desempenho | Dois modelos de acesso | EF projetado é suficiente |
+| EF puro em controllers | Menos código | Acoplamento e regras vazando | Mantém separação |
+
+**Consequências:**
+
+- Positivas: consultas eficientes e menor abstração.
+- Negativas: dependência de EF na infraestrutura de leitura.
+- Custos e riscos: consultas precisam ser revisadas para N+1.
+
+**Critérios de verificação:** consultas críticas projetadas; nenhum repositório genérico; testes de consulta.
+
+### ADR-020 — Endurecimento de sessão, CSRF e rate limiting
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-SEGURANCA-002, RNF-SEGURANCA-003
+
+**Contexto:** autenticação por cookie em SPA exige proteção contra CSRF, fixação de sessão e abuso de endpoints públicos.
+
+**Decisão:** cookie `__Host-`, antiforgery token, `SameSite=Lax`, CSP restritiva, rate limiting por política (`auth`, `public`, `authenticated`) e bloqueio progressivo de login.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Token no header | Sem CSRF | Exposição a XSS | Cookie é mais seguro |
+| Sem rate limit | Menos configuração | Abuso e força bruta | Risco inaceitável |
+| WAF apenas | Defesa externa | Não cobre regras de negócio | Complementar |
+
+**Consequências:**
+
+- Positivas: superfície de ataque reduzida.
+- Negativas: complexidade de CSRF no frontend.
+- Custos e riscos: falso positivo de rate limit em NAT corporativo.
+
+**Critérios de verificação:** testes de CSRF; rate limit retorna 429; cookie sem acesso via JS.
+
+### ADR-021 — Concorrência otimista com `rowversion` e idempotência
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RN-ATD-001 a RN-ATD-011, RNF-AUDITORIA-001
+
+**Contexto:** duas abas ou profissionais podem tentar alterar o mesmo agendamento simultaneamente; redes instáveis podem repetir pagamentos.
+
+**Decisão:** `rowversion` em `Appointment` com `If-Match`, exceção convertida em 409, e `Idempotency-Key` obrigatório em criação de agendamento e pagamento, com registro por 24 horas.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Last write wins | Simples | Perda silenciosa de dados | Inaceitável em agenda |
+| Lock pessimista | Garantia | Contenção e deadlocks | Reservado à criação |
+| Sem idempotência | Menos código | Pagamentos duplicados | Risco financeiro |
+
+**Consequências:**
+
+- Positivas: sem perda silenciosa e sem duplicidade.
+- Negativas: frontend precisa reenviar com versão atualizada.
+- Custos e riscos: tabela de idempotência precisa de limpeza.
+
+**Critérios de verificação:** teste de concorrência de edição; pagamento repetido retorna a mesma resposta; `If-Match` obrigatório.
+
+### ADR-022 — Migrations com estratégia expandir/contrair
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-DISPONIBILIDADE-001
+
+**Contexto:** o deploy rolling exige que versões antiga e nova coexistam durante a atualização.
+
+**Decisão:** migrations em três etapas — expandir (adicionar), migrar código e contrair (remover) —, com compatibilidade retroativa e backup antes de mudanças destrutivas.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Migration destrutiva direta | Simples | Indisponibilidade e rollback impossível | Risco alto |
+| Blue-green com banco separado | Isolamento | Custo e sincronização | Excessivo |
+| Sem migrations | Menos ferramenta | Schema divergente | Inaceitável |
+
+**Consequências:**
+
+- Positivas: deploy sem downtime e rollback viável.
+- Negativas: mais releases para concluir uma mudança.
+- Custos e riscos: disciplina de revisão de migrations.
+
+**Critérios de verificação:** migrations compatíveis em staging; rollback testado; `has-pending-model-changes` limpo.
+
+### ADR-023 — Desativação lógica, snapshots e retenção de histórico
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RN-SERV-008, RN-SERV-009, RN-PROF-004, RN-PROF-005, RN-CLI-007, RNF-RETENCAO-001
+
+**Contexto:** o PRD exige preservar histórico após alterações cadastrais, remoção de serviços e de vínculos.
+
+**Decisão:** entidades referenciadas usam desativação lógica (`IsActive`, `Status`), agendamentos guardam snapshots de serviço e histórico append-only; exclusão física apenas para dados operacionais expirados.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Exclusão física com cascade | Simples | Perde histórico | Viola o PRD |
+| Histórico em data warehouse | Escala analítica | Complexidade e atraso | Fora do escopo |
+| Auditoria por triggers | Cobertura ampla | Difícil de testar e versionar | Histórico de domínio é suficiente |
+
+**Consequências:**
+
+- Positivas: histórico íntegro e auditável.
+- Negativas: dados crescem e exigem arquivamento futuro.
+- Custos e riscos: consultas precisam filtrar ativos.
+
+**Critérios de verificação:** teste de serviço removido em agendamento antigo; teste de vínculo removido; nenhuma exclusão física de agendamento.
+
+### ADR-024 — Integrações externas por portas e adaptadores
+
+- **Status:** Aceito
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RF-NOTIF-001, evolução futura
+
+**Contexto:** WhatsApp, e-mail, verificação de telefone e pagamento online estão fora da V1.0, mas são evoluções previstas.
+
+**Decisão:** toda integração futura é definida por interface em `Application/Abstractions`, implementada em `Infrastructure/Integrations`, com timeout, retry, circuit breaker e contrato testado.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Chamadas diretas no caso de uso | Menos código | Acoplamento e testes difíceis | Custo de mudança alto |
+| Biblioteca específica no domínio | Conveniência | Domínio dependente de vendor | Viola Clean Architecture |
+| Sem abstração até precisar | Simples agora | Refatoração posterior | Prevenção barata |
+
+**Consequências:**
+
+- Positivas: troca de provedor sem impacto no domínio.
+- Negativas: interfaces sem implementação na V1.0.
+- Custos e riscos: abstrações prematuras devem ser mínimas.
+
+**Critérios de verificação:** nenhuma dependência externa no domínio; adaptadores com testes de contrato.
+
+### ADR-025 — CI/CD com GitHub Actions e Azure Container Apps
+
+- **Status:** Proposto
+- **Data:** 16/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-DISPONIBILIDADE-001
+
+**Contexto:** o repositório está no GitHub e a infraestrutura proposta é Azure; o pipeline precisa ser reproduzível e barato.
+
+**Decisão:** GitHub Actions com estágios de build, testes, análise, imagem, migration, deploy staging e produção com aprovação. Imagens no Azure Container Registry e deploy no Azure Container Apps.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Azure DevOps | Integração Microsoft | Mais um serviço e configuração | GitHub já é o repositório |
+| GitLab CI | Completo | Migração de plataforma | Fora do contexto |
+| Deploy manual | Controle | Erro humano e baixa rastreabilidade | Inaceitável |
+
+**Consequências:**
+
+- Positivas: automação, rastreabilidade e rollback.
+- Negativas: minutos de CI e necessidade de secrets.
+- Custos e riscos: dependência de disponibilidade do GitHub.
+
+**Critérios de verificação:** pipeline verde em PR; deploy staging automático; produção com aprovação.
+
+---
+
+# 20. Plano de implementação
+
+## 20.1. Fases
+
+| Fase | Entrega | Dependências | Critério de conclusão |
+| --- | --- | --- | --- |
+| F0 — Fundação | Solução `.slnx`, projetos, CI, Docker, banco local, health checks e observabilidade | Nenhuma | Build e pipeline verdes; API responde `/health/ready` |
+| F1 — Identidade e tenants | Cadastro, login, cookie, perfis, criação de barbearia e código de convite | F0 | Fluxos de AUTH cobertos por integração e E2E |
+| F2 — Catálogo e configurações | Serviços, catálogo modelo, funcionamento, disponibilidade e bloqueios | F1 | RF-SERV, RF-HOR e RF-CONF implementados |
+| F3 — Agenda e agendamento | Disponibilidade, criação manual, agendamento público, cancelamento, remarcação | F2 | Reserva concorrente segura e agenda diária/semanal/mensal |
+| F4 — Atendimento e pagamentos | Início, fim, não comparecimento e pagamento | F3 | Máquina de estados e indicadores financeiros |
+| F5 — Dashboard e notificações | Indicadores, próximos agendamentos e notificações internas | F3, F4 | Dashboard por período e notificações por polling |
+| F6 — Jobs e endurecimento | Expiração de sugestão, rotinas periódicas, rate limit, auditoria e acessibilidade | F3 a F5 | Jobs idempotentes; checklist de segurança e acessibilidade |
+| F7 — Produção | Infraestrutura Azure, migrations, backups, alertas e runbooks | F6 | Deploy staging e produção com smoke tests |
+
+## 20.2. Ordem de implementação
+
+1. Criar solução, projetos, convenções, `Directory.Build.props`, pipeline e ambiente local.
+2. Implementar `Domain` de identidade, tenant, profissionais e serviços.
+3. Configurar Identity, cookie, antiforgery, autorização e `/auth/me`.
+4. Implementar criação de barbearia, convite e vínculo profissional.
+5. Implementar catálogo, horários, disponibilidade e bloqueios com testes de domínio.
+6. Implementar motor de disponibilidade e endpoints públicos somente leitura.
+7. Implementar criação de agendamento com lock, idempotência e testes de concorrência.
+8. Implementar agenda, cancelamento, remarcação, sugestão e histórico.
+9. Implementar atendimento, pagamento e dashboard.
+10. Implementar notificações, jobs Quartz e reconciliação.
+11. Implementar frontend por feature, começando por autenticação e agenda.
+12. Executar testes de carga, acessibilidade, segurança e restauração de backup.
+13. Configurar Azure, Key Vault, observabilidade e go-live.
+
+## 20.3. Estratégias de migração e corte
+
+- **Migração de dados:** não há sistema legado; a V1.0 inicia com banco vazio e catálogo modelo.
+- **Seed inicial:** catálogo modelo global com Corte (40 min), Barba (30 min) e Corte + Barba (70 min), sem preços fixos.
+- **Cutover:** publicação em produção após homologação em staging com dados sintéticos e checklist de go-live.
+- **Compatibilidade temporária:** endpoints `v1` mantidos durante a estabilização; mudanças incompatíveis exigem `v2`.
+- **Critérios de desativação:** `v1` desativado somente após migração de todos os clientes e aviso prévio.
+- **Rollback de release:** revisão anterior do Container App; migrations compatíveis com as duas versões.
+
+## 20.4. Definição de pronto
+
+- Requisito implementado com testes unitários e de integração verdes.
+- Endpoint documentado no OpenAPI e com autorização testada.
+- Migration revisada e aplicada em staging.
+- Telemetria e logs do fluxo disponíveis.
+- Interface acessível e responsiva, com E2E do fluxo principal.
+- Nenhum item do checklist de segurança pendente.
+- Revisão de código aprovada e pipeline verde.
+- Documentação de operação e runbook atualizados quando aplicável.
+
+---
+
+# 21. Premissas e questões em aberto
+
+| ID | Tipo | Descrição | Impacto | Responsável | Prazo |
+| --- | --- | --- | --- | --- | --- |
+| ABT-001 | Premissa | Cada barbearia opera em um único fuso IANA | Cálculo de agenda e indicadores | Produto | Antes da F3 |
+| ABT-002 | Premissa | Escala inicial de até 500 barbearias e 20.000 agendamentos/dia | Dimensionamento e custo | Produto e Tecnologia | Antes da F7 |
+| ABT-003 | Premissa | V1.0 em uma única região Azure | Latência e continuidade | Tecnologia | Antes da F7 |
+| ABT-004 | Premissa | Metas de RNF são alvos propostos | Testes de carga e SLOs | Produto e Tecnologia | Antes da F7 |
+| ABT-005 | Questão | Como e quando o telefone comercial será verificado? | Cadastro e confiança dos dados | Produto | Antes da F1 |
+| ABT-006 | Questão | Qual política de senha, recuperação e duração de sessão será adotada? | Segurança e experiência | Produto e Tecnologia | Antes da F1 |
+| ABT-007 | Questão | Como tratar pagamentos parciais ou múltiplas formas? | Modelo de pagamento e dashboard | Produto | Antes da F4 |
+| ABT-008 | Questão | Quais eventos e conteúdos mínimos as notificações terão? | Modelo de notificação | Produto | Antes da F5 |
+| ABT-009 | Questão | Qual política de retenção, anonimização e exclusão será adotada? | Conformidade LGPD | Produto e Jurídico | Antes do go-live |
+| ABT-010 | Questão | Como o proprietário seleciona um cliente no agendamento manual? | Usabilidade da agenda | Produto | Antes da F3 |
+| ABT-011 | Questão | O proprietário vê a agenda de todos ou apenas a própria? | Permissões e consultas | Produto | Antes da F3 |
+| ABT-012 | Questão | Como exibir agendamento com sugestão pendente? | Clareza visual | Produto e Design | Antes da F3 |
+| ABT-013 | Premissa | Notificações por polling de 60 segundos atendem à V1.0 | Experiência e infraestrutura | Produto e Tecnologia | Antes da F5 |
+| ABT-014 | Premissa | Hospedagem em containers Linux com Azure SQL | Infraestrutura e custo | Tecnologia | Antes da F7 |
+| ABT-015 | Premissa | Angular Material + CDK como design system | UI e acessibilidade | Produto e Design | Antes da F1 |
+| ABT-016 | Premissa | Banco único com `TenantId` é suficiente para a escala e o isolamento | Segurança e operação | Tecnologia | Antes da F1 |
+| ABT-017 | Premissa | Quartz.NET com store SQL Server é necessário para expirações confiáveis | Jobs e disponibilidade | Tecnologia | Antes da F5 |
+| ABT-018 | Questão | Qual provedor de e-mail será usado para recuperação de senha? | Fluxo de recuperação | Produto e Tecnologia | Versão futura |
+| ABT-019 | Questão | Qual o SLA de suporte e janela de manutenção? | Operação e alertas | Produto | Antes do go-live |
+| ABT-020 | Questão | Qual o domínio público definitivo e a política de slugs? | Página pública e SEO | Produto | Antes da F7 |
+
+Decisões propostas que dependem de confirmação: ADR-006 (multi-tenancy), ADR-008 (UI), ADR-009 (jobs), ADR-013 (hospedagem), ADR-016 (polling) e ADR-025 (CI/CD).
+
+---
+
+# Apêndice A — Glossário técnico
+
+| Termo | Definição |
+| --- | --- |
+| ADR | Architecture Decision Record; registro de uma decisão arquitetural |
+| Agregado | Conjunto de entidades tratado como unidade de consistência |
+| Bounded context | Fronteira conceitual onde um modelo de domínio é válido |
+| Clean Architecture | Estilo que isola domínio e aplicação de detalhes de infraestrutura |
+| DDD | Domain-Driven Design; abordagem de modelagem orientada ao domínio |
+| Expandir/contrair | Estratégia de migration compatível com duas versões durante o deploy |
+| Idempotência | Propriedade de repetir uma operação sem alterar o resultado |
+| IANA | Base de identificadores de fuso horário, como `America/Sao_Paulo` |
+| `sp_getapplock` | Procedimento do SQL Server para lock cooperativo nomeado |
+| Multi-tenancy | Compartilhamento da aplicação com isolamento lógico por tenant |
+| Outbox | Padrão de persistir eventos junto com a transação de negócio |
+| `rowversion` | Coluna de controle de concorrência otimista no SQL Server |
+| Signal | Primitiva reativa do Angular para estado e derivação |
+| Snapshot | Cópia imutável de dados no momento de uma operação |
+| Tenant | Barbearia, unidade de isolamento de dados |
+| Zoneless | Modo do Angular sem `zone.js`, com change detection por signals |
+
+# Apêndice B — Matriz de rastreabilidade
+
+| Requisito | Componente | ADR | Teste/verificação |
+| --- | --- | --- | --- |
+| RF-AUTH-001 a RF-AUTH-004 | `Api/Auth`, `Infrastructure/Identity`, feature `auth` | ADR-005, ADR-020 | Integração de registro, login e logout; E2E |
+| RF-AUTH-005 a RF-AUTH-010 | `Application/Tenants`, `Application/Professionals` | ADR-005, ADR-006 | Integração de criação de barbearia, convite e vínculo |
+| RF-EMP-001 a RF-EMP-003 | `Application/Tenants` | ADR-006, ADR-017 | Integração e teste de autorização |
+| RF-SERV-001 a RF-SERV-008 | `Domain/Services`, `Application/Services` | ADR-004, ADR-023 | Unitário de catálogo e snapshot; integração |
+| RF-HOR-001 a RF-HOR-007 | `Domain/Professionals`, `Application/Scheduling` | ADR-011 | Unitário de janelas e integração de bloqueios |
+| RF-AGD-001 a RF-AGD-004 | `Application/Appointments`, feature `schedule` | ADR-007, ADR-019 | Integração de agenda e E2E de navegação |
+| RF-AGD-005 a RF-AGD-008 | `Application/Appointments`, `Domain/Scheduling` | ADR-010, ADR-021 | Concorrência e cálculo de término/valor |
+| RF-AGD-009 a RF-AGD-014 | `Application/Appointments` | ADR-021, ADR-023 | Integração de detalhe, cancelamento e remarcação |
+| RF-AGD-015 a RF-AGD-017 | `Application/Appointments`, `Jobs` | ADR-009, ADR-023 | Integração de sugestão, expiração e histórico |
+| RF-AGD-018 | feature `schedule` | ADR-008 | E2E visual e teste de componente |
+| RF-ATD-001 a RF-ATD-009 | `Domain/Appointments`, `Application/Payments` | ADR-021, ADR-023 | Unitário de estados e integração de pagamento |
+| RF-CLI-001 a RF-CLI-006 | `Application/Customers` | ADR-006, ADR-020 | Integração de listagem, busca e autoatendimento |
+| RF-PROF-001 a RF-PROF-008 | `Application/Professionals` | ADR-006, ADR-023 | Integração de vínculo, status e convite |
+| RF-DASH-001 a RF-DASH-005 | `Application/Dashboard`, feature `dashboard` | ADR-011, ADR-019 | Integração de indicadores e E2E |
+| RF-PUB-001 a RF-PUB-006 | `Application/PublicBooking`, feature `public-booking` | ADR-007, ADR-010 | E2E do fluxo público e teste de concorrência |
+| RF-CONF-001 a RF-CONF-008 | `Application/Settings`, feature `settings` | ADR-006, ADR-020 | Integração por perfil |
+| RF-NOTIF-001 | `Domain/Notifications`, feature `notifications` | ADR-016 | Integração de eventos e polling |
+| RNF-DESEMPENHO-001 a 003 | API, banco e frontend | ADR-001, ADR-019 | k6 e métricas de p95 |
+| RNF-SEGURANCA-001 a 003 | Identity, API e banco | ADR-005, ADR-020 | Revisão e testes de segurança |
+| RNF-CONCORRENCIA-001 | `Application/Appointments` | ADR-010, ADR-021 | Teste com 10 requisições simultâneas |
+| RNF-DISPONIBILIDADE-001 | Infraestrutura e health checks | ADR-013, ADR-014, ADR-025 | Monitoramento e teste de rollback |
+| RNF-PRIVACIDADE-001 | API, logs e banco | ADR-014, ADR-023 | Revisão de PII e testes de acesso |
+| RNF-AUDITORIA-001 | `AppointmentHistory` | ADR-023 | Teste de histórico e autor |
+| RNF-ACESSIBILIDADE-001 | Frontend | ADR-008 | axe e revisão manual |
+| RNF-COMPATIBILIDADE-001 | Frontend | ADR-001 | Playwright em Chromium, Firefox e WebKit |
+| RNF-USABILIDADE-001 | Feature `public-booking` | ADR-008 | Teste de usabilidade e E2E |
+| RNF-RETENCAO-001 | Banco e domínio | ADR-004, ADR-023 | Teste de snapshots e desativação |
+
+# Apêndice C — Referências
+
+- `docs/PRD.md` — Product Requirements Document do PontoBarber, versão 1.0.
+- `docs/SPEC.md` — especificação original do produto.
+- `.opencode/skills/generate-tdd/references/tdd-template.md` — estrutura deste documento.
+- `.opencode/skills/generate-tdd/references/tdd-checklist.md` — critérios de validação.
+- ASP.NET Core 10 — documentação oficial de Identity, autenticação por cookie e antiforgery.
+- Angular 22 — documentação oficial de standalone, zoneless e signals.
+- EF Core 10 — documentação oficial de migrations, filtros globais e concorrência.
+- Quartz.NET 3.15 — documentação de AdoJobStore e cluster.
+- Microsoft SQL Server — documentação de `sp_getapplock` e `rowversion`.
+- OWASP ASVS 5.0 — requisitos de verificação de segurança.
+- WCAG 2.1 — diretrizes de acessibilidade.
+- LGPD — Lei 13.709/2018.
+
+
+
+
+
+
+
