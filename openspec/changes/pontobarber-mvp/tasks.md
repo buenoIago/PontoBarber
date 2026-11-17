@@ -4,7 +4,7 @@
 
 - [x] 1.1 Criar `PontoBarber.slnx` com projetos `Domain`, `Application`, `Infrastructure`, `Api` e testes correspondentes; verificar `dotnet build` verde e que `Domain` não referencia EF Core, ASP.NET Core, Identity ou biblioteca de agendamento
 - [x] 1.2 Configurar `Directory.Build.props`, nullable, analisadores, tratamento de warnings como erro e convenções de nomenclatura; verificar build sem warnings
-- [ ] 1.3 Configurar `DbContext`, convenções de `TenantId`, UTC em `datetime2(3)` e configurações por `IEntityTypeConfiguration`; verificar teste que rejeita entidade de negócio sem `TenantId`
+- [x] 1.3 Configurar `DbContext`, convenções de `TenantId`, UTC em `datetime2(3)` e configurações por `IEntityTypeConfiguration`; verificar teste que rejeita entidade de negócio sem `TenantId`
 - [ ] 1.4 Implementar resolução de tenant ativo pela rota e validação contra vínculo do usuário; verificar testes negativos de rota com barbearia sem vínculo
 - [ ] 1.5 Implementar filtro global por tenant e testes que comprovem isolamento entre duas barbearias com dados homônimos
 - [ ] 1.6 Implementar contrato de erro `application/problem+json` com código estável, `traceId` e erros por campo; verificar testes de conflito e de validação
