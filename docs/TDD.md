@@ -1365,6 +1365,8 @@ push/PR
 
 O pipeline do GitHub Actions não conhece o provedor de hospedagem: build, testes, análise, imagem e migration são independentes. O deploy é uma etapa fina, parametrizada por ambiente, que consome artefatos e segredos do ambiente-alvo.
 
+**Validação F0 (17/11/2026):** o workflow `.github/workflows/ci.yml` foi executado com sucesso no run `#1` (commit `c95f8aa`, 1m37s), com artefato de cobertura publicado. Nesta etapa entraram restore, build, formatação, testes com Testcontainers e verificação condicional do modelo EF; as etapas de frontend, segurança, imagem, aplicação de migrations e deploy permanecem nas tarefas seguintes do plano.
+
 | Estágio | Ferramenta | Gatilho | Critério de sucesso |
 | --- | --- | --- | --- |
 | Build | GitHub Actions | Push e PR | Compilação sem warnings |

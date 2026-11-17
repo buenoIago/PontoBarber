@@ -2,8 +2,8 @@
 
 Registradas após a revisão da tarefa 1.5, sem alteração de ADRs, sem renumeração de tarefas e sem implementação nesta etapa.
 
-1. **Testcontainers.MsSql 4.x e fixture reutilizável para testes de integração** — substituir o LocalDB usado em `TestesFiltroGlobalTenant` por SQL Server em container e extrair a criação das opções do DbContext para uma fixture reutilizável, sem reescrever os cenários. Deve ser tratado **antes da tarefa de CI (1.9 atual)**.
-2. **Migração dos projetos de testes de xUnit para MSTest** — alinhar `PontoBarber.Testes.Unidade`, `PontoBarber.Testes.Integracao` e `PontoBarber.Testes.Arquitetura` ao TDD §15.1 e ADR-012. Deve ser tratada **antes da tarefa de CI (1.9 atual)**.
+1. **Testcontainers.MsSql 4.x e fixture reutilizável — resolvido na tarefa 1.9** — `SqlServerFixture` substituiu o LocalDB em `TestesFiltroGlobalTenant` e nos testes de health check, com imagem fixa `2022-CU28-ubuntu-22.04`, banco exclusivo por teste e descarte no encerramento do assembly.
+2. **Migração dos projetos de testes de xUnit para MSTest — resolvido na tarefa 1.9** — `PontoBarber.Testes.Unidade`, `PontoBarber.Testes.Integracao` e `PontoBarber.Testes.Arquitetura` usam MSTest 4, totalizando os mesmos 35 testes.
 3. **Teste de descoberta automática do filtro global** — quando as primeiras entidades `IPertencenteTenant` reais forem criadas no Domínio, comprovar que `ContextoPontoBarber.OnModelCreating` aplica o filtro sem chamada manual a `AplicarFiltrosTenant` no teste.
 4. **Propor a inclusão de `internal.error` (HTTP 500) no catálogo do TDD §11.1** — justificar sua necessidade como código estável de fallback exigido pelo ADR-017, que obriga todas as respostas de erro a usarem `ProblemDetails` com `code`. Hoje o código existe na implementação, mas não possui rastreabilidade documental.
 5. **Avaliar a criação de `auth.unauthenticated`** — diferenciar a ausência de autenticação (401) de `auth.invalid_credentials` (credenciais inválidas), hoje usado como código genérico de autenticação na resposta do middleware de tenant.
@@ -13,4 +13,4 @@ Registradas após a revisão da tarefa 1.5, sem alteração de ADRs, sem renumer
 9. **Destino de telemetria** — o endpoint OTLP é configurável por `Observabilidade:OTLP:Endpoint` e vazio por padrão; a escolha do coletor/destino permanece pendente do ADR-028.
 10. **Verificação de alterações pendentes no modelo EF** — habilitada em `ContextoPontoBarberFactory` + manifesto `dotnet-ef` 10.0.15; o comando `dotnet ef migrations has-pending-model-changes` executa sem banco. Como ainda não há migration/snapshot, o resultado é vácuo; a verificação passa a ser efetiva quando a primeira migration real for versionada, sem criar migration artificial apenas para o CI.
 
-Estas pendências não alteram as decisões dos ADRs nem o escopo aprovado das tarefas 1.5, 1.6, 1.7 e 1.8.
+Estas pendências não alteram as decisões dos ADRs nem o escopo aprovado das tarefas 1.5 a 1.9. Os itens 1 e 2 foram resolvidos na tarefa 1.9; os demais permanecem em aberto.
