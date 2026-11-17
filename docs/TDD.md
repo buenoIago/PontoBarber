@@ -3,7 +3,7 @@
 > **Documento:** Technical Design Document
 > **Projeto:** PontoBarber
 > **Versão:** 1.0
-> **Status:** Em revisão
+> **Status:** Aprovado
 > **Data:** 16/11/2026
 > **Responsável:** Equipe PontoBarber
 > **PRD/SPEC de referência:** `docs/PRD.md` versão 1.0
@@ -1629,30 +1629,38 @@ Custos são estimativas para a escala inicial e devem ser revisados trimestralme
 
 ### ADR-006 — Banco único com `TenantId` e filtros globais
 
-- **Status:** Proposto
+- **Status:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RN-EMP-001, RN-DASH-009, RNF-SEGURANCA-002, RNF-PRIVACIDADE-001
 
-**Contexto:** a escala inicial é de até 500 barbearias, com necessidade de custo baixo e migrations simples. O isolamento físico por banco ou schema aumentaria a operação.
+**Contexto:** a escala inicial é de até 500 barbearias, com necessidade de custo baixo e migrations simples. O isolamento físico por banco ou schema aumentaria a complexidade operacional.
 
-**Decisão:** banco único compartilhado com `TenantId` em todas as entidades de negócio, filtro global do EF Core via `ITenantOwned` e validação de vínculo na aplicação. `TenantId` nunca vem do corpo da requisição.
+**Decisão:** utilizar banco único compartilhado, com `TenantId` nas entidades de negócio pertencentes a uma barbearia. O isolamento será realizado por filtros globais do EF Core, utilizando a interface `ITenantOwned`, e validação de vínculo na aplicação.
+
+O `TenantId` representa o identificador da barbearia, mantendo a nomenclatura técnica já adotada no TDD. Ele nunca será recebido diretamente do corpo da requisição.
+
+Entidades globais, que não pertencem a uma barbearia específica, não precisarão implementar `ITenantOwned`.
 
 **Alternativas consideradas:**
 
 | Alternativa | Prós | Contras | Motivo da rejeição |
-| --- | --- | --- | --- |
+|---|---|---|---|
 | Schema por tenant | Isolamento intermediário | Migrations e conexões complexas | Custo operacional |
 | Banco por tenant | Isolamento máximo | Provisionamento e custo altos | Escala inicial não justifica |
 | Row-level security nativa | Defesa em profundidade | Configuração e testes adicionais | Pode ser adicionada depois |
 
 **Consequências:**
 
-- Positivas: operação simples, uma migration e custo menor.
+- Positivas: operação simples, migrations centralizadas e custo menor.
 - Negativas: risco de vazamento por consulta incorreta.
-- Custos e riscos: exige testes de isolamento em todos os endpoints e proibição de `IgnoreQueryFilters`.
+- Custos e riscos: exige testes de isolamento em todos os endpoints e controle rigoroso de consultas que ignorem filtros globais.
 
-**Critérios de verificação:** teste com dois tenants em cada endpoint; análise estática proibindo `IgnoreQueryFilters` fora de jobs; filtro global ativo.
+**Critérios de verificação:**
+- Testes de isolamento entre dois tenants nos endpoints.
+- Filtros globais ativos nas entidades pertencentes a uma barbearia.
+- Uso de `IgnoreQueryFilters` restrito a operações administrativas ou jobs justificados e controlados.
+- Validação de vínculo do usuário com a barbearia na aplicação.
 
 ### ADR-007 — API REST com controllers e versionamento por URL
 
@@ -1683,7 +1691,7 @@ Custos são estimativas para a escala inicial e devem ser revisados trimestralme
 
 ### ADR-008 — Angular Material + CDK como biblioteca de UI
 
-- **Status:** Proposto
+- **Status:** Rejeitado
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-ACESSIBILIDADE-001, RNF-COMPATIBILIDADE-001, RNF-USABILIDADE-001
@@ -1710,7 +1718,7 @@ Custos são estimativas para a escala inicial e devem ser revisados trimestralme
 
 ### ADR-009 — Quartz.NET com store no SQL Server
 
-- **Status:** Proposto
+- **Status:** Rejeitado
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RF-AGD-015, RF-AGD-016, RF-AGD-017
@@ -1899,7 +1907,7 @@ Custos são estimativas para a escala inicial e devem ser revisados trimestralme
 
 ### ADR-016 — Notificações internas por polling na V1.0
 
-- **Status:** Proposto
+- **Status:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RF-NOTIF-001, RN-NOTIF-001
