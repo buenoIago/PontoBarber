@@ -2,7 +2,7 @@
 
 ## 1. Fundação da solução
 
-- [x] 1.1 Criar `PontoBarber.slnx` com projetos `Domain`, `Application`, `Infrastructure`, `Api` e testes correspondentes; verificar `dotnet build` verde e que `Domain` não referencia EF Core, ASP.NET Core, Identity ou biblioteca de agendamento
+- [x] 1.1 Criar `PontoBarber.slnx` com projetos `Dominio`, `Aplicacao`, `Infra`, `WebApp` e testes correspondentes; verificar `dotnet build` verde e que `Dominio` não referencia EF Core, ASP.NET Core, Identity ou biblioteca de agendamento
 - [x] 1.2 Configurar `Directory.Build.props`, nullable, analisadores, tratamento de warnings como erro e convenções de nomenclatura; verificar build sem warnings
 - [x] 1.3 Configurar `DbContext`, convenções de `TenantId`, UTC em `datetime2(3)` e configurações por `IEntityTypeConfiguration`; verificar teste que rejeita entidade de negócio sem `TenantId`
 - [x] 1.4 Implementar resolução de tenant ativo pela rota e validação contra vínculo do usuário; verificar testes negativos de rota com barbearia sem vínculo
@@ -75,8 +75,8 @@
 
 ## 9. Processos periódicos
 
-- [ ] 9.1 Definir o contrato de execução de processos na `Application` e o registro em `JobRuns` com início, fim, resultado e quantidade; verificar teste de registro em execução bem-sucedida e em falha
-- [ ] 9.2 Implementar adaptador de disparo provisório apenas em `Infrastructure`, sem escolher biblioteca definitiva, e documentar a pendência do ADR-027; verificar que `Domain` e `Application` não referenciam biblioteca de agendamento
+- [ ] 9.1 Definir o contrato de execução de processos na `Aplicacao` e o registro em `JobRuns` com início, fim, resultado e quantidade; verificar teste de registro em execução bem-sucedida e em falha
+- [ ] 9.2 Implementar adaptador de disparo provisório apenas em `Infra`, sem escolher biblioteca definitiva, e documentar a pendência do ADR-027; verificar que `Dominio` e `Aplicacao` não referenciam biblioteca de agendamento
 - [ ] 9.3 Implementar expiração de sugestões com `UPDATE` condicional e notificação aos envolvidos; verificar teste de expiração e de execução repetida sem liberação ou notificação duplicada
 - [ ] 9.4 Implementar fechamento de agendamentos vencidos como não comparecimento; verificar teste de agendamento vencido e de reprocessamento sem alteração de status
 - [ ] 9.5 Implementar expurgo de registros de idempotência por data de expiração; verificar teste de remoção de expirado e preservação de vigente

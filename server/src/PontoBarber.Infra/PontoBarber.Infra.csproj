@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PontoBarber.Aplicacao\PontoBarber.Aplicacao.csproj" />
+    <ProjectReference Include="..\PontoBarber.Dominio\PontoBarber.Dominio.csproj" />
+  </ItemGroup>
+
+</Project>

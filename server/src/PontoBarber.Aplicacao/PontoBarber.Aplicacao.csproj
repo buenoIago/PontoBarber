@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PontoBarber.Dominio\PontoBarber.Dominio.csproj" />
+  </ItemGroup>
+
+</Project>

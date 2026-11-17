@@ -233,19 +233,19 @@ A execução de processos periódicos é abstraída na aplicação e o adaptador
 
 | Componente | Responsabilidade | Dependências permitidas | ADR |
 | --- | --- | --- | --- |
-| `PontoBarber.Domain` | Entidades, value objects, enums, eventos de domínio, regras invariantes | Nenhuma | ADR-003 |
-| `PontoBarber.Application` | Casos de uso, DTOs, validação, autorização de aplicação, portas | Domain | ADR-003 |
-| `PontoBarber.Infrastructure` | EF Core, Identity, adaptador de scheduler, e-mail futuro, relógio, storage | Application, Domain | ADR-004, ADR-005, ADR-027 |
-| `PontoBarber.Api` | Controllers, filters, middleware, composição, health checks | Application, Infrastructure | ADR-007 |
+| `PontoBarber.Dominio` | Entidades, valor objects, enums, eventos de domínio, regras invariantes | Nenhuma | ADR-003 |
+| `PontoBarber.Aplicacao` | Casos de uso, DTOs, validação, autorização de aplicação, portas | Dominio | ADR-003 |
+| `PontoBarber.Infra` | EF Core, Identity, adaptador de scheduler, e-mail futuro, relógio, storage | Aplicacao, Dominio | ADR-004, ADR-005, ADR-027 |
+| `PontoBarber.WebApp` | Controllers, filters, middleware, composição, health checks | Aplicacao, Infra | ADR-007 |
 | `PontoBarber.Contracts` | DTOs públicos compartilhados com o frontend | Nenhuma | ADR-007 |
 | `PontoBarber.Web` | SPA Angular, rotas, componentes, serviços HTTP | Contracts (gerado) | ADR-001 |
-| `PontoBarber.UnitTests` | Testes de domínio e aplicação | Domain, Application | ADR-012 |
-| `PontoBarber.IntegrationTests` | Testes de API, banco e jobs | Api, Infrastructure | ADR-012 |
-| `PontoBarber.E2ETests` | Fluxos de navegador | Web, Api | ADR-012 |
+| `PontoBarber.Testes.Unidade` | Testes de domínio e aplicação | Dominio, Aplicacao | ADR-012 |
+| `PontoBarber.Testes.Integracao` | Testes de API, banco e jobs | WebApp, Infra | ADR-012 |
+| `PontoBarber.E2ETests` | Fluxos de navegador | Web, WebApp | ADR-012 |
 
 Módulos de domínio mapeados a partir do PRD:
 
-| Módulo | Bounded context lógico | Agregados principais |
+| Módulo | Bounded contexto lógico | Agregados principais |
 | --- | --- | --- |
 | `Auth` | Identidade e acesso | `User`, `CustomerProfile`, `ProfessionalProfile` |
 | `Tenants` | Barbearia | `Barbershop`, `BusinessHour` |
@@ -260,15 +260,15 @@ Módulos de domínio mapeados a partir do PRD:
 
 ## 5.4. Fronteiras e regras de dependência
 
-- `Domain` não referencia EF Core, ASP.NET Core, Identity, bibliotecas de agendamento de tarefas ou qualquer biblioteca de infraestrutura.
-- `Application` depende de `Domain` e de abstrações próprias (`IApplicationDbContext`, `IClock`, `ITenantContext`, `IIdentityService`).
-- `Infrastructure` implementa as abstrações de `Application`; `Api` depende de `Application` e `Infrastructure` apenas na composição.
+- `Dominio` não referencia EF Core, ASP.NET Core, Identity, bibliotecas de agendamento de tarefas ou qualquer biblioteca de infraestrutura.
+- `Aplicacao` depende de `Dominio` e de abstrações próprias (`IContextoAplicacao`, `IRelogio`, `IContextoTenant`, `IServicoIdentidade`).
+- `Infra` implementa as abstrações de `Aplicacao`; `WebApp` depende de `Aplicacao` e `Infra` apenas na composição.
 - Controllers não contêm regra de negócio: apenas traduzem HTTP, acionam casos de uso e devolvem `ProblemDetails`.
 - Um módulo não acessa diretamente o `DbContext` de outro; a comunicação ocorre por casos de uso, eventos de domínio ou projeções de leitura.
 - Entidades de outro agregado são referenciadas por identificador, não por navegação cruzada.
-- `Contracts` não referencia `Domain`; os DTOs são tipos primitivos e enums estáveis.
+- `Contracts` não referencia `Dominio`; os DTOs são tipos primitivos e enums estáveis.
 - O frontend não conhece detalhes de persistência e consome apenas `/api/v1`.
-- Proibido usar `DateTime.Now`, `Guid.NewGuid()` e `Random` diretamente no domínio; usar `IClock` e geradores injetados.
+- Proibido usar `DateTime.Now`, `Guid.NewGuid()` e `Random` diretamente no domínio; usar `IRelogio` e geradores injetados.
 
 ## 5.5. Fluxos críticos
 
@@ -311,7 +311,7 @@ Módulos de domínio mapeados a partir do PRD:
 **Transações:** transições de estado com verificação de concorrência otimista por `RowVersion`.
 
 1. Iniciar atendimento apenas em agendamento confirmado e no dia do agendamento.
-2. Registrar `ActualStartUtc` com `IClock` e mudar status para `InProgress`.
+2. Registrar `ActualStartUtc` com `IRelogio` e mudar status para `InProgress`.
 3. Finalizar apenas atendimento em andamento; registrar `ActualEndUtc`.
 4. Registrar pagamento com valor não negativo e forma permitida, independente do estado do atendimento.
 5. Atualizar indicadores por consulta agregada, sem tabela de saldo.
@@ -446,7 +446,7 @@ PontoBarber/
 │   └── changes/
 ├── server/
 │   ├── src/
-│   │   ├── PontoBarber.Domain/
+│   │   ├── PontoBarber.Dominio/
 │   │   │   ├── Common/
 │   │   │   ├── Identity/
 │   │   │   ├── Tenants/
@@ -456,7 +456,7 @@ PontoBarber/
 │   │   │   ├── Appointments/
 │   │   │   ├── Payments/
 │   │   │   └── Notifications/
-│   │   ├── PontoBarber.Application/
+│   │   ├── PontoBarber.Aplicacao/
 │   │   │   ├── Abstractions/
 │   │   │   ├── Auth/
 │   │   │   ├── Tenants/
@@ -467,7 +467,7 @@ PontoBarber/
 │   │   │   ├── Payments/
 │   │   │   ├── Dashboard/
 │   │   │   └── Notifications/
-│   │   ├── PontoBarber.Infrastructure/
+│   │   ├── PontoBarber.Infra/
 │   │   │   ├── Persistence/
 │   │   │   │   ├── Configurations/
 │   │   │   │   ├── Migrations/
@@ -476,7 +476,7 @@ PontoBarber/
 │   │   │   ├── Jobs/
 │   │   │   ├── Time/
 │   │   │   └── DependencyInjection.cs
-│   │   ├── PontoBarber.Api/
+│   │   ├── PontoBarber.WebApp/
 │   │   │   ├── Controllers/
 │   │   │   ├── Filters/
 │   │   │   ├── Middleware/
@@ -485,9 +485,9 @@ PontoBarber/
 │   │   │   └── appsettings.json
 │   │   └── PontoBarber.Contracts/
 │   └── tests/
-│       ├── PontoBarber.UnitTests/
-│       ├── PontoBarber.IntegrationTests/
-│       └── PontoBarber.ArchitectureTests/
+│       ├── PontoBarber.Testes.Unidade/
+│       ├── PontoBarber.Testes.Integracao/
+│       └── PontoBarber.Testes.Arquitetura/
 ├── client/
 │   └── ponto-barber-web/
 │       ├── src/
@@ -527,7 +527,7 @@ PontoBarber/
 - Rotas da API em kebab-case e plural: `/api/v1/barbershops/{barbershopId}/appointments`.
 - Componentes Angular com sufixo `.component.ts`, serviços `.service.ts`, guards `.guard.ts` e modelos `.models.ts`.
 - Testes nomeados `Metodo_Cenario_Resultado` no backend e `should comportamento when cenario` no frontend.
-- Um caso de uso por classe em `Application`, com sufixo `Handler` ou `Service` e método único `HandleAsync`.
+- Um caso de uso por classe em `Aplicacao`, com sufixo `Handler` ou `Service` e método único `HandleAsync`.
 - DTOs de entrada terminam em `Request`; de saída, em `Response`.
 - Enums de domínio persistidos como `int` e serializados como `string` na API.
 - Nenhum `SELECT *`; consultas sempre projetadas.
@@ -538,15 +538,15 @@ PontoBarber/
 
 | Caminho | Módulo | Responsabilidade |
 | --- | --- | --- |
-| `Domain/Identity` | AUTH | Usuários, perfis e regras de vínculo de conta |
-| `Domain/Tenants` | EMP, CONF | Barbearia, horários de funcionamento e configurações |
-| `Domain/Professionals` | PROF, HOR | Vínculo, disponibilidade semanal e bloqueios |
-| `Domain/Services` | SERV | Catálogo e regras de preço e duração |
-| `Domain/Appointments` | AGD, PUB, ATD | Agendamento, histórico, sugestão e atendimento |
-| `Domain/Payments` | ATD, DASH | Pagamento presencial |
-| `Domain/Notifications` | NOTIF | Notificação interna |
-| `Application/Dashboard` | DASH | Projeções e consultas agregadas |
-| `Api/Controllers` | Todos | Contratos HTTP versionados |
+| `Dominio/Identity` | AUTH | Usuários, perfis e regras de vínculo de conta |
+| `Dominio/Tenants` | EMP, CONF | Barbearia, horários de funcionamento e configurações |
+| `Dominio/Professionals` | PROF, HOR | Vínculo, disponibilidade semanal e bloqueios |
+| `Dominio/Services` | SERV | Catálogo e regras de preço e duração |
+| `Dominio/Appointments` | AGD, PUB, ATD | Agendamento, histórico, sugestão e atendimento |
+| `Dominio/Payments` | ATD, DASH | Pagamento presencial |
+| `Dominio/Notifications` | NOTIF | Notificação interna |
+| `Aplicacao/Dashboard` | DASH | Projeções e consultas agregadas |
+| `WebApp/Controllers` | Todos | Contratos HTTP versionados |
 | `client/src/app/features/public-booking` | PUB | Página pública e wizard de agendamento |
 | `client/src/app/features/schedule` | AGD, ATD | Agenda diária, semanal e mensal |
 | `client/src/app/features/settings` | CONF, HOR | Configurações e disponibilidade |
@@ -599,7 +599,7 @@ Enums:
 | `AppointmentOrigin` | `Public`, `Manual` |
 | `SuggestionStatus` | `Pending`, `Accepted`, `Rejected`, `Expired` |
 | `PaymentMethod` | `Cash`, `Pix`, `DebitCard`, `CreditCard` |
-| `NotificationType` | `AppointmentCreated`, `AppointmentCancelled`, `SuggestionCreated`, `SuggestionAccepted`, `SuggestionRejected`, `SuggestionExpired`, `ServiceStarted`, `ServiceCompleted`, `PaymentRegistered` |
+| `NotificationType` | `AppointmentCreated`, `AppointmentCancelled`, `SuggestionCreated`, `SuggestionAccepted`, `SuggestionRejected`, `SugestaoExpirada`, `ServiceStarted`, `ServiceCompleted`, `PaymentRegistered` |
 
 ## 8.2. Relacionamentos
 
@@ -654,7 +654,7 @@ A restrição de sobreposição não pode ser expressa por índice único no SQL
 
 ## 8.4. Migrations e versionamento
 
-- Migrations geradas com `dotnet ef migrations add` no projeto `PontoBarber.Infrastructure` e versionadas no repositório.
+- Migrations geradas com `dotnet ef migrations add` no projeto `PontoBarber.Infra` e versionadas no repositório.
 - Aplicação em produção por job de pipeline com `dotnet ef database update` em etapa separada do deploy da API.
 - Estratégia expandir/contrair: adicionar colunas e índices compatíveis, fazer backfill, migrar o código e remover o que ficou obsoleto em release posterior.
 - Toda migration deve ser idempotente e testada contra um banco com dados representativos.
@@ -682,7 +682,7 @@ A restrição de sobreposição não pode ser expressa por índice único no SQL
 | --- | --- |
 | Modelo | Banco único compartilhado com `TenantId` |
 | Identificação | `TenantId` na rota (`/api/v1/barbershops/{barbershopId}`), validado contra o vínculo ativo do usuário |
-| Isolamento de consultas | Filtro global do EF Core por `ITenantContext.TenantId` e `IgnoreQueryFilters` proibido fora de jobs internos |
+| Isolamento de consultas | Filtro global do EF Core por `IContextoTenant.TenantId` e `IgnoreQueryFilters` proibido fora de jobs internos |
 | Autorização | Policy `TenantMember`, `TenantOwner` e `AppointmentOwner`; resource handlers validam o recurso antes da ação |
 | Migrações | Uma única migration aplicada a todos os tenants |
 | Dados compartilhados | `AspNetUsers`, `Customers`, `Professionals` e o catálogo modelo (`Services.IsTemplate = true`) |
@@ -695,12 +695,12 @@ Regras adicionais:
 - Um usuário pode ter vínculo com mais de uma barbearia. O frontend mantém o tenant ativo em memória e o envia na rota.
 - `CustomerProfile` não pertence a um tenant; o relacionamento com a barbearia é derivado dos agendamentos.
 - Consultas de dashboard e de clientes sempre filtram por `TenantId` e período.
-- O filtro global é aplicado por convenção em todas as entidades que implementam `ITenantOwned`.
+- O filtro global é aplicado por convenção em todas as entidades que implementam `IPertencenteTenant`.
 - Testes de isolamento criam dois tenants com dados homônimos e verificam que nenhum endpoint retorna dados cruzados.
 
 **Riscos de vazamento entre tenants:** consultas com `IgnoreQueryFilters`, projeções SQL cruas, jobs sem contexto, cache compartilhado por chave não tenantizada e logs com identificadores de outro tenant.
 
-**Testes de isolamento:** suíte de integração por endpoint com dois tenants; teste de arquitetura que proíbe `IgnoreQueryFilters` fora de `Infrastructure/Jobs`; teste de cache com chave composta por tenant.
+**Testes de isolamento:** suíte de integração por endpoint com dois tenants; teste de arquitetura que proíbe `IgnoreQueryFilters` fora de `Infra/Jobs`; teste de cache com chave composta por tenant.
 
 ---
 
@@ -736,7 +736,7 @@ Códigos de erro estáveis:
 | `tenant.not_found` | 404 | Barbearia inexistente ou inacessível |
 | `tenant.forbidden` | 403 | Usuário sem vínculo com a barbearia |
 | `tenant.invite_conflict` | 409 | Não foi possível gerar código de convite único |
-| `validation.failed` | 400 | Erros de validação por campo |
+| `validacao.failed` | 400 | Erros de validação por campo |
 | `schedule.slot_unavailable` | 409 | Horário indisponível ou conflitante |
 | `schedule.outside_business_hours` | 422 | Fora do funcionamento |
 | `schedule.outside_availability` | 422 | Fora da disponibilidade do profissional |
@@ -746,7 +746,7 @@ Códigos de erro estáveis:
 | `appointment.already_started` | 409 | Operação não permitida após início |
 | `payment.already_registered` | 409 | Pagamento já registrado |
 | `suggestion.expired` | 409 | Sugestão expirada |
-| `concurrency.conflict` | 409 | `rowversion` divergente |
+| `concurrency.conflito` | 409 | `rowversion` divergente |
 | `idempotency.missing_key` | 400 | Chave de idempotência ausente |
 | `rate_limit.exceeded` | 429 | Limite de requisições excedido |
 
@@ -894,7 +894,7 @@ Códigos de erro estáveis:
 
 | Código | HTTP | Quando ocorre |
 | --- | --- | --- |
-| `validation.failed` | 400 | Campos inválidos |
+| `validacao.failed` | 400 | Campos inválidos |
 | `auth.forbidden` | 403 | Usuário não é cliente |
 | `schedule.slot_unavailable` | 409 | Horário ocupado ou bloqueado |
 | `schedule.outside_business_hours` | 422 | Fora do funcionamento |
@@ -925,7 +925,7 @@ Códigos de erro estáveis:
 | Código | HTTP | Quando ocorre |
 | --- | --- | --- |
 | `tenant.not_found` | 404 | Slug inexistente ou inativo |
-| `validation.failed` | 400 | Data fora da janela ou serviço inválido |
+| `validacao.failed` | 400 | Data fora da janela ou serviço inválido |
 
 ### Cancelar agendamento
 
@@ -944,7 +944,7 @@ Códigos de erro estáveis:
 | --- | --- | --- |
 | `appointment.already_started` | 409 | Atendimento iniciado |
 | `appointment.invalid_state` | 409 | Agendamento já cancelado ou finalizado |
-| `concurrency.conflict` | 409 | `rowversion` divergente |
+| `concurrency.conflito` | 409 | `rowversion` divergente |
 | `auth.forbidden` | 403 | Sem permissão sobre o agendamento |
 
 ### Registrar pagamento
@@ -963,7 +963,7 @@ Códigos de erro estáveis:
 
 | Código | HTTP | Quando ocorre |
 | --- | --- | --- |
-| `validation.failed` | 400 | Valor negativo ou forma inválida |
+| `validacao.failed` | 400 | Valor negativo ou forma inválida |
 | `payment.already_registered` | 409 | Já existe pagamento |
 | `appointment.invalid_state` | 409 | Agendamento cancelado ou não compareceu |
 
@@ -987,7 +987,7 @@ Códigos de erro estáveis:
 
 | Código | HTTP | Quando ocorre |
 | --- | --- | --- |
-| `validation.failed` | 400 | Campos inválidos |
+| `validacao.failed` | 400 | Campos inválidos |
 | `auth.forbidden` | 403 | Usuário não é barbeiro |
 | `tenant.invite_conflict` | 409 | Colisão de código após 5 tentativas |
 
@@ -1058,7 +1058,7 @@ Regras complementares:
 
 **Onde a autorização é aplicada:** policies declaradas nos controllers, validação de aplicação nos casos de uso e `IAuthorizationService` em resource handlers para decisões dependentes do recurso (por exemplo, agendamento do profissional ou do cliente).
 
-**Como o isolamento por tenant é validado:** `ITenantContext` resolve o tenant da rota; um `TenantAuthorizationHandler` verifica vínculo ativo do usuário; o filtro global do EF Core complementa a proteção; toda consulta que usa `IgnoreQueryFilters` exige justificativa e teste dedicado.
+**Como o isolamento por tenant é validado:** `IContextoTenant` resolve o tenant da rota; um `ManipuladorAutorizacaoTenant` verifica vínculo ativo do usuário; o filtro global do EF Core complementa a proteção; toda consulta que usa `IgnoreQueryFilters` exige justificativa e teste dedicado.
 
 ## 11.3. Ameaças e mitigações
 
@@ -1110,7 +1110,7 @@ Regras complementares:
 - **Fronteira transacional:** um caso de uso por transação; agendamento, histórico e notificação são persistidos juntos.
 - **Idempotência:** `IdempotencyRecords` com `UserId`, `Key`, `RequestHash`, `ResponseJson` e `ExpiresAtUtc`; requisição repetida com mesmo hash devolve a resposta original; hash divergente retorna 409.
 - **Retries:** até 3 tentativas para deadlock (erro 1205) e timeout de lock, com backoff exponencial de 50, 150 e 400 ms e jitter.
-- **Conflitos:** `DbUpdateConcurrencyException` é convertido em `409 concurrency.conflict` com o estado atual.
+- **Conflitos:** `DbUpdateConcurrencyException` é convertido em `409 concurrency.conflito` com o estado atual.
 - **Consistência eventual:** notificações e projeções de dashboard são atualizadas após commit; não há consistência eventual em dados financeiros.
 - **Outbox:** notificações são gravadas na mesma transação do evento; um job de reconciliação reprocessa eventos sem notificação.
 - **Transações longas:** proibidas; consultas externas e chamadas HTTP nunca ocorrem dentro da transação.
@@ -1174,7 +1174,7 @@ Regras:
 | E-mail transacional | A definir | Recuperação de senha | Assíncrona | 10 s | 3 | Atendimento administrativo | ABT-006 |
 | Coletor OTLP | A definir | Telemetria (logs, métricas e traces) | Assíncrona | 5 s | 3 | Buffer local e descarte | ADR-014 |
 
-**Contratos e versionamento:** integrações futuras serão isoladas por interfaces em `Application/Abstractions` e adaptadores em `Infrastructure/Integrations`, com contrato versionado e testes de contrato.
+**Contratos e versionamento:** integrações futuras serão isoladas por interfaces em `Aplicacao/Abstracoes` e adaptadores em `Infra/Integrations`, com contrato versionado e testes de contrato.
 
 **Credenciais:** gerenciador de segredos definido junto da hospedagem (ADR-028); nenhuma credencial em `appsettings.json` versionado.
 
@@ -1197,19 +1197,19 @@ Circuit breaker padrão para integrações futuras: 5 falhas em 30 segundos abre
 | Correlação | `TraceId`, `SpanId`, `RequestId` e `TenantId` em todos os eventos |
 | Dados sensíveis | Redação de senha, token, cookie, e-mail e telefone |
 | Retenção | Definida pelo destino configurado do coletor; 7 dias em container local |
-| Enriquecimento | `Application`, `Environment`, `Version`, `UserId` (hash), `TenantId` |
+| Enriquecimento | `Aplicacao`, `Environment`, `Version`, `UserId` (hash), `TenantId` |
 
 Eventos obrigatórios:
 
 | Evento | Nível | Campos |
 | --- | --- | --- |
-| `UserLoggedIn` | Information | `userId`, `userType`, `tenantId` |
+| `UserLoggedIn` | Information | `usuarioId`, `userType`, `tenantId` |
 | `UserLoginFailed` | Warning | `emailHash`, `reason`, `ipHash` |
 | `AppointmentCreated` | Information | `appointmentId`, `tenantId`, `professionalId`, `origin` |
 | `AppointmentConflictRejected` | Warning | `tenantId`, `professionalId`, `startsAtUtc` |
 | `AppointmentCancelled` | Information | `appointmentId`, `actorUserId`, `reasonCode` |
 | `PaymentRegistered` | Information | `paymentId`, `appointmentId`, `method` |
-| `TenantIsolationViolation` | Error | `userId`, `requestedTenantId`, `path` |
+| `TenantIsolationViolation` | Error | `usuarioId`, `requestedTenantId`, `path` |
 | `JobFailed` | Error | `jobName`, `attempt`, `exceptionType` |
 | `MigrationApplied` | Information | `migrationId`, `durationMs` |
 
@@ -1246,8 +1246,8 @@ Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient 
 
 | Nível | Ferramenta | Escopo | Meta |
 | --- | --- | --- | --- |
-| Unitário | MSTest 4 + FluentAssertions | Entidades, value objects, regras de disponibilidade, cálculo de períodos | ≥ 85% no domínio, ≥ 70% global |
-| Aplicação | MSTest + NSubstitute | Casos de uso, autorização, validação | ≥ 80% em `Application` |
+| Unitário | MSTest 4 + FluentAssertions | Entidades, valor objects, regras de disponibilidade, cálculo de períodos | ≥ 85% no domínio, ≥ 70% global |
+| Aplicação | MSTest + NSubstitute | Casos de uso, autorização, validação | ≥ 80% em `Aplicacao` |
 | Integração | MSTest + `WebApplicationFactory` + Testcontainers | Endpoints, EF Core, Identity, migrations, jobs | Fluxos críticos 100% |
 | Arquitetura | MSTest + NetArchTest | Regras de dependência e proibições | 100% das regras |
 | Contrato | OpenAPI + verificação de DTOs | Compatibilidade entre API e cliente | Sem breaking change em `v1` |
@@ -1285,7 +1285,7 @@ Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient 
 
 ## 15.3. Dados e isolamento de testes
 
-- Testes unitários sem banco, com `IClock` e geradores determinísticos.
+- Testes unitários sem banco, com `IRelogio` e geradores determinísticos.
 - Testes de integração usam SQL Server em container via Testcontainers, com a mesma versão de produção.
 - Cada classe de teste cria um banco ou schema isolado; `Respawn` limpa dados entre testes.
 - Seed mínimo por teste, sem dependência de ordem de execução.
@@ -1554,7 +1554,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 
 **Contexto:** as regras de agenda, atendimento e pagamento são o núcleo do produto e precisam ser testáveis e independentes de banco e HTTP. A equipe é pequena e a escala inicial não justifica serviços distribuídos.
 
-**Decisão:** monólito modular com quatro camadas (`Domain`, `Application`, `Infrastructure`, `Api`), agregados por contexto, eventos de domínio e casos de uso explícitos. Regras de negócio ficam no domínio; orquestração e autorização de aplicação, em `Application`; detalhes técnicos, em `Infrastructure`.
+**Decisão:** monólito modular com quatro camadas (`Dominio`, `Aplicacao`, `Infra`, `WebApp`), agregados por contexto, eventos de domínio e casos de uso explícitos. Regras de negócio ficam no domínio; orquestração e autorização de aplicação, em `Aplicacao`; detalhes técnicos, em `Infra`.
 
 **Alternativas consideradas:**
 
@@ -1570,7 +1570,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 - Negativas: mais projetos e mapeamentos explícitos.
 - Custos e riscos: disciplinas de dependência precisam ser verificadas por testes de arquitetura.
 
-**Critérios de verificação:** NetArchTest sem violações; `Domain` sem referências externas; controllers sem regra de negócio.
+**Critérios de verificação:** NetArchTest sem violações; `Dominio` sem referências externas; controllers sem regra de negócio.
 
 ### ADR-004 — SQL Server com EF Core 10 e migrations versionadas
 
@@ -1635,11 +1635,11 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 
 **Contexto:** a escala inicial é de até 500 barbearias, com necessidade de custo baixo e migrations simples. O isolamento físico por banco ou schema aumentaria a complexidade operacional.
 
-**Decisão:** utilizar banco único compartilhado, com `TenantId` nas entidades de negócio pertencentes a uma barbearia. O isolamento será realizado por filtros globais do EF Core, utilizando a interface `ITenantOwned`, e validação de vínculo na aplicação.
+**Decisão:** utilizar banco único compartilhado, com `TenantId` nas entidades de negócio pertencentes a uma barbearia. O isolamento será realizado por filtros globais do EF Core, utilizando a interface `IPertencenteTenant`, e validação de vínculo na aplicação.
 
 O `TenantId` representa o identificador da barbearia, mantendo a nomenclatura técnica já adotada no TDD. Ele nunca será recebido diretamente do corpo da requisição.
 
-Entidades globais, que não pertencem a uma barbearia específica, não precisarão implementar `ITenantOwned`.
+Entidades globais, que não pertencem a uma barbearia específica, não precisarão implementar `IPertencenteTenant`.
 
 **Alternativas consideradas:**
 
@@ -1780,7 +1780,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Contexto:** cada barbearia opera em um único fuso e os indicadores dependem do calendário local. Comparar horários locais sem fuso gera erros em viradas de dia e horário de verão.
 
-**Decisão:** instantes em UTC (`datetime2(3)`), `TimeZoneId` IANA na barbearia, `TimeOnly` para janelas semanais e conversão na borda. `IClock` injetado e proibição de `DateTime.Now`.
+**Decisão:** instantes em UTC (`datetime2(3)`), `TimeZoneId` IANA na barbearia, `TimeOnly` para janelas semanais e conversão na borda. `IRelogio` injetado e proibição de `DateTime.Now`.
 
 **Alternativas consideradas:**
 
@@ -1997,7 +1997,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Contexto:** repositórios genéricos adicionam abstração sem ganho e dificultam consultas projetadas de agenda e dashboard.
 
-**Decisão:** `DbContext` exposto por `IApplicationDbContext` para escrita; consultas de leitura usam query services especializados em `Application` ou `Infrastructure`, com projeção e `AsNoTracking`. Repositórios apenas quando houver necessidade real de abstração.
+**Decisão:** `DbContext` exposto por `IContextoAplicacao` para escrita; consultas de leitura usam query services especializados em `Aplicacao` ou `Infra`, com projeção e `AsNoTracking`. Repositórios apenas quando houver necessidade real de abstração.
 
 **Alternativas consideradas:**
 
@@ -2132,7 +2132,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Contexto:** WhatsApp, e-mail, verificação de telefone e pagamento online estão fora da V1.0, mas são evoluções previstas.
 
-**Decisão:** toda integração futura é definida por interface em `Application/Abstractions`, implementada em `Infrastructure/Integrations`, com timeout, retry, circuit breaker e contrato testado.
+**Decisão:** toda integração futura é definida por interface em `Aplicacao/Abstracoes`, implementada em `Infra/Integrations`, com timeout, retry, circuit breaker e contrato testado.
 
 **Alternativas consideradas:**
 
@@ -2217,8 +2217,8 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Decisão:** a estratégia de execução de processos periódicos permanece **pendente**. Nenhum adaptador, biblioteca ou serviço é escolhido nesta decisão. Ficam definidos apenas os contratos e as restrições que qualquer escolha futura deve satisfazer:
 
-- A aplicação define abstrações próprias para execução de processos; `Domain` e `Application` não referenciam biblioteca de agendamento.
-- A escolha do adaptador é feita em `Infrastructure` e registrada em ADR próprio no momento da decisão.
+- A aplicação define abstrações próprias para execução de processos; `Dominio` e `Aplicacao` não referenciam biblioteca de agendamento.
+- A escolha do adaptador é feita em `Infra` e registrada em ADR próprio no momento da decisão.
 - Todo processo é implementado como operação idempotente, segura sob execução repetida ou concorrente, com registro de execução em `JobRuns`.
 - A garantia de execução durável e coordenada entre instâncias não pode ser afirmada enquanto a estratégia não for aprovada.
 - Os processos existentes têm rastreabilidade na SPEC/TDD; nenhum processo novo é introduzido por esta decisão.
@@ -2255,7 +2255,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - Telemetria por OpenTelemetry com exportador OTLP configurável e logs estruturados por Serilog; nenhum destino proprietário é obrigatório.
 - Segredos acessados por abstração de configuração e gerenciador de segredos escolhido na decisão.
 - O pipeline do GitHub Actions é independente do provedor: build, testes, imagem e migration não dependem do destino; o deploy é etapa fina e parametrizada.
-- `Domain` e `Application` não contêm código específico de provedor.
+- `Dominio` e `Aplicacao` não contêm código específico de provedor.
 
 **Alternativas consideradas (não decididas):**
 
@@ -2271,7 +2271,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - Negativas: custos, RTO/RPO, backups e alertas ficam sem números definitivos.
 - Custos e riscos: a decisão deve ocorrer antes da etapa de produção e go-live.
 
-**Critérios de verificação:** nenhuma referência a provedor em `Domain`/`Application`; pipeline executando build, testes, imagem e migration sem conhecer o destino; decisão registrada antes do go-live.
+**Critérios de verificação:** nenhuma referência a provedor em `Dominio`/`Aplicacao`; pipeline executando build, testes, imagem e migration sem conhecer o destino; decisão registrada antes do go-live.
 
 ---
 
@@ -2293,7 +2293,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 ## 20.2. Ordem de implementação
 
 1. Criar solução, projetos, convenções, `Directory.Build.props`, pipeline e ambiente local.
-2. Implementar `Domain` de identidade, tenant, profissionais e serviços.
+2. Implementar `Dominio` de identidade, tenant, profissionais e serviços.
 3. Configurar Identity, cookie, antiforgery, autorização e `/auth/me`.
 4. Implementar criação de barbearia, convite e vínculo profissional.
 5. Implementar catálogo, horários, disponibilidade e bloqueios com testes de domínio.
@@ -2363,7 +2363,7 @@ Decisões pendentes que dependem de confirmação: ADR-013/ADR-028 (hospedagem e
 | --- | --- |
 | ADR | Architecture Decision Record; registro de uma decisão arquitetural |
 | Agregado | Conjunto de entidades tratado como unidade de consistência |
-| Bounded context | Fronteira conceitual onde um modelo de domínio é válido |
+| Bounded contexto | Fronteira conceitual onde um modelo de domínio é válido |
 | Clean Architecture | Estilo que isola domínio e aplicação de detalhes de infraestrutura |
 | DDD | Domain-Driven Design; abordagem de modelagem orientada ao domínio |
 | Expandir/contrair | Estratégia de migration compatível com duas versões durante o deploy |
@@ -2382,26 +2382,26 @@ Decisões pendentes que dependem de confirmação: ADR-013/ADR-028 (hospedagem e
 
 | Requisito | Componente | ADR | Teste/verificação |
 | --- | --- | --- | --- |
-| RF-AUTH-001 a RF-AUTH-004 | `Api/Auth`, `Infrastructure/Identity`, feature `auth` | ADR-005, ADR-020 | Integração de registro, login e logout; E2E |
-| RF-AUTH-005 a RF-AUTH-010 | `Application/Tenants`, `Application/Professionals` | ADR-005, ADR-006 | Integração de criação de barbearia, convite e vínculo |
-| RF-EMP-001 a RF-EMP-003 | `Application/Tenants` | ADR-006, ADR-017 | Integração e teste de autorização |
-| RF-SERV-001 a RF-SERV-008 | `Domain/Services`, `Application/Services` | ADR-004, ADR-023 | Unitário de catálogo e snapshot; integração |
-| RF-HOR-001 a RF-HOR-007 | `Domain/Professionals`, `Application/Scheduling` | ADR-011 | Unitário de janelas e integração de bloqueios |
-| RF-AGD-001 a RF-AGD-004 | `Application/Appointments`, feature `schedule` | ADR-007, ADR-019 | Integração de agenda e E2E de navegação |
-| RF-AGD-005 a RF-AGD-008 | `Application/Appointments`, `Domain/Scheduling` | ADR-010, ADR-021 | Concorrência e cálculo de término/valor |
-| RF-AGD-009 a RF-AGD-014 | `Application/Appointments` | ADR-021, ADR-023 | Integração de detalhe, cancelamento e remarcação |
-| RF-AGD-015 a RF-AGD-017 | `Application/Appointments`, processos periódicos | ADR-027, ADR-023 | Integração de sugestão, expiração e histórico |
+| RF-AUTH-001 a RF-AUTH-004 | `WebApp/Auth`, `Infra/Identity`, feature `auth` | ADR-005, ADR-020 | Integração de registro, login e logout; E2E |
+| RF-AUTH-005 a RF-AUTH-010 | `Aplicacao/Tenants`, `Aplicacao/Professionals` | ADR-005, ADR-006 | Integração de criação de barbearia, convite e vínculo |
+| RF-EMP-001 a RF-EMP-003 | `Aplicacao/Tenants` | ADR-006, ADR-017 | Integração e teste de autorização |
+| RF-SERV-001 a RF-SERV-008 | `Dominio/Services`, `Aplicacao/Services` | ADR-004, ADR-023 | Unitário de catálogo e snapshot; integração |
+| RF-HOR-001 a RF-HOR-007 | `Dominio/Professionals`, `Aplicacao/Scheduling` | ADR-011 | Unitário de janelas e integração de bloqueios |
+| RF-AGD-001 a RF-AGD-004 | `Aplicacao/Appointments`, feature `schedule` | ADR-007, ADR-019 | Integração de agenda e E2E de navegação |
+| RF-AGD-005 a RF-AGD-008 | `Aplicacao/Appointments`, `Dominio/Scheduling` | ADR-010, ADR-021 | Concorrência e cálculo de término/valor |
+| RF-AGD-009 a RF-AGD-014 | `Aplicacao/Appointments` | ADR-021, ADR-023 | Integração de detalhe, cancelamento e remarcação |
+| RF-AGD-015 a RF-AGD-017 | `Aplicacao/Appointments`, processos periódicos | ADR-027, ADR-023 | Integração de sugestão, expiração e histórico |
 | RF-AGD-018 | feature `schedule` | ADR-026 | E2E visual e teste de componente |
-| RF-ATD-001 a RF-ATD-009 | `Domain/Appointments`, `Application/Payments` | ADR-021, ADR-023 | Unitário de estados e integração de pagamento |
-| RF-CLI-001 a RF-CLI-006 | `Application/Customers` | ADR-006, ADR-020 | Integração de listagem, busca e autoatendimento |
-| RF-PROF-001 a RF-PROF-008 | `Application/Professionals` | ADR-006, ADR-023 | Integração de vínculo, status e convite |
-| RF-DASH-001 a RF-DASH-005 | `Application/Dashboard`, feature `dashboard` | ADR-011, ADR-019 | Integração de indicadores e E2E |
-| RF-PUB-001 a RF-PUB-006 | `Application/PublicBooking`, feature `public-booking` | ADR-007, ADR-010 | E2E do fluxo público e teste de concorrência |
-| RF-CONF-001 a RF-CONF-008 | `Application/Settings`, feature `settings` | ADR-006, ADR-020 | Integração por perfil |
-| RF-NOTIF-001 | `Domain/Notifications`, feature `notifications` | ADR-016 | Integração de eventos e polling |
+| RF-ATD-001 a RF-ATD-009 | `Dominio/Appointments`, `Aplicacao/Payments` | ADR-021, ADR-023 | Unitário de estados e integração de pagamento |
+| RF-CLI-001 a RF-CLI-006 | `Aplicacao/Customers` | ADR-006, ADR-020 | Integração de listagem, busca e autoatendimento |
+| RF-PROF-001 a RF-PROF-008 | `Aplicacao/Professionals` | ADR-006, ADR-023 | Integração de vínculo, status e convite |
+| RF-DASH-001 a RF-DASH-005 | `Aplicacao/Dashboard`, feature `dashboard` | ADR-011, ADR-019 | Integração de indicadores e E2E |
+| RF-PUB-001 a RF-PUB-006 | `Aplicacao/PublicBooking`, feature `public-booking` | ADR-007, ADR-010 | E2E do fluxo público e teste de concorrência |
+| RF-CONF-001 a RF-CONF-008 | `Aplicacao/Settings`, feature `settings` | ADR-006, ADR-020 | Integração por perfil |
+| RF-NOTIF-001 | `Dominio/Notifications`, feature `notifications` | ADR-016 | Integração de eventos e polling |
 | RNF-DESEMPENHO-001 a 003 | API, banco e frontend | ADR-001, ADR-019 | k6 e métricas de p95 |
 | RNF-SEGURANCA-001 a 003 | Identity, API e banco | ADR-005, ADR-020 | Revisão e testes de segurança |
-| RNF-CONCORRENCIA-001 | `Application/Appointments` | ADR-010, ADR-021 | Teste com 10 requisições simultâneas |
+| RNF-CONCORRENCIA-001 | `Aplicacao/Appointments` | ADR-010, ADR-021 | Teste com 10 requisições simultâneas |
 | RNF-DISPONIBILIDADE-001 | Infraestrutura e health checks | ADR-013, ADR-014, ADR-025 | Monitoramento e teste de rollback |
 | RNF-PRIVACIDADE-001 | API, logs e banco | ADR-014, ADR-023 | Revisão de PII e testes de acesso |
 | RNF-AUDITORIA-001 | `AppointmentHistory` | ADR-023 | Teste de histórico e autor |

@@ -34,7 +34,7 @@ O design abaixo cobre apenas o "como" que não está fixado nos documentos e que
 
 ### 1. Monólito modular com Clean Architecture
 
-Solução única `PontoBarber.slnx` com `Domain`, `Application`, `Infrastructure`, `Api` e projetos de teste. `Domain` não referencia EF Core, ASP.NET Core, Identity nem bibliotecas de agendamento. `Application` expõe casos de uso por feature e depende de abstrações; `Infrastructure` implementa persistência, identidade e adaptadores.
+Solução única `PontoBarber.slnx` com `Dominio`, `Aplicacao`, `Infra`, `WebApp` e projetos de teste. `Dominio` não referencia EF Core, ASP.NET Core, Identity nem bibliotecas de agendamento. `Aplicacao` expõe casos de uso por feature e depende de abstrações; `Infra` implementa persistência, identidade e adaptadores.
 
 - **Por quê:** o TDD já fixa o estilo (ADR-003); manter as referências unidirecionais é o que viabiliza trocar o adaptador de scheduler e o destino de execução sem tocar em regra de negócio.
 - **Alternativa descartada:** separar serviços por capability. Aumentaria custo operacional e contraria o monólito modular aprovado.
@@ -66,7 +66,7 @@ Confirmação em transação: lock de aplicação `pb:schedule:{tenantId}:{profe
 
 ### 5. Processos periódicos por abstração + idempotência
 
-`Application` define o contrato de execução (nome do processo, execução assíncrona, resultado com quantidade processada e erros) e cada processo é um caso de uso idempotente. `Infrastructure` contém somente o adaptador que dispara esses casos de uso; a escolha do adaptador permanece pendente (ADR-027). Cada execução grava registro em `JobRuns` com início, fim, resultado e quantidade. Os processos deste MVP são os rastreáveis no TDD §12.3: expiração de sugestão, fechamento de agendamentos vencidos, expurgo de idempotência e reconciliação de notificações.
+`Aplicacao` define o contrato de execução (nome do processo, execução assíncrona, resultado com quantidade processada e erros) e cada processo é um caso de uso idempotente. `Infra` contém somente o adaptador que dispara esses casos de uso; a escolha do adaptador permanece pendente (ADR-027). Cada execução grava registro em `JobRuns` com início, fim, resultado e quantidade. Os processos deste MVP são os rastreáveis no TDD §12.3: expiração de sugestão, fechamento de agendamentos vencidos, expurgo de idempotência e reconciliação de notificações.
 
 - **Por quê:** satisfaz RN-AGD-015 a RN-AGD-017 sem compromisso prematuro de biblioteca, e mantém o domínio livre de dependência de agendamento.
 - **Consequência explícita:** a garantia de execução durável e coordenada entre instâncias não pode ser afirmada até a decisão. O código não deve depender dela: cada processo precisa ser correto mesmo sob execução repetida ou simultânea.
@@ -88,7 +88,7 @@ Bootstrap 5 importado por módulos (reboot, grid, utilities e componentes usados
 
 ### 8. Contrato de erro e observabilidade neutros de provedor
 
-Erros em `application/problem+json` com código estável, `traceId` de correlação e erros por campo. Logs estruturados com Serilog, métricas e traces por OpenTelemetry com exportador OTLP configurável. Nenhum SDK de provedor entra em `Domain`/`Application`; sinks proprietários não são obrigatórios.
+Erros em `application/problem+json` com código estável, `traceId` de correlação e erros por campo. Logs estruturados com Serilog, métricas e traces por OpenTelemetry com exportador OTLP configurável. Nenhum SDK de provedor entra em `Dominio`/`Aplicacao`; sinks proprietários não são obrigatórios.
 
 - **Por quê:** permite trocar destino junto da decisão de hospedagem (ADR-028) sem reescrever código.
 - **Alternativa descartada:** SDK de APM proprietário como dependência direta — lock-in prematuro.
@@ -129,6 +129,6 @@ Não há sistema legado nem dados a migrar; a V1.0 inicia com banco vazio.
 
 ## Open Questions
 
-- Qual adaptador de scheduler será adotado (ADR-027)? Não altera specs nem a abstração; altera apenas `Infrastructure` e a garantia de durabilidade.
-- Qual provedor, serviço de banco, gerenciador de segredos e destino de telemetria (ADR-028)? Não altera `Domain`/`Application` nem o pipeline até a etapa de publicação.
+- Qual adaptador de scheduler será adotado (ADR-027)? Não altera specs nem a abstração; altera apenas `Infra` e a garantia de durabilidade.
+- Qual provedor, serviço de banco, gerenciador de segredos e destino de telemetria (ADR-028)? Não altera `Dominio`/`Aplicacao` nem o pipeline até a etapa de publicação.
 - Quais conteúdos e agrupamentos mínimos das notificações internas (ABT-008 no PRD)? A estrutura de tipos já está definida; o texto pode evoluir sem mudar contrato.
