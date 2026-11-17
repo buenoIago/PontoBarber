@@ -7,7 +7,7 @@
 - [x] 1.3 Configurar `DbContext`, convenções de `TenantId`, UTC em `datetime2(3)` e configurações por `IEntityTypeConfiguration`; verificar teste que rejeita entidade de negócio sem `TenantId`
 - [x] 1.4 Implementar resolução de tenant ativo pela rota e validação contra vínculo do usuário; verificar testes negativos de rota com barbearia sem vínculo
 - [x] 1.5 Implementar filtro global por tenant e testes que comprovem isolamento entre duas barbearias com dados homônimos
-- [ ] 1.6 Implementar contrato de erro `application/problem+json` com código estável, `traceId` e erros por campo; verificar testes de conflito e de validação
+- [x] 1.6 Implementar contrato de erro `application/problem+json` com código estável, `traceId` e erros por campo; verificar testes de conflito e de validação
 - [ ] 1.7 Implementar health checks de vivacidade e prontidão com falha de prontidão quando a persistência não responde; verificar teste de integração com banco indisponível
 - [ ] 1.8 Configurar Serilog, OpenTelemetry com exportador OTLP e correlação de requisição, usuário e barbearia; verificar teste de que senha, cookie e e-mail/telefone completos não aparecem nos logs
 - [ ] 1.9 Criar pipeline do GitHub Actions com restore, build, testes, análise e verificação de migrations pendentes, sem exigir provedor de nuvem; verificar execução verde em ambiente limpo

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using PontoBarber.Api.Middleware;
 using PontoBarber.Api.Tenant;
@@ -115,13 +116,57 @@ public class TenantResolutionMiddlewareTests
         Assert.Null(tenantContext.TenantId);
     }
 
+    [Fact]
+    public async Task TenantResolutionMiddleware_SemAutenticacao_Retorna401ComProblemDetails()
+    {
+        var resolver = new StubTenantMembershipResolver((_userId, [_tenantVinculado]));
+        var (context, _) = CriarContexto(_tenantVinculado, userId: null, autenticado: false);
+        var middleware = new TenantResolutionMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, resolver);
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+        Assert.Equal("application/problem+json", context.Response.ContentType);
+        var corpo = await LerCorpoAsync(context);
+        Assert.Equal(ErrorCodes.AuthInvalidCredentials, corpo.GetProperty("code").GetString());
+        Assert.Equal(StatusCodes.Status401Unauthorized, corpo.GetProperty("status").GetInt32());
+        Assert.Equal("trace-tenant-teste", corpo.GetProperty("traceId").GetString());
+    }
+
+    [Fact]
+    public async Task TenantResolutionMiddleware_SemVinculo_Retorna403ComProblemDetails()
+    {
+        var resolver = new StubTenantMembershipResolver();
+        var (context, _) = CriarContexto(_tenantVinculado, _userId, autenticado: true);
+        var middleware = new TenantResolutionMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, resolver);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        Assert.Equal("application/problem+json", context.Response.ContentType);
+        var corpo = await LerCorpoAsync(context);
+        Assert.Equal(ErrorCodes.TenantForbidden, corpo.GetProperty("code").GetString());
+        Assert.Equal(StatusCodes.Status403Forbidden, corpo.GetProperty("status").GetInt32());
+        Assert.Equal("trace-tenant-teste", corpo.GetProperty("traceId").GetString());
+    }
+
+    private static async Task<JsonElement> LerCorpoAsync(DefaultHttpContext context)
+    {
+        context.Response.Body.Position = 0;
+        using var leitor = new StreamReader(context.Response.Body, leaveOpen: true);
+        using var documento = JsonDocument.Parse(await leitor.ReadToEndAsync());
+        return documento.RootElement.Clone();
+    }
+
     private static (DefaultHttpContext Context, HttpTenantContext TenantContext) CriarContexto(
         Guid tenantId,
         Guid? userId,
         bool autenticado)
     {
         var context = new DefaultHttpContext();
+        context.TraceIdentifier = "trace-tenant-teste";
         context.Request.RouteValues[TenantResolutionMiddleware.RouteParameterName] = tenantId.ToString();
+        context.Response.Body = new MemoryStream();
 
         if (autenticado)
         {

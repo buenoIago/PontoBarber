@@ -21,6 +21,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseMiddleware<ProblemDetailsMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();

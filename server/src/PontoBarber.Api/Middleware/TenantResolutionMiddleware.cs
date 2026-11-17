@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using PontoBarber.Api.Errors;
 using PontoBarber.Api.Tenant;
 using PontoBarber.Application.Abstractions;
 
@@ -24,7 +25,7 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
 
         if (!Guid.TryParse(routeValue, out var tenantId))
         {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await NegarAcessoAsync(context);
             return;
         }
 
@@ -33,17 +34,30 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
         if (context.User.Identity?.IsAuthenticated != true ||
             !Guid.TryParse(userIdValue, out var userId))
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await ProblemResponseWriter.WriteAsync(
+                context,
+                StatusCodes.Status401Unauthorized,
+                ErrorCodes.AuthInvalidCredentials,
+                "Não autenticado",
+                "É necessário autenticar para acessar este recurso.");
             return;
         }
 
         if (!await membershipResolver.IsActiveMemberAsync(userId, tenantId, context.RequestAborted))
         {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await NegarAcessoAsync(context);
             return;
         }
 
         context.Items[TenantContextKeys.TenantId] = tenantId;
         await next(context);
     }
+
+    private static Task NegarAcessoAsync(HttpContext context) =>
+        ProblemResponseWriter.WriteAsync(
+            context,
+            StatusCodes.Status403Forbidden,
+            ErrorCodes.TenantForbidden,
+            "Acesso negado",
+            "O usuário não possui vínculo com a barbearia solicitada.");
 }
