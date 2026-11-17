@@ -1,0 +1,134 @@
+# Design
+
+## Context
+
+Ver `proposal.md` para a motivação. O projeto é greenfield: não existe `src/`, `tests/` nem histórico de commits com código. A única fonte técnica é `docs/TDD.md`, já corrigido para refletir o estado real das decisões:
+
+- Stack fixada: .NET 10 (`.slnx`), Angular 22 standalone zoneless, SQL Server 2022 + EF Core 10, ASP.NET Core Identity por cookie (ADR-001 a ADR-007).
+- UI: Bootstrap 5 + SCSS + Bootstrap Icons (ADR-026); ADR-008 rejeitado.
+- Scheduler: pendente (ADR-027); ADR-009 rejeitado.
+- Hospedagem, provedor, banco gerenciado, segredos e destino de telemetria: pendentes (ADR-028); ADR-013/025 seguem propostos com escopo reduzido.
+- Multi-tenancy por banco único com `TenantId` e filtros globais (ADR-006, aceito).
+
+O design abaixo cobre apenas o "como" que não está fixado nos documentos e que precisa de decisão antes da implementação.
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- Definir a estrutura de solução e as fronteiras de camadas que sustentam as 11 capabilities sem acoplamento a provedor.
+- Fixar os mecanismos transversais de isolamento por tenant, identidade, erros e concorrência de agenda.
+- Definir a abstração de processos periódicos que permita implementar as regras de negócio sem escolher a biblioteca de agendamento.
+- Definir o contrato de notificações internas e a estratégia de polling.
+- Manter o pipeline construível e verificável sem provedor de nuvem configurado.
+
+**Non-Goals:**
+
+- Escolher scheduler, provedor de nuvem, banco gerenciado, gerenciador de segredos ou destino de telemetria.
+- Implementar WhatsApp, e-mail, SMS ou qualquer canal externo.
+- Implementar integrações de pagamento online: o pagamento é registrado presencialmente.
+- Definir números de capacidade, custo ou RTO/RPO antes da decisão de hospedagem.
+- Criar requisitos novos além dos rastreáveis em SPEC/PRD/TDD.
+
+## Decisions
+
+### 1. Monólito modular com Clean Architecture
+
+Solução única `PontoBarber.slnx` com `Domain`, `Application`, `Infrastructure`, `Api` e projetos de teste. `Domain` não referencia EF Core, ASP.NET Core, Identity nem bibliotecas de agendamento. `Application` expõe casos de uso por feature e depende de abstrações; `Infrastructure` implementa persistência, identidade e adaptadores.
+
+- **Por quê:** o TDD já fixa o estilo (ADR-003); manter as referências unidirecionais é o que viabiliza trocar o adaptador de scheduler e o destino de execução sem tocar em regra de negócio.
+- **Alternativa descartada:** separar serviços por capability. Aumentaria custo operacional e contraria o monólito modular aprovado.
+
+### 2. Isolamento multi-tenant em três camadas
+
+1. `TenantId` obrigatório nas entidades de negócio.
+2. Filtro global no `DbContext` alimentado pelo tenant ativo da requisição.
+3. Validação explícita na camada de aplicação: o `TenantId` vem da rota e é confrontado com o vínculo ativo do usuário.
+
+Consultas de dashboard e de clientes filtram por `TenantId` e período mesmo com filtro global.
+
+- **Por quê:** defesa em profundidade (ADR-006). O filtro global sozinho é insuficiente se o tenant ativo for resolvido de forma incorreta; a validação por vínculo cobre isso.
+- **Alternativa descartada:** aceitar `TenantId` do corpo da requisição — permite escalada de privilégio.
+
+### 3. Identidade com cookie e proteção CSRF
+
+ASP.NET Core Identity com cookie `HttpOnly`, `Secure`, `SameSite=Lax`, expiração deslizante e absoluta, e antiforgery obrigatório em métodos que alteram estado. `/auth/me` devolve perfil, vínculos e permissões derivadas. Cadastros de cliente e barbeiro são fluxos distintos sobre a mesma tabela de usuários; o perfil não é escolhido livremente após o cadastro.
+
+- **Por quê:** decisões ADR-005 e ADR-016 já aprovadas; cookie evita token em storage e o antiforgery cobre a superfície restante.
+- **Alternativa descartada:** JWT em `localStorage`. Risco de XSS e reimplementação de revogação.
+
+### 4. Reserva de horário com lock por profissional/data e índice único
+
+Confirmação em transação: lock de aplicação `pb:schedule:{tenantId}:{professionalId}:{yyyyMMdd}` no fuso da barbearia, revalidação de disponibilidade, verificação de sobreposição e índice único para duplicidade exata. O mesmo caminho serve ao agendamento público, ao manual e à remarcação.
+
+- **Por quê:** o risco principal do produto é double booking sob concorrência (ADR-010). O índice único é a última barreira; o lock reduz conflito e melhora a mensagem de erro.
+- **Alternativa descartada:** apenas verificação em leitura antes do insert — janela de corrida entre leitura e commit.
+
+### 5. Processos periódicos por abstração + idempotência
+
+`Application` define o contrato de execução (nome do processo, execução assíncrona, resultado com quantidade processada e erros) e cada processo é um caso de uso idempotente. `Infrastructure` contém somente o adaptador que dispara esses casos de uso; a escolha do adaptador permanece pendente (ADR-027). Cada execução grava registro em `JobRuns` com início, fim, resultado e quantidade. Os processos deste MVP são os rastreáveis no TDD §12.3: expiração de sugestão, fechamento de agendamentos vencidos, expurgo de idempotência e reconciliação de notificações.
+
+- **Por quê:** satisfaz RN-AGD-015 a RN-AGD-017 sem compromisso prematuro de biblioteca, e mantém o domínio livre de dependência de agendamento.
+- **Consequência explícita:** a garantia de execução durável e coordenada entre instâncias não pode ser afirmada até a decisão. O código não deve depender dela: cada processo precisa ser correto mesmo sob execução repetida ou simultânea.
+- **Fora do escopo desta decisão:** recálculo de projeções de dashboard (otimização, não requisito) e verificação de saúde periódica (coberta por health checks).
+
+### 6. Notificações internas no mesmo commit + polling
+
+Eventos de domínio são coletados no `DbContext` e materializam notificações na mesma transação, com idempotência por `EventId` e destinatário. O frontend consulta por polling com contagem de não lidas e ações de marcar como lida. Não há broker externo.
+
+- **Por quê:** o TDD §11.3 já define esse caminho; gravar a notificação na mesma transação elimina a necessidade de outbox completo neste escopo. A reconciliação cobre eventos sem notificação.
+- **Alternativa descartada:** broker externo — custo operacional desproporcional ao MVP.
+
+### 7. UI com Bootstrap e design system próprio
+
+Bootstrap 5 importado por módulos (reboot, grid, utilities e componentes usados), tema por custom properties e SCSS, ícones por Bootstrap Icons. Componentes compartilhados — diálogo, campo de formulário, tabela, layout, estado vazio — em `shared/ui`, com foco, rótulos, teclado e contraste sob responsabilidade do projeto. A agenda usa CSS Grid.
+
+- **Por quê:** ADR-026 aprovado. A importação seletiva controla o bundle e evita dependência de componentes Angular.
+- **Consequência:** acessibilidade e comportamento de overlay não são herdados; exigem testes axe e revisão manual por tela.
+
+### 8. Contrato de erro e observabilidade neutros de provedor
+
+Erros em `application/problem+json` com código estável, `traceId` de correlação e erros por campo. Logs estruturados com Serilog, métricas e traces por OpenTelemetry com exportador OTLP configurável. Nenhum SDK de provedor entra em `Domain`/`Application`; sinks proprietários não são obrigatórios.
+
+- **Por quê:** permite trocar destino junto da decisão de hospedagem (ADR-028) sem reescrever código.
+- **Alternativa descartada:** SDK de APM proprietário como dependência direta — lock-in prematuro.
+
+### 9. Pipeline independente de destino
+
+GitHub Actions executa restore, build, testes, análise, build de imagem e verificação de migrations sem conhecer o provedor. A publicação é etapa fina, parametrizada por ambiente, que consome a imagem publicada e os segredos do ambiente-alvo. Migrations são aplicadas como etapa separada e verificadas por ausência de alteração pendente no modelo.
+
+- **Por quê:** atende RNF-DISPONIBILIDADE-001 sem antecipar ADR-028; a maior parte do pipeline permanece útil qualquer que seja o destino.
+- **Alternativa descartada:** pipeline específico de um provedor desde o início — descartado quando o destino for diferente.
+
+### 10. Estratégia de dados e histórico
+
+Instantes em UTC (`datetime2(3)`), horários de funcionamento como `TimeOnly` local, fuso IANA na barbearia. Preço, duração e nome do serviço são copiados para o agendamento no momento da contratação. O histórico do agendamento é append-only. Remoções de serviço, vínculo e cliente são lógicas.
+
+- **Por quê:** preserva indicadores e auditoria mesmo após alterações cadastrais (RF-SERV-008, RN-CLI-007).
+
+## Risks / Trade-offs
+
+- **Double booking sob concorrência** → lock por profissional/data, revalidação na transação, índice único e testes de concorrência dedicados.
+- **Vazamento entre tenants** → filtro global, validação por vínculo ativo e testes negativos por capability.
+- **Expiração de sugestão não durável enquanto ADR-027 está pendente** → processos idempotentes, registro de execução e alerta de atraso; a limitação fica documentada e não é mascarada como garantia.
+- **Acessibilidade sem biblioteca de componentes** → primitivas acessíveis em `shared/ui`, axe no CI e checklist manual por tela.
+- **Bundle acima do orçamento com Bootstrap** → importação seletiva e medição no pipeline.
+- **Custo e operação indefinidos** → nenhum número de capacidade ou custo é afirmado antes de ADR-028; a decisão ocorre antes do go-live.
+- **Notificação perdida em falha pós-commit** → idempotência por `EventId` e reconciliação periódica.
+- **Migrations em ambiente sem provedor definido** → verificação de modelo pendente no CI e aplicação parametrizada no deploy.
+
+## Migration Plan
+
+Não há sistema legado nem dados a migrar; a V1.0 inicia com banco vazio.
+
+1. Criar solução, projetos, convenções e pipeline antes da primeira feature.
+2. Aplicar migrations desde o ambiente local; cada migration é revisada e versionada no repositório.
+3. Seed do catálogo modelo global (Corte 40 min, Barba 30 min, Corte + Barba 70 min), sem preços fixos.
+4. Homologação em staging com dados sintéticos; produção após checklist de go-live.
+5. **Rollback:** retorno à revisão anterior no ambiente escolhido; migrations escritas no padrão expandir/contrair para conviver com duas versões durante a janela de deploy.
+
+## Open Questions
+
+- Qual adaptador de scheduler será adotado (ADR-027)? Não altera specs nem a abstração; altera apenas `Infrastructure` e a garantia de durabilidade.
+- Qual provedor, serviço de banco, gerenciador de segredos e destino de telemetria (ADR-028)? Não altera `Domain`/`Application` nem o pipeline até a etapa de publicação.
+- Quais conteúdos e agrupamentos mínimos das notificações internas (ABT-008 no PRD)? A estrutura de tipos já está definida; o texto pode evoluir sem mudar contrato.

@@ -18,17 +18,17 @@
 
 # 1. Resumo executivo
 
-O PontoBarber será implementado como uma aplicação web com frontend Angular 22 e backend .NET 10, organizados em um único repositório. O backend segue Clean Architecture com modelagem tática de DDD, expõe uma API REST versionada em `/api/v1`, usa ASP.NET Core Identity com autenticação por cookie e persiste em SQL Server por meio do EF Core 10. O frontend é uma SPA standalone, zoneless, baseada em signals, com Angular Material e CDK.
+O PontoBarber será implementado como uma aplicação web com frontend Angular 22 e backend .NET 10, organizados em um único repositório. O backend segue Clean Architecture com modelagem tática de DDD, expõe uma API REST versionada em `/api/v1`, usa ASP.NET Core Identity com autenticação por cookie e persiste em SQL Server por meio do EF Core 10. O frontend é uma SPA standalone, zoneless, baseada em signals, com Bootstrap 5 + SCSS + Bootstrap Icons e design system próprio em `shared/ui`.
 
-O isolamento entre barbearias é feito em banco único compartilhado, com `TenantId` obrigatório em todas as entidades de negócio, filtros globais no EF Core e validação de tenant na camada de aplicação. A reserva de horários é o ponto de maior risco técnico: a confirmação ocorre em transação com `sp_getapplock` por profissional e data, seguida de verificação de sobreposição e índice único para impedir duplicidade exata. Processos periódicos, como expiração da sugestão de horário, são executados pelo Quartz.NET com store no SQL Server.
+O isolamento entre barbearias é feito em banco único compartilhado, com `TenantId` obrigatório em todas as entidades de negócio, filtros globais no EF Core e validação de tenant na camada de aplicação. A reserva de horários é o ponto de maior risco técnico: a confirmação ocorre em transação com `sp_getapplock` por profissional e data, seguida de verificação de sobreposição e índice único para impedir duplicidade exata. Processos periódicos, como a expiração da sugestão de horário, são abstraídos na aplicação e executados por um adaptador de scheduler cuja escolha permanece pendente (ADR-027); cada processo é implementado como operação idempotente.
 
-A aplicação é empacotada em containers Linux e tem Azure SQL como banco gerenciado. As decisões ainda não confirmadas pelo produto permanecem marcadas como `Proposto` na seção 19 e na seção 21.
+A aplicação é empacotada em containers Linux sobre SQL Server 2022. O serviço de banco gerenciado, o provedor de nuvem e o ambiente de execução não estão definidos e permanecem em aberto (ADR-028, ABT-003, ABT-014). As decisões ainda não confirmadas permanecem marcadas como `Proposto` na seção 19 e na seção 21.
 
 ## 1.1. Decisões principais
 
 | Área | Decisão | ADR |
 | --- | --- | --- |
-| Frontend | Angular 22 standalone, zoneless, signals, Angular Material + CDK | ADR-001, ADR-008 |
+| Frontend | Angular 22 standalone, zoneless, signals, Bootstrap 5 + SCSS + Bootstrap Icons | ADR-001, ADR-026 |
 | Backend | .NET 10, ASP.NET Core, solução no formato `.slnx` | ADR-002 |
 | Arquitetura | Clean Architecture com DDD tático e monólito modular | ADR-003 |
 | Banco de dados | SQL Server 2022+ com EF Core 10 e migrations versionadas | ADR-004 |
@@ -36,10 +36,10 @@ A aplicação é empacotada em containers Linux e tem Azure SQL como banco geren
 | Multi-tenancy | Banco único com `TenantId`, filtros globais e validação na aplicação | ADR-006 |
 | API | REST com controllers, versionamento por URL e ProblemDetails | ADR-007, ADR-017 |
 | Concorrência | Transação + `sp_getapplock` por profissional/data + índice único | ADR-010 |
-| Jobs | Quartz.NET com store no SQL Server | ADR-009 |
+| Jobs | Execução de processos periódicos abstraída; adaptador de scheduler pendente | ADR-027 |
 | Datas e horários | UTC no banco, `TimeZoneId` IANA por barbearia | ADR-011 |
 | Testes | MSTest, WebApplicationFactory, Testcontainers e Playwright | ADR-012 |
-| Infraestrutura | Containers Linux, Azure SQL e GitHub Actions | ADR-013, ADR-025 |
+| Infraestrutura | Containers Linux e GitHub Actions; hospedagem e provedor de nuvem pendentes | ADR-025, ADR-028 |
 | Observabilidade | Serilog estruturado + OpenTelemetry + health checks | ADR-014 |
 
 ---
@@ -115,7 +115,7 @@ Premissa de volumetria para a V1.0: até 500 barbearias, até 5.000 profissionai
 | ID | Premissa | Impacto se não se confirmar |
 | --- | --- | --- |
 | PREM-001 | Cada barbearia opera em um único fuso horário IANA | Cálculo de disponibilidade e indicadores precisa ser revisto |
-| PREM-002 | A V1.0 opera em uma única região Azure, com latência de banco inferior a 20 ms | Metas de desempenho e escolha de camada do banco mudam |
+| PREM-002 | A V1.0 opera em um único provedor e região (a definir em ADR-028), com latência de banco inferior a 20 ms | Metas de desempenho e escolha de camada do banco mudam |
 | PREM-003 | O volume inicial é de até 500 barbearias e 20.000 agendamentos/dia | Escala horizontal e cache passam a ser necessários antes do previsto |
 | PREM-004 | A verificação do telefone comercial não bloqueia a V1.0 | Cadastro pode exigir fluxo adicional e integração externa |
 | PREM-005 | As metas numéricas dos RNFs são alvos propostos e serão validadas | Testes de carga e SLOs precisam ser recalibrados |
@@ -155,10 +155,10 @@ Premissa de volumetria para a V1.0: até 500 barbearias, até 5.000 profissionai
 | RNF-SEGURANCA-002 | Segurança | 100% das operações críticas validadas no servidor | Autorização por policy e resource handler em todos os endpoints | Testes de autorização por perfil e tenant |
 | RNF-SEGURANCA-003 | Segurança | Código de convite imprevisível | Código aleatório de 8 caracteres em base32 com `RandomNumberGenerator` | Teste estatístico e revisão de código |
 | RNF-CONCORRENCIA-001 | Consistência | Zero reservas conflitantes | `sp_getapplock`, verificação de sobreposição e índice único | Teste de concorrência paralela e teste de integração |
-| RNF-DISPONIBILIDADE-001 | Disponibilidade | 99,5% mensal | Duas instâncias, health checks, Azure SQL com backup e deploy sem downtime | Monitoramento de disponibilidade e relatório mensal |
+| RNF-DISPONIBILIDADE-001 | Disponibilidade | 99,5% mensal | Duas instâncias, health checks, banco SQL Server com backup e deploy sem downtime | Monitoramento de disponibilidade e relatório mensal |
 | RNF-PRIVACIDADE-001 | Privacidade e LGPD | Acesso por titular e permissão | Minimização, autorização por recurso, logs sem PII e política de retenção | Revisão de privacidade e testes de acesso |
 | RNF-AUDITORIA-001 | Auditoria | Autor, data e hora em cancelamentos e alterações | Histórico de agendamento e campos de auditoria | Testes de histórico e consulta de auditoria |
-| RNF-ACESSIBILIDADE-001 | Acessibilidade | WCAG 2.1 AA nas telas principais | Angular Material, foco, rótulos, contraste e testes axe | Auditoria automatizada axe + revisão manual |
+| RNF-ACESSIBILIDADE-001 | Acessibilidade | WCAG 2.1 AA nas telas principais | Bootstrap 5 + primitivas acessíveis em `shared/ui`, foco, rótulos, contraste e testes axe | Auditoria automatizada axe + revisão manual |
 | RNF-COMPATIBILIDADE-001 | Compatibilidade | Últimas 2 versões de Chrome, Edge, Firefox e Safari | Browserslist, polyfills e layout responsivo | Matriz de testes E2E e checklist manual |
 | RNF-USABILIDADE-001 | Usabilidade | Agendamento sem suporte em até 5 etapas | Wizard com etapas explícitas e resumo | Teste de usabilidade e E2E do fluxo público |
 | RNF-RETENCAO-001 | Retenção | 100% do histórico preservado | Desativação lógica, snapshots e proibição de exclusão física | Testes de histórico e revisão de schema |
@@ -189,7 +189,7 @@ flowchart LR
   B[Barbeiro] --> WEB
   WEB --> API[API PontoBarber]
   API --> DB[(SQL Server)]
-  API --> JOB[Quartz.NET]
+  API --> JOB[Processos periódicos]
   JOB --> DB
   API --> OBS[Observabilidade]
   WEB --> OBS
@@ -210,10 +210,10 @@ flowchart TB
   end
   subgraph Linux Container - API
     API[ASP.NET Core .NET 10]
-    Q[Quartz Scheduler]
+    Q[Processos periódicos]
   end
   NGINX -->|/api/v1| API
-  API --> DB[(Azure SQL)]
+  API --> DB[(SQL Server)]
   Q --> DB
   API --> LOG[Serilog + OpenTelemetry Collector]
   API --> HC[Health checks]
@@ -223,11 +223,11 @@ flowchart TB
 | --- | --- | --- | --- |
 | Web | Servir a SPA e encaminhar `/api` | Nginx + Angular 22 | HTTPS para o navegador; HTTP interno para a API |
 | API | Autenticação, autorização, regras de aplicação e domínio | ASP.NET Core .NET 10 | HTTPS interno, SQL e telemetria |
-| Banco | Persistência relacional e store de jobs | Azure SQL / SQL Server 2022 | TDS 1433 |
-| Jobs | Expirações e rotinas periódicas | Quartz.NET no processo da API | SQL |
+| Banco | Persistência relacional | SQL Server 2022; serviço gerenciado a definir (ABT-014) | TDS 1433 |
+| Jobs | Expirações e rotinas periódicas | Adaptador de scheduler a definir (ADR-027) | — |
 | Observabilidade | Coleta de logs, métricas e traces | Serilog + OpenTelemetry + Application Insights | OTLP/HTTPS |
 
-O scheduler Quartz.NET roda embutido na API, com `quartz.jobStore.clustered=true` e `CheckinMisfireThreshold` de 60 segundos. Com duas instâncias, apenas uma executa cada disparo.
+A execução de processos periódicos é abstraída na aplicação e o adaptador de scheduler permanece em decisão pendente (ADR-027). A garantia de execução durável e coordenada entre instâncias somente pode ser afirmada após essa decisão; até lá, todo processo é implementado como operação idempotente, segura sob execução concorrente ou repetida.
 
 ## 5.3. Componentes e módulos
 
@@ -235,7 +235,7 @@ O scheduler Quartz.NET roda embutido na API, com `quartz.jobStore.clustered=true
 | --- | --- | --- | --- |
 | `PontoBarber.Domain` | Entidades, value objects, enums, eventos de domínio, regras invariantes | Nenhuma | ADR-003 |
 | `PontoBarber.Application` | Casos de uso, DTOs, validação, autorização de aplicação, portas | Domain | ADR-003 |
-| `PontoBarber.Infrastructure` | EF Core, Identity, Quartz, e-mail futuro, relógio, storage | Application, Domain | ADR-004, ADR-005, ADR-009 |
+| `PontoBarber.Infrastructure` | EF Core, Identity, adaptador de scheduler, e-mail futuro, relógio, storage | Application, Domain | ADR-004, ADR-005, ADR-027 |
 | `PontoBarber.Api` | Controllers, filters, middleware, composição, health checks | Application, Infrastructure | ADR-007 |
 | `PontoBarber.Contracts` | DTOs públicos compartilhados com o frontend | Nenhuma | ADR-007 |
 | `PontoBarber.Web` | SPA Angular, rotas, componentes, serviços HTTP | Contracts (gerado) | ADR-001 |
@@ -260,7 +260,7 @@ Módulos de domínio mapeados a partir do PRD:
 
 ## 5.4. Fronteiras e regras de dependência
 
-- `Domain` não referencia EF Core, ASP.NET Core, Identity, Quartz ou qualquer biblioteca de infraestrutura.
+- `Domain` não referencia EF Core, ASP.NET Core, Identity, bibliotecas de agendamento de tarefas ou qualquer biblioteca de infraestrutura.
 - `Application` depende de `Domain` e de abstrações próprias (`IApplicationDbContext`, `IClock`, `ITenantContext`, `IIdentityService`).
 - `Infrastructure` implementa as abstrações de `Application`; `Api` depende de `Application` e `Infrastructure` apenas na composição.
 - Controllers não contêm regra de negócio: apenas traduzem HTTP, acionam casos de uso e devolvem `ProblemDetails`.
@@ -353,9 +353,9 @@ Módulos de domínio mapeados a partir do PRD:
 | Backend | ASP.NET Core | 10 | API REST, DI, configuração, middleware e health checks | ADR-002 |
 | Backend | ASP.NET Core Identity | 10 | Usuários, senhas, lockout e cookies | ADR-005 |
 | Backend | EF Core | 10 | Mapeamento, migrations e consultas | ADR-004 |
-| Backend | Quartz.NET | 3.15 | Jobs persistentes e clusterizados | ADR-009 |
+| Backend | Adaptador de scheduler | A definir | Execução de processos periódicos; decisão pendente | ADR-027 |
 | Frontend | Angular | 22 | SPA standalone, zoneless e signals | ADR-001 |
-| Frontend | Angular Material + CDK | 22 | Componentes acessíveis, layout e comportamento | ADR-008 |
+| Frontend | Bootstrap 5 + SCSS + Bootstrap Icons | 5.x | Componentes, layout e ícones; design system em `shared/ui` | ADR-026 |
 | Testes backend | MSTest | 4.x | Testes unitários e de integração | ADR-012 |
 | Testes frontend | Vitest + Playwright | 3.x / 1.5x | Testes de unidade, componente e E2E | ADR-012 |
 
@@ -368,19 +368,21 @@ Módulos de domínio mapeados a partir do PRD:
 | `Microsoft.EntityFrameworkCore.Design` | 10 | Geração de migrations | Ferramenta oficial | Scripts SQL manuais — sem versionamento | MIT |
 | `FluentValidation.DependencyInjectionExtensions` | 12.x | Validação de entrada | Regras declarativas e mensagens consistentes | DataAnnotations — limitado para regras compostas | Apache-2.0 |
 | `Serilog.AspNetCore` | 9.x | Logs estruturados | Enriquecimento, sinks e correlação | `ILogger` puro — menos contexto | Apache-2.0 |
-| `Serilog.Sinks.ApplicationInsights` | 5.x | Envio de logs | Integração com Azure Monitor | Sink de arquivo — operação manual | Apache-2.0 |
+| `Serilog.Sinks.OpenTelemetry` | 1.x | Envio de logs via OTLP | Destino neutro de provedor | Sink proprietário — lock-in | Apache-2.0 |
 | `OpenTelemetry.Extensions.Hosting` | 1.12 | Métricas e traces | Padrão aberto e exportação OTLP | APM proprietário — lock-in | Apache-2.0 |
-| `Quartz.Extensions.Hosting` | 3.15 | Hosted service do scheduler | Integração oficial | `BackgroundService` — sem cluster | Apache-2.0 |
-| `Quartz.Extensions.DependencyInjection` | 3.15 | Injeção de jobs | Integração oficial | — | Apache-2.0 |
+| `Bootstrap` | 5.x | Base de layout e componentes | Decisão aprovada em ADR-026 | Angular Material — rejeitado em ADR-008 | MIT |
+| `bootstrap-icons` | 1.x | Ícones | Padronização visual aprovada em ADR-026 | Biblioteca de ícones própria — custo alto | MIT |
+| `sass` (dart-sass) | 1.x | SCSS e tokens de tema | Tema próprio sobre Bootstrap | CSS puro — sem tokens | MIT |
 | `Asp.Versioning.Mvc` | 8.x | Versionamento de API | Versionamento por URL e depreciação | Versionamento por header — menos explícito | MIT |
-| `Swashbuckle.AspNetCore` | 9.x | OpenAPI | Documentação e geração de clientes | NSwag — redundante | MIT |
-| `Microsoft.ApplicationInsights.AspNetCore` | 2.23 | Telemetria Azure | Integração com Azure Monitor | SkyWalking — operação própria | MIT |
+| `Swashbuckle.AspNetCore` | 9.x | OpenAPI | Documentação e geração de clientes | NSwag - redundante | MIT |
+| `Microsoft.OpenApi` | 2.7.5 | Metadados OpenAPI (dependência transitiva) | Correção de CVE-2026-49451; versões 2.0.0 a 2.7.4 são vulneráveis | Microsoft.OpenApi 3.x - incompatível com o runtime atual | MIT |
+| `Serilog.Sinks.Console` | 6.x | Logs locais | Diagnóstico em desenvolvimento e container | Destino proprietário — lock-in | Apache-2.0 |
 | `Testcontainers.MsSql` | 4.x | SQL Server em testes | Isolamento real de banco | LocalDB — indisponível em Linux CI | MIT |
 | `Microsoft.AspNetCore.Mvc.Testing` | 10 | Testes de integração | `WebApplicationFactory` oficial | Servidor HTTP real — mais lento | MIT |
 | `Respawn` | 6.x | Limpeza de banco em testes | Reset rápido entre testes | Recriar banco — lento | MIT |
-| `Angular Material` | 22 | Componentes de UI | Acessibilidade e integração com Angular | Bootstrap — menos integrado | MIT |
-| `@angular/cdk` | 22 | Overlay, a11y e virtual scroll | Base do Material | Implementação própria — custo alto | MIT |
 | `date-fns` + `@date-fns/tz` | 4.x | Datas e fusos no frontend | Imutável, tree-shakeable e com suporte a IANA | Moment.js — legado e maior | MIT |
+
+**Correção de segurança (17/11/2026):** o template `webapi` do .NET 10 adicionou `Microsoft.AspNetCore.OpenApi` 10.0.3, que referencia `Microsoft.OpenApi` 2.0.0. Essa versão é afetada por **CVE-2026-49451** (`GHSA-v5pm-xwqc-g5wc`, severidade alta): um documento OpenAPI com referência circular de schema pode causar *stack overflow* e encerrar o processo durante o parsing. O restore passou a emitir `NU1903`. A versão de `Microsoft.OpenApi` foi fixada em **2.7.5**, primeira versão corrigida da linha 2.x; a linha 3.x também corrige (3.5.4+), mas não é compatível com o runtime atual. A escolha entre `Microsoft.AspNetCore.OpenApi` e `Swashbuckle.AspNetCore` será consolidada quando a documentação da API for implementada; em qualquer caso, a documentação permanece exposta apenas em Development e Staging.
 
 Bibliotecas deliberadamente ausentes:
 
@@ -391,6 +393,8 @@ Bibliotecas deliberadamente ausentes:
 | MassTransit/RabbitMQ | Sem comunicação assíncrona entre serviços na V1.0 |
 | Redis | Sem gargalo mensurável; cache local e índices atendem à escala inicial |
 | NgRx | Signals e serviços com estado local cobrem o estado da SPA |
+| Angular Material + CDK | Rejeitado em ADR-008; a UI usa Bootstrap 5 + SCSS + Bootstrap Icons (ADR-026) |
+| Quartz.NET | Rejeitado em ADR-009; a estratégia de scheduler permanece pendente (ADR-027) |
 | Swagger UI em produção | Exposto apenas em Development e Staging |
 
 ## 6.4. Ferramentas de desenvolvimento
@@ -440,8 +444,8 @@ PontoBarber/
 ├── openspec/
 │   ├── specs/
 │   └── changes/
-├── src/
-│   ├── backend/
+├── server/
+│   ├── src/
 │   │   ├── PontoBarber.Domain/
 │   │   │   ├── Common/
 │   │   │   ├── Identity/
@@ -480,30 +484,30 @@ PontoBarber/
 │   │   │   ├── Program.cs
 │   │   │   └── appsettings.json
 │   │   └── PontoBarber.Contracts/
-│   └── frontend/
-│       └── ponto-barber-web/
-│           ├── src/
-│           │   ├── app/
-│           │   │   ├── core/
-│           │   │   ├── shared/
-│           │   │   ├── features/
-│           │   │   │   ├── auth/
-│           │   │   │   ├── dashboard/
-│           │   │   │   ├── schedule/
-│           │   │   │   ├── services/
-│           │   │   │   ├── professionals/
-│           │   │   │   ├── customers/
-│           │   │   │   ├── settings/
-│           │   │   │   ├── public-booking/
-│           │   │   │   └── notifications/
-│           │   │   └── app.routes.ts
-│           │   └── styles/
-│           └── package.json
-├── tests/
-│   ├── PontoBarber.UnitTests/
-│   ├── PontoBarber.IntegrationTests/
-│   ├── PontoBarber.ArchitectureTests/
-│   └── PontoBarber.E2ETests/
+│   └── tests/
+│       ├── PontoBarber.UnitTests/
+│       ├── PontoBarber.IntegrationTests/
+│       └── PontoBarber.ArchitectureTests/
+├── client/
+│   └── ponto-barber-web/
+│       ├── src/
+│       │   ├── app/
+│       │   │   ├── core/
+│       │   │   ├── shared/
+│       │   │   ├── features/
+│       │   │   │   ├── auth/
+│       │   │   │   ├── dashboard/
+│       │   │   │   ├── schedule/
+│       │   │   │   ├── services/
+│       │   │   │   ├── professionals/
+│       │   │   │   ├── customers/
+│       │   │   │   ├── settings/
+│       │   │   │   ├── public-booking/
+│       │   │   │   └── notifications/
+│       │   │   └── app.routes.ts
+│       │   └── styles/
+│       ├── e2e/
+│       └── package.json
 ├── deploy/
 │   ├── docker/
 │   │   ├── api.Dockerfile
@@ -543,10 +547,10 @@ PontoBarber/
 | `Domain/Notifications` | NOTIF | Notificação interna |
 | `Application/Dashboard` | DASH | Projeções e consultas agregadas |
 | `Api/Controllers` | Todos | Contratos HTTP versionados |
-| `frontend/features/public-booking` | PUB | Página pública e wizard de agendamento |
-| `frontend/features/schedule` | AGD, ATD | Agenda diária, semanal e mensal |
-| `frontend/features/settings` | CONF, HOR | Configurações e disponibilidade |
-| `frontend/features/dashboard` | DASH | Indicadores e próximos agendamentos |
+| `client/src/app/features/public-booking` | PUB | Página pública e wizard de agendamento |
+| `client/src/app/features/schedule` | AGD, ATD | Agenda diária, semanal e mensal |
+| `client/src/app/features/settings` | CONF, HOR | Configurações e disponibilidade |
+| `client/src/app/features/dashboard` | DASH | Indicadores e próximos agendamentos |
 
 ---
 
@@ -573,7 +577,7 @@ Todas as tabelas de negócio possuem `Id uniqueidentifier`, `TenantId uniqueiden
 | `Payment` | `Payments` | Pagamento do atendimento | `Id`, `TenantId`, `AppointmentId`, `Amount`, `Method`, `RegisteredAtUtc`, `RegisteredByUserId` | `Id` |
 | `Notification` | `Notifications` | Notificação interna | `Id`, `TenantId`, `RecipientUserId`, `Type`, `AppointmentId`, `Message`, `CreatedAtUtc`, `ReadAtUtc` | `Id` |
 | `IdempotencyRecord` | `IdempotencyRecords` | Controle de requisições repetidas | `Id`, `UserId`, `Key`, `RequestHash`, `ResponseJson`, `StatusCode`, `CreatedAtUtc`, `ExpiresAtUtc` | `Id` |
-| `JobExecution` | `QRTZ_*` | Store do Quartz | Tabelas padrão do Quartz | Conforme Quartz |
+| `JobRun` | `JobRuns` | Registro de execução de processos periódicos (estrutura definida junto da decisão de scheduler, ADR-027) | `Id`, `JobName`, `StartedAtUtc`, `FinishedAtUtc`, `Outcome` | `Id` |
 
 Value objects mapeados como tipos complexos:
 
@@ -1077,8 +1081,8 @@ Regras complementares:
 
 - **Classificação:** público (catálogo e página pública), interno (agenda e indicadores), confidencial (dados pessoais e pagamentos) e restrito (hash de senha, strings de conexão).
 - **Criptografia em trânsito:** TLS 1.2+ obrigatório; HSTS com `max-age` de 1 ano em produção.
-- **Criptografia em repouso:** TDE no Azure SQL e criptografia de disco gerenciada.
-- **Segredos:** Azure Key Vault em produção; User Secrets em desenvolvimento; variáveis de ambiente em containers. Nenhum segredo no repositório.
+- **Criptografia em repouso:** definida pelo serviço de banco escolhido (ABT-014), mantendo o requisito de criptografia em repouso.
+- **Segredos:** User Secrets em desenvolvimento e variáveis de ambiente em containers; o gerenciador de segredos de produção será definido junto da hospedagem (ADR-028). Nenhum segredo no repositório.
 - **Minimização:** apenas nome, e-mail, telefone e dados operacionais necessários; sem CPF, documentos ou dados de pagamento.
 - **LGPD:** base legal de execução de contrato; acesso por titular e por permissão; anonimização após retenção; registro de operações sensíveis.
 - **Auditoria:** histórico de agendamento e logs estruturados de login, criação, cancelamento, atendimento e pagamento.
@@ -1099,7 +1103,7 @@ Regras complementares:
 | Início/fim de atendimento | Transição concorrente | `rowversion` + verificação de estado | `If-Match` | ADR-021 |
 | Registro de pagamento | Duplicidade | `Idempotency-Key` + índice único por agendamento | 24 h de retenção | ADR-021 |
 | Criação de vínculo | Vínculo duplicado | Índice único `TenantId, ProfessionalId` | — | ADR-006 |
-| Expiração de sugestão | Dupla liberação | Job idempotente com `UPDATE ... WHERE Status = Pending` | Batch de 500 | ADR-009 |
+| Expiração de sugestão | Dupla liberação | Job idempotente com `UPDATE ... WHERE Status = Pending` | Batch de 500 | ADR-027 |
 
 ## 12.2. Transações e idempotência
 
@@ -1138,7 +1142,7 @@ O recurso é `pb:schedule:{tenantId}:{professionalId}:{yyyyMMdd}` no fuso da bar
 
 Regras:
 
-- Todos os jobs são `[DisallowConcurrentExecution]` e clusterizados.
+- A execução coordenada entre instâncias depende da decisão de scheduler (ADR-027). Os processos são escritos para serem idempotentes e seguros sob concorrência, e a exclusividade de execução é configurada no adaptador escolhido.
 - Cada execução registra início, fim, duração, quantidade processada e erros.
 - Jobs operam em lotes de 500 registros para limitar locks.
 - Timezone dos crons é UTC; regras de negócio convertem para o fuso da barbearia.
@@ -1168,11 +1172,11 @@ Regras:
 | WhatsApp | A definir | Notificações externas | Assíncrona | 10 s | 3 | Apenas notificação interna | Fora do escopo |
 | Gateway de pagamento | A definir | Cobrança online | Síncrona | 15 s | 2 | Pagamento presencial | Fora do escopo |
 | E-mail transacional | A definir | Recuperação de senha | Assíncrona | 10 s | 3 | Atendimento administrativo | ABT-006 |
-| Application Insights | Azure | Telemetria | Assíncrona | 5 s | 3 | Buffer local e descarte | ADR-014 |
+| Coletor OTLP | A definir | Telemetria (logs, métricas e traces) | Assíncrona | 5 s | 3 | Buffer local e descarte | ADR-014 |
 
 **Contratos e versionamento:** integrações futuras serão isoladas por interfaces em `Application/Abstractions` e adaptadores em `Infrastructure/Integrations`, com contrato versionado e testes de contrato.
 
-**Credenciais:** Azure Key Vault; nenhuma credencial em `appsettings.json` versionado.
+**Credenciais:** gerenciador de segredos definido junto da hospedagem (ADR-028); nenhuma credencial em `appsettings.json` versionado.
 
 **Ambiente de sandbox:** obrigatório para qualquer integração futura antes de produção.
 
@@ -1192,7 +1196,7 @@ Circuit breaker padrão para integrações futuras: 5 falhas em 30 segundos abre
 | Níveis | `Verbose` em Development, `Information` em produção, `Warning` para o esperado, `Error` para falhas |
 | Correlação | `TraceId`, `SpanId`, `RequestId` e `TenantId` em todos os eventos |
 | Dados sensíveis | Redação de senha, token, cookie, e-mail e telefone |
-| Retenção | 90 dias no Application Insights; 7 dias em container local |
+| Retenção | Definida pelo destino configurado do coletor; 7 dias em container local |
 | Enriquecimento | `Application`, `Environment`, `Version`, `UserId` (hash), `TenantId` |
 
 Eventos obrigatórios:
@@ -1223,14 +1227,14 @@ Eventos obrigatórios:
 | Frontend | Core Web Vitals (LCP, INP, CLS) | LCP > 2,5 s no p75 |
 | Integrações | Latência e erros por dependência | Erro > 5% por 5 min |
 
-Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient e Quartz; amostragem adaptativa de 10% em produção e 100% em staging.
+Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient e do adaptador de scheduler; amostragem adaptativa de 10% em produção e 100% em staging.
 
 ## 14.3. Alertas e plantão
 
 - **Crítico:** API indisponível, banco indisponível, falha de job de expiração, taxa de erro > 5%.
 - **Alto:** p95 acima da meta por 15 minutos, deadlocks frequentes, fila de sugestões expiradas acumulada.
 - **Médio:** aumento de logins falhos, uso de banco acima de 80%, job atrasado.
-- **Canal:** Azure Monitor Action Group com e-mail e Teams; plantão rotativo da equipe.
+- **Canal:** definido junto da hospedagem (ADR-028); plantão rotativo da equipe.
 - **Runbooks:** `docs/runbooks/api-down.md`, `docs/runbooks/db-high-cpu.md`, `docs/runbooks/job-failure.md` e `docs/runbooks/rollback.md`.
 - **Postmortem:** obrigatório para incidentes críticos, com causa raiz e ação corretiva.
 
@@ -1312,23 +1316,23 @@ Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient 
 | Ambiente | Objetivo | URL | Dados | Acesso |
 | --- | --- | --- | --- | --- |
 | Local | Desenvolvimento e testes | `http://localhost:4200` e `https://localhost:7001` | Seed local e banco em container | Equipe |
-| Staging | Homologação e E2E | `https://staging.pontobarber.app` | Dados sintéticos | Equipe e product owner |
-| Produção | Operação real | `https://app.pontobarber.app` | Dados reais | Equipe restrita |
+| Staging | Homologação e E2E | Definida na decisão de hospedagem (ADR-028) | Dados sintéticos | Equipe e product owner |
+| Produção | Operação real | Definida na decisão de hospedagem (ADR-028) | Dados reais | Equipe restrita |
 
-Configuração por ambiente via `appsettings.{Environment}.json` e variáveis de ambiente; segredos apenas em Key Vault ou User Secrets.
+Configuração por ambiente via `appsettings.{Environment}.json` e variáveis de ambiente; segredos apenas no gerenciador definido na decisão de hospedagem (ADR-028) ou em User Secrets.
 
 ## 16.2. Infraestrutura
 
 | Componente | Serviço | Configuração | Escala |
 | --- | --- | --- | --- |
-| API | Azure Container Apps | 1,0 vCPU, 2 GiB, mínimo 2 réplicas | 2 a 6 réplicas; autoescala por HTTP e CPU |
-| Web | Azure Container Apps ou Static Web Apps | Nginx + assets | 2 réplicas |
-| Banco | Azure SQL Database | Camada General Purpose, 4 vCores, 100 GB, zone redundant em produção | Escala vertical e read replica futura |
-| Jobs | Quartz embutido na API | Cluster com store SQL | Escala junto com a API |
-| Segredos | Azure Key Vault | Acesso por managed identity | — |
-| Telemetria | Application Insights + Log Analytics | 90 dias de logs | — |
-| Registry | Azure Container Registry | Imagens versionadas por SHA | — |
-| DNS/TLS | Azure Front Door + Managed Certificate | HTTPS e WAF | — |
+| API | Container Linux (orquestração a definir) | 1,0 vCPU, 2 GiB, mínimo 2 réplicas | 2 a 6 réplicas; autoescala a definir |
+| Web | Container Linux com Nginx | Nginx + assets | 2 réplicas |
+| Banco | SQL Server 2022 (serviço gerenciado a definir) | Camada e armazenamento definidos na decisão de hospedagem | Escala vertical e read replica futura |
+| Jobs | Adaptador de scheduler (ADR-027) | Definido com a estratégia de scheduler | Definida com a estratégia de scheduler |
+| Segredos | Gerenciador de segredos (ADR-028) | A definir | — |
+| Telemetria | Coletor OTLP (destino a definir) | Retenção definida na decisão de hospedagem | — |
+| Registry | Registry OCI configurável | Imagens versionadas por SHA | — |
+| DNS/TLS | Provedor a definir (ADR-028) | HTTPS | — |
 
 ## 16.3. Pipeline
 
@@ -1342,34 +1346,36 @@ push/PR
   -> integration tests (SQL container)
   -> architecture tests
   -> build frontend
-  -> E2E em staging (main)
+  -> E2E (ambiente definido na hospedagem)
   -> security scan
-  -> docker build + push
+  -> docker build + push (registry configurável)
   -> migrate database
-  -> deploy staging
+  -> deploy staging (etapa desacoplada do provedor)
   -> smoke tests
   -> deploy production (aprovação manual)
   -> smoke tests
 ```
+
+O pipeline do GitHub Actions não conhece o provedor de hospedagem: build, testes, análise, imagem e migration são independentes. O deploy é uma etapa fina, parametrizada por ambiente, que consome artefatos e segredos do ambiente-alvo.
 
 | Estágio | Ferramenta | Gatilho | Critério de sucesso |
 | --- | --- | --- | --- |
 | Build | GitHub Actions | Push e PR | Compilação sem warnings |
 | Testes | GitHub Actions + Testcontainers | Push e PR | 100% verdes e cobertura mínima |
 | Segurança | Dependabot, CodeQL, Trivy | Push, PR e semanal | Zero vulnerabilidade alta/crítica |
-| Imagem | Docker Buildx | Push em `main` | Imagem publicada com tag SHA |
+| Imagem | Docker Buildx | Push em `main` | Imagem publicada em registry OCI configurável com tag SHA |
 | Migration | `dotnet ef database update` | Deploy | Migration aplicada sem erro |
-| Deploy | Azure Container Apps | Aprovação | Revisão saudável e smoke tests OK |
+| Deploy | Etapa desacoplada do provedor | Aprovação | Revisão saudável e smoke tests OK |
 
 ## 16.4. Release, rollback e backup
 
 - **Estratégia de release:** rolling update com duas revisões e tráfego gradual (10% → 50% → 100%).
 - **Rollback:** retorno à revisão anterior em até 5 minutos; migrations seguem expandir/contrair para permitir rollback de código.
 - **Migrations em produção:** aplicadas antes do deploy, compatíveis com a versão anterior e a nova.
-- **Backup:** Azure SQL com backup completo semanal, diferencial a cada 12 horas e log a cada 5 a 10 minutos; retenção de 35 dias com point-in-time restore.
+- **Backup:** definido pelo serviço de banco escolhido (ABT-014), com requisito de backup completo semanal, diferencial a cada 12 horas, log a cada 5 a 10 minutos e retenção de 35 dias com point-in-time restore.
 - **Restauração testada:** trimestral em ambiente isolado, com registro de RTO e RPO.
 - **RTO:** 2 horas; **RPO:** 15 minutos.
-- **Continuidade:** zone redundancy no banco e múltiplas réplicas da API; região secundária documentada para evolução.
+- **Continuidade:** redundância de zona e múltiplas réplicas da API conforme o provedor escolhido (ADR-028); região secundária documentada para evolução.
 - **Feature flags:** configuração por ambiente para desligar jobs e funcionalidades em incidentes.
 
 ---
@@ -1412,17 +1418,7 @@ push/PR
 
 ## 17.4. Custos operacionais
 
-| Item | Custo estimado | Observação |
-| --- | --- | --- |
-| Azure Container Apps (API + Web) | US$ 120–200/mês | 2 réplicas mínimas |
-| Azure SQL General Purpose 4 vCores | US$ 370–450/mês | Com backup e zone redundancy |
-| Application Insights + Log Analytics | US$ 50–100/mês | 90 dias de retenção |
-| Azure Container Registry | US$ 5–20/mês | Camada Basic/Standard |
-| Key Vault + Front Door | US$ 40–80/mês | TLS e WAF |
-| GitHub Actions | US$ 0–50/mês | Minutos inclusos no plano |
-| **Total estimado** | **US$ 585–900/mês** | Antes de impostos e crescimento |
-
-Custos são estimativas para a escala inicial e devem ser revisados trimestralmente.
+Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-014). Nenhum provedor está definido; a estimativa será produzida quando a hospedagem for aprovada e revisada trimestralmente.
 
 ---
 
@@ -1433,12 +1429,12 @@ Custos são estimativas para a escala inicial e devem ser revisados trimestralme
 | Sobreposição de agenda sob concorrência | Alto | Média | Lock por profissional/data, índice único e testes de concorrência | Backend |
 | Vazamento entre tenants | Alto | Baixa | Filtro global, resource handlers e testes por endpoint | Backend e QA |
 | Timeout de lock em pico | Médio | Média | Timeout curto, retry com backoff e monitoramento | Backend |
-| Job de expiração atrasado | Médio | Média | Quartz clusterizado, alerta e reprocessamento idempotente | Backend |
+| Job de expiração atrasado | Médio | Média | Estratégia de scheduler (ADR-027), alerta e reprocessamento idempotente | Backend |
 | Erro de fuso horário | Alto | Média | UTC no banco, IANA por tenant e testes com fusos distintos | Backend e Frontend |
 | Migração incompatível | Alto | Baixa | Expandir/contrair, backup e teste em staging | DevOps |
 | Complexidade do Angular zoneless | Médio | Média | Signals, `OnPush` e revisão de mudanças | Frontend |
 | Cookie e CSRF mal configurados | Alto | Baixa | `__Host-`, `SameSite`, antiforgery e testes de segurança | Backend |
-| Custo do Azure SQL acima do previsto | Médio | Média | Monitorar DTU e revisar camada | DevOps |
+| Custo de infraestrutura acima do previsto | Médio | Média | Estimar após a decisão de hospedagem (ADR-028) e monitorar consumo | DevOps |
 | Dependência de versões pré-lançamento | Médio | Média | Fixar versões e validar compatibilidade no início | Tech lead |
 | Ausência de política de retenção | Alto | Média | Anonimização e política provisória até ABT-009 | Produto e Jurídico |
 | Notificações por polling | Baixo | Alta | Intervalo de 60 s e cache; SignalR em versão futura | Frontend |
@@ -1452,7 +1448,7 @@ Custos são estimativas para a escala inicial e devem ser revisados trimestralme
 | Cookie em vez de JWT | Proteção contra XSS e sessão revogável | Requer CSRF e same-origin | Alta |
 | Polling em vez de SignalR | Menos complexidade na V1.0 | Latência de até 60 s | Alta |
 | Sem MediatR/AutoMapper | Menos indireção e dependências | Mais código explícito | Alta |
-| Quartz embutido na API | Menos um serviço | Jobs competem por recursos com a API | Alta |
+| Processos periódicos no processo da API | Menos um serviço | Concorrência por recursos e dependência da decisão de scheduler | Alta |
 | Snapshot de serviço no agendamento | Histórico íntegro | Duplicação controlada de dados | Baixa |
 | GUID v7 | Índices mais eficientes que GUID v4 | IDs maiores que `int` | Baixa |
 
@@ -1469,17 +1465,17 @@ Custos são estimativas para a escala inicial e devem ser revisados trimestralme
 | ADR-003 | Clean Architecture com DDD tático e monólito modular | Aceito | 16/11/2026 | Nenhum |
 | ADR-004 | SQL Server com EF Core 10 e migrations versionadas | Aceito | 16/11/2026 | Nenhum |
 | ADR-005 | ASP.NET Core Identity com autenticação por cookie | Aceito | 16/11/2026 | Nenhum |
-| ADR-006 | Banco único com `TenantId` e filtros globais | Proposto | 16/11/2026 | Nenhum |
+| ADR-006 | Banco único com `TenantId` e filtros globais | Aceito | 16/11/2026 | Nenhum |
 | ADR-007 | API REST com controllers e versionamento por URL | Aceito | 16/11/2026 | Nenhum |
-| ADR-008 | Angular Material + CDK como biblioteca de UI | Proposto | 16/11/2026 | Nenhum |
-| ADR-009 | Quartz.NET com store no SQL Server | Proposto | 16/11/2026 | Nenhum |
+| ADR-008 | Angular Material + CDK como biblioteca de UI | Rejeitado | 16/11/2026 | Substituído por ADR-026 |
+| ADR-009 | Quartz.NET com store no SQL Server | Rejeitado | 16/11/2026 | Substituído por ADR-027 |
 | ADR-010 | Concorrência de agenda com `sp_getapplock` e índice único | Aceito | 16/11/2026 | Nenhum |
 | ADR-011 | UTC no banco com fuso IANA por barbearia | Aceito | 16/11/2026 | Nenhum |
 | ADR-012 | Testes com MSTest, Testcontainers e Playwright | Aceito | 16/11/2026 | Nenhum |
 | ADR-013 | Containers Linux e Azure SQL na V1.0 | Proposto | 16/11/2026 | Nenhum |
 | ADR-014 | Observabilidade com Serilog e OpenTelemetry | Aceito | 16/11/2026 | Nenhum |
 | ADR-015 | Casos de uso explícitos sem MediatR e sem AutoMapper | Aceito | 16/11/2026 | Nenhum |
-| ADR-016 | Notificações internas por polling na V1.0 | Proposto | 16/11/2026 | Nenhum |
+| ADR-016 | Notificações internas por polling na V1.0 | Aceito | 16/11/2026 | Nenhum |
 | ADR-017 | Erros padronizados com ProblemDetails e códigos estáveis | Aceito | 16/11/2026 | Nenhum |
 | ADR-018 | Estado do frontend com signals e serviços, sem NgRx | Aceito | 16/11/2026 | Nenhum |
 | ADR-019 | Acesso a dados com DbContext e query services | Aceito | 16/11/2026 | Nenhum |
@@ -1488,7 +1484,10 @@ Custos são estimativas para a escala inicial e devem ser revisados trimestralme
 | ADR-022 | Migrations com estratégia expandir/contrair | Aceito | 16/11/2026 | Nenhum |
 | ADR-023 | Desativação lógica, snapshots e retenção de histórico | Aceito | 16/11/2026 | Nenhum |
 | ADR-024 | Integrações externas por portas e adaptadores | Aceito | 16/11/2026 | Nenhum |
-| ADR-025 | CI/CD com GitHub Actions e Azure Container Apps | Proposto | 16/11/2026 | Nenhum |
+| ADR-025 | CI/CD com GitHub Actions desacoplado da hospedagem | Proposto | 16/11/2026 | Nenhum |
+| ADR-026 | Bootstrap 5 + SCSS + Bootstrap Icons como design system | Aceito | 17/11/2026 | ADR-008 |
+| ADR-027 | Estratégia de execução de processos periódicos | Pendente | 17/11/2026 | ADR-009 |
+| ADR-028 | Hospedagem, provedor de nuvem e serviços gerenciados | Pendente | 17/11/2026 | ADR-013 |
 
 ## 19.2. Registros
 
@@ -1582,7 +1581,7 @@ Custos são estimativas para a escala inicial e devem ser revisados trimestralme
 
 **Contexto:** o domínio é relacional, exige transações, integridade referencial e consultas por período. A stack solicitada inclui SQL Server e EF Core.
 
-**Decisão:** SQL Server 2022+ (Azure SQL em produção) com EF Core 10, configurações por `IEntityTypeConfiguration`, migrations versionadas no repositório e `AsNoTracking` em consultas de leitura.
+**Decisão:** SQL Server 2022+ com EF Core 10, configurações por `IEntityTypeConfiguration`, migrations versionadas no repositório e `AsNoTracking` em consultas de leitura. O serviço de banco gerenciado é definido na decisão de hospedagem (ADR-028).
 
 **Alternativas consideradas:**
 
@@ -1693,6 +1692,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 - **Status:** Rejeitado
 - **Data:** 16/11/2026
+- **Substituído por:** ADR-026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-ACESSIBILIDADE-001, RNF-COMPATIBILIDADE-001, RNF-USABILIDADE-001
 
@@ -1720,6 +1720,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 - **Status:** Rejeitado
 - **Data:** 16/11/2026
+- **Substituído por:** ADR-027 (pendente)
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RF-AGD-015, RF-AGD-016, RF-AGD-017
 
@@ -1828,6 +1829,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 - **Status:** Proposto
 - **Data:** 16/11/2026
+- **Substituído por:** ADR-028 (pendente)
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DISPONIBILIDADE-001, RNF-COMPATIBILIDADE-001
 
@@ -2155,6 +2157,8 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DISPONIBILIDADE-001
 
+**Observação (17/11/2026):** a parte de deploy e provedor é tratada no ADR-028 (pendente). O pipeline do GitHub Actions deve permanecer independente da hospedagem; build, testes, imagem e migration não podem depender do destino.
+
 **Contexto:** o repositório está no GitHub e a infraestrutura proposta é Azure; o pipeline precisa ser reproduzível e barato.
 
 **Decisão:** GitHub Actions com estágios de build, testes, análise, imagem, migration, deploy staging e produção com aprovação. Imagens no Azure Container Registry e deploy no Azure Container Apps.
@@ -2175,6 +2179,100 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Critérios de verificação:** pipeline verde em PR; deploy staging automático; produção com aprovação.
 
+### ADR-026 — Bootstrap 5 + SCSS + Bootstrap Icons como design system
+
+- **Status:** Aceito
+- **Data:** 17/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-ACESSIBILIDADE-001, RNF-COMPATIBILIDADE-001, RNF-USABILIDADE-001, RNF-DESEMPENHO-001
+
+**Contexto:** o ADR-008 foi rejeitado. A SPA continua exigindo layout responsivo, formulários, tabelas, diálogos, navegação e acessibilidade WCAG 2.1 AA, com bundle inicial controlado e sem dependência de uma biblioteca de componentes Angular.
+
+**Decisão:** usar Bootstrap 5 com SCSS e Bootstrap Icons, importando apenas os módulos necessários (reboot, grid, utilities e componentes utilizados). O tema é definido por custom properties e variáveis SCSS. Componentes compartilhados, incluindo primitivas acessíveis de diálogo, formulário, tabela e layout, ficam em `shared/ui`. A agenda diária, semanal e mensal é construída em CSS Grid com SCSS. Acessibilidade, foco e teclado são responsabilidade do projeto, verificados com axe e revisão manual.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Angular Material + CDK | Componentes prontos e acessíveis | Não é a preferência atual e foi rejeitado no ADR-008 | Decisão registrada |
+| PrimeNG | Muitos componentes | Tema pesado e dependência adicional | Não aprovado |
+| Tailwind + componentes próprios | Liberdade visual | Acessibilidade e consistência manuais | Custo alto |
+
+**Consequências:**
+
+- Positivas: stack simples, CSS previsível, sem componentes de UI concorrentes e com tema próprio.
+- Negativas: overlay, datepicker e foco precisam de implementação própria; acessibilidade não é herdada.
+- Custos e riscos: maior esforço de design system na fundação e na agenda; orçamento de bundle precisa ser medido com importação seletiva.
+
+**Critérios de verificação:** `package.json` sem Angular Material e sem CDK; Bootstrap importado por módulos; `shared/ui` usado pelas features; axe sem violação crítica nas telas principais; bundle inicial dentro do orçamento definido.
+
+### ADR-027 — Estratégia de execução de processos periódicos
+
+- **Status:** Pendente
+- **Data:** 17/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RF-AGD-015, RF-AGD-016, RF-AGD-017, RN-AGD-015 a RN-AGD-017
+
+**Contexto:** o ADR-009 (Quartz.NET com store no SQL Server) foi rejeitado e nenhuma biblioteca de agendamento foi aprovada. A regra de negócio que reserva o horário sugerido por 24 horas e o libera após rejeição ou expiração continua obrigatória (RN-AGD-015 a RN-AGD-017). O TDD também descreve rotinas periódicas de manutenção operacional na seção 12.3.
+
+**Decisão:** a estratégia de execução de processos periódicos permanece **pendente**. Nenhum adaptador, biblioteca ou serviço é escolhido nesta decisão. Ficam definidos apenas os contratos e as restrições que qualquer escolha futura deve satisfazer:
+
+- A aplicação define abstrações próprias para execução de processos; `Domain` e `Application` não referenciam biblioteca de agendamento.
+- A escolha do adaptador é feita em `Infrastructure` e registrada em ADR próprio no momento da decisão.
+- Todo processo é implementado como operação idempotente, segura sob execução repetida ou concorrente, com registro de execução em `JobRuns`.
+- A garantia de execução durável e coordenada entre instâncias não pode ser afirmada enquanto a estratégia não for aprovada.
+- Os processos existentes têm rastreabilidade na SPEC/TDD; nenhum processo novo é introduzido por esta decisão.
+
+**Alternativas consideradas (não decididas):**
+
+| Alternativa | Prós | Contras | Situação |
+| --- | --- | --- | --- |
+| Execução em processo (`BackgroundService`) | Sem dependência adicional | Não garante execução com a API parada | Candidata |
+| Agendador do próprio banco | Independente da aplicação | Acopla a operação ao banco | Candidata |
+| Biblioteca dedicada de jobs | Persistência e coordenação | Dependência e licença | Candidata |
+
+**Consequências:**
+
+- Positivas: evita compromisso prematuro e mantém o domínio independente.
+- Negativas: a garantia de expiração em 24 horas fica explicitamente condicionada à decisão.
+- Custos e riscos: a decisão deve ocorrer antes da conclusão da etapa de ciclo de vida do agendamento.
+
+**Critérios de verificação:** ausência de dependência de scheduler no domínio; processos idempotentes testados; decisão registrada em ADR antes de afirmar durabilidade.
+
+### ADR-028 — Hospedagem, provedor de nuvem e serviços gerenciados
+
+- **Status:** Pendente
+- **Data:** 17/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Requisitos relacionados:** RNF-DISPONIBILIDADE-001, RNF-SEGURANCA-001, RNF-PRIVACIDADE-001
+
+**Contexto:** o ADR-013 (containers Linux e Azure SQL) e o ADR-025 (CI/CD com Azure Container Apps) estão propostos, e o PRD/TDD tratam hospedagem e serviços gerenciados como premissas em aberto (ABT-003, ABT-014). Nenhum provedor de nuvem foi definido.
+
+**Decisão:** a hospedagem, o provedor de nuvem, o serviço de banco gerenciado, o gerenciador de segredos e o destino de telemetria permanecem **pendentes**. Nenhum provedor é assumido. Ficam definidas as restrições que qualquer escolha futura deve satisfazer:
+
+- Aplicação empacotada em containers Linux; a orquestração é definida com a hospedagem.
+- Banco relacional SQL Server 2022, conforme ADR-004; o serviço gerenciado é escolhido com a hospedagem.
+- Telemetria por OpenTelemetry com exportador OTLP configurável e logs estruturados por Serilog; nenhum destino proprietário é obrigatório.
+- Segredos acessados por abstração de configuração e gerenciador de segredos escolhido na decisão.
+- O pipeline do GitHub Actions é independente do provedor: build, testes, imagem e migration não dependem do destino; o deploy é etapa fina e parametrizada.
+- `Domain` e `Application` não contêm código específico de provedor.
+
+**Alternativas consideradas (não decididas):**
+
+| Alternativa | Prós | Contras | Situação |
+| --- | --- | --- | --- |
+| Serviço de containers gerenciado | Operação simplificada | Custo e dependência de provedor | Candidata |
+| Container em máquina virtual | Controle e custo | Operação, backup e TLS manuais | Candidata |
+| Plataforma gerenciada de aplicação | Menos configuração | Menos controle de containers | Candidata |
+
+**Consequências:**
+
+- Positivas: evita lock-in prematuro e mantém o pipeline reutilizável.
+- Negativas: custos, RTO/RPO, backups e alertas ficam sem números definitivos.
+- Custos e riscos: a decisão deve ocorrer antes da etapa de produção e go-live.
+
+**Critérios de verificação:** nenhuma referência a provedor em `Domain`/`Application`; pipeline executando build, testes, imagem e migration sem conhecer o destino; decisão registrada antes do go-live.
+
 ---
 
 # 20. Plano de implementação
@@ -2190,7 +2288,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 | F4 — Atendimento e pagamentos | Início, fim, não comparecimento e pagamento | F3 | Máquina de estados e indicadores financeiros |
 | F5 — Dashboard e notificações | Indicadores, próximos agendamentos e notificações internas | F3, F4 | Dashboard por período e notificações por polling |
 | F6 — Jobs e endurecimento | Expiração de sugestão, rotinas periódicas, rate limit, auditoria e acessibilidade | F3 a F5 | Jobs idempotentes; checklist de segurança e acessibilidade |
-| F7 — Produção | Infraestrutura Azure, migrations, backups, alertas e runbooks | F6 | Deploy staging e produção com smoke tests |
+| F7 — Produção | Ambiente de execução (decisão pendente), migrations, backups, alertas e runbooks | F6 | Deploy staging e produção com smoke tests |
 
 ## 20.2. Ordem de implementação
 
@@ -2203,10 +2301,10 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 7. Implementar criação de agendamento com lock, idempotência e testes de concorrência.
 8. Implementar agenda, cancelamento, remarcação, sugestão e histórico.
 9. Implementar atendimento, pagamento e dashboard.
-10. Implementar notificações, jobs Quartz e reconciliação.
+10. Implementar notificações, processos periódicos (com adaptador de scheduler pendente) e reconciliação.
 11. Implementar frontend por feature, começando por autenticação e agenda.
 12. Executar testes de carga, acessibilidade, segurança e restauração de backup.
-13. Configurar Azure, Key Vault, observabilidade e go-live.
+13. Concluir a decisão de hospedagem, configurar ambientes, observabilidade e go-live.
 
 ## 20.3. Estratégias de migração e corte
 
@@ -2215,7 +2313,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - **Cutover:** publicação em produção após homologação em staging com dados sintéticos e checklist de go-live.
 - **Compatibilidade temporária:** endpoints `v1` mantidos durante a estabilização; mudanças incompatíveis exigem `v2`.
 - **Critérios de desativação:** `v1` desativado somente após migração de todos os clientes e aviso prévio.
-- **Rollback de release:** revisão anterior do Container App; migrations compatíveis com as duas versões.
+- **Rollback de release:** retorno à revisão anterior no ambiente escolhido; migrations compatíveis com as duas versões.
 
 ## 20.4. Definição de pronto
 
@@ -2236,7 +2334,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 | --- | --- | --- | --- | --- | --- |
 | ABT-001 | Premissa | Cada barbearia opera em um único fuso IANA | Cálculo de agenda e indicadores | Produto | Antes da F3 |
 | ABT-002 | Premissa | Escala inicial de até 500 barbearias e 20.000 agendamentos/dia | Dimensionamento e custo | Produto e Tecnologia | Antes da F7 |
-| ABT-003 | Premissa | V1.0 em uma única região Azure | Latência e continuidade | Tecnologia | Antes da F7 |
+| ABT-003 | Premissa | Hospedagem em um único provedor e região (a definir em ADR-028) | Latência e continuidade | Tecnologia | Antes da F7 |
 | ABT-004 | Premissa | Metas de RNF são alvos propostos | Testes de carga e SLOs | Produto e Tecnologia | Antes da F7 |
 | ABT-005 | Questão | Como e quando o telefone comercial será verificado? | Cadastro e confiança dos dados | Produto | Antes da F1 |
 | ABT-006 | Questão | Qual política de senha, recuperação e duração de sessão será adotada? | Segurança e experiência | Produto e Tecnologia | Antes da F1 |
@@ -2247,15 +2345,15 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 | ABT-011 | Questão | O proprietário vê a agenda de todos ou apenas a própria? | Permissões e consultas | Produto | Antes da F3 |
 | ABT-012 | Questão | Como exibir agendamento com sugestão pendente? | Clareza visual | Produto e Design | Antes da F3 |
 | ABT-013 | Premissa | Notificações por polling de 60 segundos atendem à V1.0 | Experiência e infraestrutura | Produto e Tecnologia | Antes da F5 |
-| ABT-014 | Premissa | Hospedagem em containers Linux com Azure SQL | Infraestrutura e custo | Tecnologia | Antes da F7 |
-| ABT-015 | Premissa | Angular Material + CDK como design system | UI e acessibilidade | Produto e Design | Antes da F1 |
+| ABT-014 | Premissa | Hospedagem em containers Linux e serviço de banco SQL Server a definir (ADR-028) | Infraestrutura e custo | Tecnologia | Antes da F7 |
+| ABT-015 | Premissa | Bootstrap 5 + SCSS + Bootstrap Icons como design system (ADR-026) | UI e acessibilidade | Produto e Design | Resolvido em ADR-026 |
 | ABT-016 | Premissa | Banco único com `TenantId` é suficiente para a escala e o isolamento | Segurança e operação | Tecnologia | Antes da F1 |
-| ABT-017 | Premissa | Quartz.NET com store SQL Server é necessário para expirações confiáveis | Jobs e disponibilidade | Tecnologia | Antes da F5 |
+| ABT-017 | Premissa | Estratégia de execução de processos periódicos permanece pendente (ADR-027) | Jobs e disponibilidade | Tecnologia | Antes da conclusão da F3 |
 | ABT-018 | Questão | Qual provedor de e-mail será usado para recuperação de senha? | Fluxo de recuperação | Produto e Tecnologia | Versão futura |
 | ABT-019 | Questão | Qual o SLA de suporte e janela de manutenção? | Operação e alertas | Produto | Antes do go-live |
 | ABT-020 | Questão | Qual o domínio público definitivo e a política de slugs? | Página pública e SEO | Produto | Antes da F7 |
 
-Decisões propostas que dependem de confirmação: ADR-006 (multi-tenancy), ADR-008 (UI), ADR-009 (jobs), ADR-013 (hospedagem), ADR-016 (polling) e ADR-025 (CI/CD).
+Decisões pendentes que dependem de confirmação: ADR-013/ADR-028 (hospedagem e provedor), ADR-025 (CI/CD e estratégia de deploy) e ADR-027 (execução de processos periódicos). ADR-006 e ADR-016 estão aceitos; ADR-008 e ADR-009 permanecem rejeitados como histórico, substituídos por ADR-026 e ADR-027.
 
 ---
 
@@ -2292,8 +2390,8 @@ Decisões propostas que dependem de confirmação: ADR-006 (multi-tenancy), ADR-
 | RF-AGD-001 a RF-AGD-004 | `Application/Appointments`, feature `schedule` | ADR-007, ADR-019 | Integração de agenda e E2E de navegação |
 | RF-AGD-005 a RF-AGD-008 | `Application/Appointments`, `Domain/Scheduling` | ADR-010, ADR-021 | Concorrência e cálculo de término/valor |
 | RF-AGD-009 a RF-AGD-014 | `Application/Appointments` | ADR-021, ADR-023 | Integração de detalhe, cancelamento e remarcação |
-| RF-AGD-015 a RF-AGD-017 | `Application/Appointments`, `Jobs` | ADR-009, ADR-023 | Integração de sugestão, expiração e histórico |
-| RF-AGD-018 | feature `schedule` | ADR-008 | E2E visual e teste de componente |
+| RF-AGD-015 a RF-AGD-017 | `Application/Appointments`, processos periódicos | ADR-027, ADR-023 | Integração de sugestão, expiração e histórico |
+| RF-AGD-018 | feature `schedule` | ADR-026 | E2E visual e teste de componente |
 | RF-ATD-001 a RF-ATD-009 | `Domain/Appointments`, `Application/Payments` | ADR-021, ADR-023 | Unitário de estados e integração de pagamento |
 | RF-CLI-001 a RF-CLI-006 | `Application/Customers` | ADR-006, ADR-020 | Integração de listagem, busca e autoatendimento |
 | RF-PROF-001 a RF-PROF-008 | `Application/Professionals` | ADR-006, ADR-023 | Integração de vínculo, status e convite |
@@ -2307,9 +2405,9 @@ Decisões propostas que dependem de confirmação: ADR-006 (multi-tenancy), ADR-
 | RNF-DISPONIBILIDADE-001 | Infraestrutura e health checks | ADR-013, ADR-014, ADR-025 | Monitoramento e teste de rollback |
 | RNF-PRIVACIDADE-001 | API, logs e banco | ADR-014, ADR-023 | Revisão de PII e testes de acesso |
 | RNF-AUDITORIA-001 | `AppointmentHistory` | ADR-023 | Teste de histórico e autor |
-| RNF-ACESSIBILIDADE-001 | Frontend | ADR-008 | axe e revisão manual |
+| RNF-ACESSIBILIDADE-001 | Frontend | ADR-026 | axe e revisão manual |
 | RNF-COMPATIBILIDADE-001 | Frontend | ADR-001 | Playwright em Chromium, Firefox e WebKit |
-| RNF-USABILIDADE-001 | Feature `public-booking` | ADR-008 | Teste de usabilidade e E2E |
+| RNF-USABILIDADE-001 | Feature `public-booking` | ADR-026 | Teste de usabilidade e E2E |
 | RNF-RETENCAO-001 | Banco e domínio | ADR-004, ADR-023 | Teste de snapshots e desativação |
 
 # Apêndice C — Referências
@@ -2321,7 +2419,7 @@ Decisões propostas que dependem de confirmação: ADR-006 (multi-tenancy), ADR-
 - ASP.NET Core 10 — documentação oficial de Identity, autenticação por cookie e antiforgery.
 - Angular 22 — documentação oficial de standalone, zoneless e signals.
 - EF Core 10 — documentação oficial de migrations, filtros globais e concorrência.
-- Quartz.NET 3.15 — documentação de AdoJobStore e cluster.
+- Estratégia de execução de processos periódicos registrada em ADR-027 (pendente).
 - Microsoft SQL Server — documentação de `sp_getapplock` e `rowversion`.
 - OWASP ASVS 5.0 — requisitos de verificação de segurança.
 - WCAG 2.1 — diretrizes de acessibilidade.

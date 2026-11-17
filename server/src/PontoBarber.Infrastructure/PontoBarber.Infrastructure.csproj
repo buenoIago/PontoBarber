@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PontoBarber.Application\PontoBarber.Application.csproj" />
+    <ProjectReference Include="..\PontoBarber.Domain\PontoBarber.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
