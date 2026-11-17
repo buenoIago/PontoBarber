@@ -369,7 +369,10 @@ Módulos de domínio mapeados a partir do PRD:
 | `FluentValidation.DependencyInjectionExtensions` | 12.x | Validação de entrada | Regras declarativas e mensagens consistentes | DataAnnotations — limitado para regras compostas | Apache-2.0 |
 | `Serilog.AspNetCore` | 9.x | Logs estruturados | Enriquecimento, sinks e correlação | `ILogger` puro — menos contexto | Apache-2.0 |
 | `Serilog.Sinks.OpenTelemetry` | 1.x | Envio de logs via OTLP | Destino neutro de provedor | Sink proprietário — lock-in | Apache-2.0 |
-| `OpenTelemetry.Extensions.Hosting` | 1.12 | Métricas e traces | Padrão aberto e exportação OTLP | APM proprietário — lock-in | Apache-2.0 |
+| `OpenTelemetry.Extensions.Hosting` | 1.21 | Host de métricas e traces | Padrão aberto e exportação OTLP | APM proprietário — lock-in | Apache-2.0 |
+| `OpenTelemetry.Instrumentation.AspNetCore` | 1.21 | Instrumentação de requisições HTTP | Traces automáticos de ASP.NET Core | Instrumentação manual — mais código | Apache-2.0 |
+| `OpenTelemetry.Instrumentation.SqlClient` | 1.21 | Instrumentação de SQL Server | Traces de comandos e duração | Instrumentação manual — mais código | Apache-2.0 |
+| `OpenTelemetry.Exporter.OpenTelemetryProtocol` | 1.21 | Exportação OTLP de traces e métricas | Destino neutro de provedor | Exporter proprietário — lock-in | Apache-2.0 |
 | `Bootstrap` | 5.x | Base de layout e componentes | Decisão aprovada em ADR-026 | Angular Material — rejeitado em ADR-008 | MIT |
 | `bootstrap-icons` | 1.x | Ícones | Padronização visual aprovada em ADR-026 | Biblioteca de ícones própria — custo alto | MIT |
 | `sass` (dart-sass) | 1.x | SCSS e tokens de tema | Tema próprio sobre Bootstrap | CSS puro — sem tokens | MIT |
@@ -1228,6 +1231,8 @@ Eventos obrigatórios:
 | Integrações | Latência e erros por dependência | Erro > 5% por 5 min |
 
 Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient e do adaptador de scheduler; amostragem adaptativa de 10% em produção e 100% em staging.
+
+**Configuração atual (F0):** o endpoint OTLP é lido de `Observabilidade:OTLP:Endpoint`. Quando vazio, a aplicação continua operando apenas com logs no console e instrumentação local, sem exigir coletor. O enriquecimento de correlação usa `HttpContext.TraceIdentifier`, `SpanId`, usuário autenticado em hash e o `TenantId` validado pelo middleware. A redação é aplicada por `RedacaoLogEventSink` **antes de qualquer sink** — inclusive OTLP — e combina regras de nomes sensíveis com máscaras de e-mail, telefone, pares chave/valor e cabeçalhos `Bearer`.
 
 ## 14.3. Alertas e plantão
 
