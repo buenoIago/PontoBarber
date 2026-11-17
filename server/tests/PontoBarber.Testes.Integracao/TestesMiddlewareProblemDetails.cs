@@ -1,14 +1,15 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using PontoBarber.WebApp.Middleware;
 using PontoBarber.Aplicacao.Abstracoes;
+using PontoBarber.WebApp.Middleware;
 
 namespace PontoBarber.Testes.Integracao;
 
+[TestClass]
 public class TestesMiddlewareProblemDetails
 {
-    [Fact]
+    [TestMethod]
     public async Task MiddlewareProblemDetails_ComErroDeValidacao_Retorna400ComErrosPorCampo()
     {
         var erros = new Dictionary<string, string[]>
@@ -20,55 +21,55 @@ public class TestesMiddlewareProblemDetails
         var resposta = await ExecutarAsync(
             _ => Task.FromException(new ExcecaoValidacaoAplicacao(erros)));
 
-        Assert.Equal(StatusCodes.Status400BadRequest, resposta.Status);
-        Assert.Equal("application/problem+json", resposta.TipoConteudo);
-        Assert.Equal(CodigosErro.ValidacaoFalhou, ObterTexto(resposta.Corpo, "code"));
-        Assert.Equal("trace-teste-123", ObterTexto(resposta.Corpo, "traceId"));
-        Assert.Equal("/api/v1/teste", ObterTexto(resposta.Corpo, "instance"));
+        Assert.AreEqual(StatusCodes.Status400BadRequest, resposta.Status);
+        Assert.AreEqual("application/problem+json", resposta.TipoConteudo);
+        Assert.AreEqual(CodigosErro.ValidacaoFalhou, ObterTexto(resposta.Corpo, "code"));
+        Assert.AreEqual("trace-teste-123", ObterTexto(resposta.Corpo, "traceId"));
+        Assert.AreEqual("/api/v1/teste", ObterTexto(resposta.Corpo, "instance"));
 
         var campos = resposta.Corpo.GetProperty("errors").EnumerateObject()
             .ToDictionary(propriedade => propriedade.Name, propriedade => propriedade.Value);
-        Assert.Equal(2, campos.Count);
-        Assert.Equal("Campo obrigatório", campos["nome"][0].GetString());
-        Assert.Equal("Formato inválido", campos["email"][0].GetString());
+        Assert.AreEqual(2, campos.Count);
+        Assert.AreEqual("Campo obrigatório", campos["nome"][0].GetString());
+        Assert.AreEqual("Formato inválido", campos["email"][0].GetString());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MiddlewareProblemDetails_ComConflitoDeHorario_Retorna409ComCodigoEstavel()
     {
         var resposta = await ExecutarAsync(_ => Task.FromException(
             new ExcecaoConflitoAplicacao(CodigosErro.AgendaHorarioIndisponivel, "Horário indisponível")));
 
-        Assert.Equal(StatusCodes.Status409Conflict, resposta.Status);
-        Assert.Equal("application/problem+json", resposta.TipoConteudo);
-        Assert.Equal(CodigosErro.AgendaHorarioIndisponivel, ObterTexto(resposta.Corpo, "code"));
-        Assert.Equal("Horário indisponível", ObterTexto(resposta.Corpo, "detail"));
-        Assert.Empty(resposta.Corpo.GetProperty("errors").EnumerateObject());
+        Assert.AreEqual(StatusCodes.Status409Conflict, resposta.Status);
+        Assert.AreEqual("application/problem+json", resposta.TipoConteudo);
+        Assert.AreEqual(CodigosErro.AgendaHorarioIndisponivel, ObterTexto(resposta.Corpo, "code"));
+        Assert.AreEqual("Horário indisponível", ObterTexto(resposta.Corpo, "detail"));
+        Assert.AreEqual(0, resposta.Corpo.GetProperty("errors").EnumerateObject().Count());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MiddlewareProblemDetails_ComConcorrencia_Retorna409ComCodigoEstavel()
     {
         var resposta = await ExecutarAsync(
             _ => Task.FromException(new DbUpdateConcurrencyException("rowversion divergente")));
 
-        Assert.Equal(StatusCodes.Status409Conflict, resposta.Status);
-        Assert.Equal(CodigosErro.ConcorrenciaConflito, ObterTexto(resposta.Corpo, "code"));
-        Assert.Equal("trace-teste-123", ObterTexto(resposta.Corpo, "traceId"));
+        Assert.AreEqual(StatusCodes.Status409Conflict, resposta.Status);
+        Assert.AreEqual(CodigosErro.ConcorrenciaConflito, ObterTexto(resposta.Corpo, "code"));
+        Assert.AreEqual("trace-teste-123", ObterTexto(resposta.Corpo, "traceId"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MiddlewareProblemDetails_ComFalhaNaoPrevista_NaoExpoeDetalhesInternos()
     {
         var resposta = await ExecutarAsync(
             _ => Task.FromException(new InvalidOperationException("detalhe sensível interno")));
 
-        Assert.Equal(StatusCodes.Status500InternalServerError, resposta.Status);
-        Assert.Equal(CodigosErro.ErroInterno, ObterTexto(resposta.Corpo, "code"));
-        Assert.DoesNotContain("detalhe sensível interno", ObterTexto(resposta.Corpo, "detail"));
+        Assert.AreEqual(StatusCodes.Status500InternalServerError, resposta.Status);
+        Assert.AreEqual(CodigosErro.ErroInterno, ObterTexto(resposta.Corpo, "code"));
+        Assert.IsFalse(ObterTexto(resposta.Corpo, "detail").Contains("detalhe sensível interno", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MiddlewareProblemDetails_SemErro_NaoAlteraResposta()
     {
         var resposta = await ExecutarAsync(contexto =>
@@ -77,8 +78,8 @@ public class TestesMiddlewareProblemDetails
             return Task.CompletedTask;
         });
 
-        Assert.Equal(StatusCodes.Status204NoContent, resposta.Status);
-        Assert.Null(resposta.TipoConteudo);
+        Assert.AreEqual(StatusCodes.Status204NoContent, resposta.Status);
+        Assert.IsNull(resposta.TipoConteudo);
     }
 
     private static async Task<RespostaTeste> ExecutarAsync(RequestDelegate proximo)

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend - build, testes e análise
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar SDK .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Verificar Docker
+        run: docker info
+
+      - name: Restaurar ferramentas locais
+        run: dotnet tool restore
+
+      - name: Restore
+        run: dotnet restore PontoBarber.slnx
+
+      - name: Build
+        run: dotnet build PontoBarber.slnx --no-restore -warnaserror
+
+      - name: Verificação de formatação
+        run: dotnet format PontoBarber.slnx --verify-no-changes --no-restore
+
+      - name: Testes com cobertura
+        run: >
+          dotnet test PontoBarber.slnx --no-build --no-restore
+          --collect:"XPlat Code Coverage"
+          --results-directory TestResults
+
+      - name: Verificar alterações pendentes no modelo EF
+        shell: bash
+        run: |
+          if find server/src/PontoBarber.Infra -path '*/Migrations/*Snapshot.cs' -print -quit | grep -q .; then
+            dotnet ef migrations has-pending-model-changes \
+              --project server/src/PontoBarber.Infra/PontoBarber.Infra.csproj \
+              --startup-project server/src/PontoBarber.WebApp/PontoBarber.WebApp.csproj
+          else
+            echo "Sem migration/snapshot: verificacao de modelo NAO executada (limitacao documentada)."
+          fi
+
+      - name: Publicar relatório de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-backend
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn

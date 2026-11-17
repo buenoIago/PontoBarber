@@ -659,6 +659,8 @@ A restrição de sobreposição não pode ser expressa por índice único no SQL
 
 - Migrations geradas com `dotnet ef migrations add` no projeto `PontoBarber.Infra` e versionadas no repositório.
 - Aplicação em produção por job de pipeline com `dotnet ef database update` em etapa separada do deploy da API.
+
+**Verificação em CI:** `dotnet ef migrations has-pending-model-changes` compara o modelo atual com o snapshot sem abrir conexão com o banco, por meio de `IDesignTimeDbContextFactory<ContextoPontoBarber>` com connection string fictícia. Enquanto não existir migration/snapshot, o comando passa de forma vácua — a verificação só passa a ter efeito quando a primeira migration real for criada. Não se deve criar uma migration artificial apenas para satisfazer o pipeline.
 - Estratégia expandir/contrair: adicionar colunas e índices compatíveis, fazer backfill, migrar o código e remover o que ficou obsoleto em release posterior.
 - Toda migration deve ser idempotente e testada contra um banco com dados representativos.
 - Rollback preferencial por correção forward; migrations destrutivas exigem aprovação e backup verificado.

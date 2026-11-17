@@ -1,7 +1,7 @@
 using System.Security.Claims;
+using PontoBarber.Aplicacao.Abstracoes;
 using PontoBarber.WebApp.Erros;
 using PontoBarber.WebApp.Tenant;
-using PontoBarber.Aplicacao.Abstracoes;
 
 namespace PontoBarber.WebApp.Middleware;
 

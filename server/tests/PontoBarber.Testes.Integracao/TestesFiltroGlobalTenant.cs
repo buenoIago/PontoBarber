@@ -5,22 +5,22 @@ using PontoBarber.Infra.Persistencia;
 
 namespace PontoBarber.Testes.Integracao;
 
+[TestClass]
 public class TestesFiltroGlobalTenant : IDisposable
 {
     private static readonly Guid _tenantA = Guid.NewGuid();
     private static readonly Guid _tenantB = Guid.NewGuid();
 
-    private readonly string _connectionString;
     private readonly ContextoTenantMutavel _contextoTenant = new();
     private readonly ContextoPersistenciaTeste _context;
 
     public TestesFiltroGlobalTenant()
     {
         var database = $"PontoBarberFiltros_{Guid.NewGuid():N}";
-        _connectionString = $@"Server=(localdb)\MSSQLLocalDB;Database={database};Trusted_Connection=True;TrustServerCertificate=True;";
+        var stringConexao = ConfiguracaoTestesIntegracao.Container.ObterStringConexao(database);
 
         var options = new DbContextOptionsBuilder<ContextoPontoBarber>()
-            .UseSqlServer(_connectionString)
+            .UseSqlServer(stringConexao)
             .Options;
 
         _context = new ContextoPersistenciaTeste(options, _contextoTenant);
@@ -36,80 +36,82 @@ public class TestesFiltroGlobalTenant : IDisposable
         _context.ChangeTracker.Clear();
     }
 
-    [Fact]
+    [TestMethod]
     public void FiltroGlobal_ComTenantAAtivo_RetornaSomenteRegistrosDeA()
     {
         ComTenantAAtivo();
 
         var registros = _context.Set<RegistroTenant>().Where(record => record.Name == "Corte").ToList();
 
-        Assert.Single(registros);
-        Assert.All(registros, record => Assert.Equal(_tenantA, record.TenantId));
+        Assert.AreEqual(1, registros.Count);
+        foreach (var registro in registros)
+            Assert.AreEqual(_tenantA, registro.TenantId);
     }
 
-    [Fact]
+    [TestMethod]
     public void FiltroGlobal_ComTenantBAtivo_RetornaSomenteRegistrosDeB()
     {
         ComTenantBAtivo();
 
         var registros = _context.Set<RegistroTenant>().Where(record => record.Name == "Corte").ToList();
 
-        Assert.Single(registros);
-        Assert.All(registros, record => Assert.Equal(_tenantB, record.TenantId));
+        Assert.AreEqual(1, registros.Count);
+        foreach (var registro in registros)
+            Assert.AreEqual(_tenantB, registro.TenantId);
     }
 
-    [Fact]
+    [TestMethod]
     public void FiltroGlobal_SemTenantAtivo_NaoRetornaRegistrosMultiTenant()
     {
         SemTenantAtivo();
 
-        Assert.Empty(_context.Set<RegistroTenant>().ToList());
+        Assert.AreEqual(0, _context.Set<RegistroTenant>().ToList().Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void FiltroGlobal_EntidadeGlobal_PermaneceAcessivelSemTenant()
     {
         SemTenantAtivo();
 
         var registros = _context.Set<RegistroGlobal>().ToList();
 
-        Assert.Single(registros);
-        Assert.Equal("CatalogoModelo", registros[0].Name);
+        Assert.AreEqual(1, registros.Count);
+        Assert.AreEqual("CatalogoModelo", registros[0].Name);
     }
 
-    [Fact]
+    [TestMethod]
     public void FiltroGlobal_AlteracaoDoTenantId_NaoPermiteAcessoNemModificacao()
     {
         ComTenantAAtivo();
-        var registro = Assert.Single(_context.Set<RegistroTenant>().ToList());
+        var registro = ObterUnico(_context.Set<RegistroTenant>().ToList());
         var idRegistroA = registro.Id;
 
         registro.TenantId = _tenantB;
 
         // O registro de A continua invisível para B, mesmo com o valor alterado em memória.
         ComTenantBAtivo();
-        Assert.DoesNotContain(_context.Set<RegistroTenant>().ToList(), item => item.Id == idRegistroA);
+        Assert.IsFalse(_context.Set<RegistroTenant>().ToList().Any(item => item.Id == idRegistroA));
 
         // A tentativa de mover o registro para outro tenant é bloqueada.
-        Assert.Throws<InvalidOperationException>(() => _context.SaveChanges());
+        Assert.ThrowsExactly<InvalidOperationException>(() => _context.SaveChanges());
 
         _context.ChangeTracker.Clear();
         ComTenantAAtivo();
-        var persistido = Assert.Single(_context.Set<RegistroTenant>().Where(item => item.Id == idRegistroA).ToList());
-        Assert.Equal(_tenantA, persistido.TenantId);
+        var persistido = ObterUnico(_context.Set<RegistroTenant>().Where(item => item.Id == idRegistroA).ToList());
+        Assert.AreEqual(_tenantA, persistido.TenantId);
     }
 
-    [Fact]
+    [TestMethod]
     public void FiltroGlobal_MesmaInstanciaComContextoTrocado_ReavaliaOTenant()
     {
         ComTenantAAtivo();
-        Assert.Equal(_tenantA, Assert.Single(_context.Set<RegistroTenant>().ToList()).TenantId);
+        Assert.AreEqual(_tenantA, ObterUnico(_context.Set<RegistroTenant>().ToList()).TenantId);
 
         ComTenantBAtivo();
-        Assert.Equal(_tenantB, Assert.Single(_context.Set<RegistroTenant>().ToList()).TenantId);
+        Assert.AreEqual(_tenantB, ObterUnico(_context.Set<RegistroTenant>().ToList()).TenantId);
 
         SemTenantAtivo();
-        Assert.Empty(_context.Set<RegistroTenant>().ToList());
+        Assert.AreEqual(0, _context.Set<RegistroTenant>().ToList().Count);
     }
 
     public void Dispose()
@@ -117,6 +119,12 @@ public class TestesFiltroGlobalTenant : IDisposable
         _context.Database.EnsureDeleted();
         _context.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    private static T ObterUnico<T>(List<T> itens)
+    {
+        Assert.AreEqual(1, itens.Count);
+        return itens.First();
     }
 
     private void ComTenantAAtivo() => _contextoTenant.TenantId = _tenantA;

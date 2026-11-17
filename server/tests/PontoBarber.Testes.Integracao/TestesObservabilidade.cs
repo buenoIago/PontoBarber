@@ -12,18 +12,20 @@ using Serilog.Events;
 
 namespace PontoBarber.Testes.Integracao;
 
-public class TestesObservabilidade : IClassFixture<WebApplicationFactory<Program>>
+[TestClass]
+public class TestesObservabilidade : IDisposable
 {
     private static readonly Guid _tenantValidado = Guid.NewGuid();
 
-    private readonly WebApplicationFactory<Program> _fabrica;
+    private readonly WebApplicationFactory<Program> _fabrica = new();
 
-    public TestesObservabilidade(WebApplicationFactory<Program> fabrica)
+    public void Dispose()
     {
-        _fabrica = fabrica;
+        _fabrica.Dispose();
+        GC.SuppressFinalize(this);
     }
 
-    [Fact]
+    [TestMethod]
     public void Correlacao_ComRequisicaoAutenticada_EscreveTraceIdUsuarioETenant()
     {
         var contexto = new DefaultHttpContext();
@@ -38,14 +40,14 @@ public class TestesObservabilidade : IClassFixture<WebApplicationFactory<Program
         using var json = JsonDocument.Parse(saida.ToString());
         var raiz = json.RootElement;
 
-        Assert.Equal("trace-observabilidade-123", raiz.GetProperty("TraceId").GetString());
-        Assert.Equal("trace-observabilidade-123", raiz.GetProperty("RequestId").GetString());
-        Assert.True(raiz.TryGetProperty("UserId", out var usuario));
-        Assert.NotEqual(string.Empty, usuario.GetString());
-        Assert.Equal(_tenantValidado.ToString(), raiz.GetProperty("TenantId").GetString());
+        Assert.AreEqual("trace-observabilidade-123", raiz.GetProperty("TraceId").GetString());
+        Assert.AreEqual("trace-observabilidade-123", raiz.GetProperty("RequestId").GetString());
+        Assert.IsTrue(raiz.TryGetProperty("UserId", out var usuario));
+        Assert.AreNotEqual(string.Empty, usuario.GetString());
+        Assert.AreEqual(_tenantValidado.ToString(), raiz.GetProperty("TenantId").GetString());
     }
 
-    [Fact]
+    [TestMethod]
     public void Correlacao_RotaSemTenantENaoAutenticada_NaoInventaIdentificadores()
     {
         var contexto = new DefaultHttpContext();
@@ -59,12 +61,12 @@ public class TestesObservabilidade : IClassFixture<WebApplicationFactory<Program
         using var json = JsonDocument.Parse(saida.ToString());
         var raiz = json.RootElement;
 
-        Assert.Equal("trace-publica-456", raiz.GetProperty("TraceId").GetString());
-        Assert.False(raiz.TryGetProperty("UserId", out _));
-        Assert.False(raiz.TryGetProperty("TenantId", out _));
+        Assert.AreEqual("trace-publica-456", raiz.GetProperty("TraceId").GetString());
+        Assert.IsFalse(raiz.TryGetProperty("UserId", out _));
+        Assert.IsFalse(raiz.TryGetProperty("TenantId", out _));
     }
 
-    [Fact]
+    [TestMethod]
     public void Redacao_ObjetoComDadosSensiveis_MascaraPropriedades()
     {
         var (logger, saida) = CriarLogger(null);
@@ -79,13 +81,13 @@ public class TestesObservabilidade : IClassFixture<WebApplicationFactory<Program
         logger.Information("dados {@Registro}", registro);
 
         var texto = saida.ToString();
-        Assert.Contains("João", texto);
-        Assert.DoesNotContain("senhaSuperSecreta", texto);
-        Assert.DoesNotContain("joao.silva@exemplo.com", texto);
-        Assert.DoesNotContain("11987654321", texto);
+        Assert.IsTrue(texto.Contains("João", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("senhaSuperSecreta", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("joao.silva@exemplo.com", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("11987654321", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [TestMethod]
     public void Redacao_PropriedadesEscalaresSensiveis_SaoMascaradas()
     {
         var (logger, saida) = CriarLogger(null);
@@ -97,12 +99,12 @@ public class TestesObservabilidade : IClassFixture<WebApplicationFactory<Program
             "cookieNaoLogar");
 
         var texto = saida.ToString();
-        Assert.DoesNotContain("senhaNaoLogar", texto);
-        Assert.DoesNotContain("tokenNaoLogar", texto);
-        Assert.DoesNotContain("cookieNaoLogar", texto);
+        Assert.IsFalse(texto.Contains("senhaNaoLogar", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("tokenNaoLogar", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("cookieNaoLogar", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [TestMethod]
     public void Redacao_MensagemComEmailETelefone_SaoMascarados()
     {
         var (logger, saida) = CriarLogger(null);
@@ -110,11 +112,11 @@ public class TestesObservabilidade : IClassFixture<WebApplicationFactory<Program
         logger.Information("contato maria@empresa.com 21999887766");
 
         var texto = saida.ToString();
-        Assert.DoesNotContain("maria@empresa.com", texto);
-        Assert.DoesNotContain("21999887766", texto);
+        Assert.IsFalse(texto.Contains("maria@empresa.com", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("21999887766", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [TestMethod]
     public void RedacaoAntesDosSinks_EventosDestinoOTLP_NaoContemValoresCompletos()
     {
         // O sink de captura representa o destino OTLP: recebe o LogEvent
@@ -144,31 +146,31 @@ public class TestesObservabilidade : IClassFixture<WebApplicationFactory<Program
             "joao@exemplo.com");
 
         var eventos = captura.Eventos;
-        Assert.NotEmpty(eventos);
+        Assert.IsTrue(eventos.Count > 0);
 
         var texto = string.Join("\n", eventos.Select(RenderizarEvento));
 
-        Assert.DoesNotContain("senhaMuitoSecreta", texto);
-        Assert.DoesNotContain("cookieMuitoSecreto", texto);
-        Assert.DoesNotContain("tokenMuitoSecreto", texto);
-        Assert.DoesNotContain("maria@empresa.com", texto);
-        Assert.DoesNotContain("joao@exemplo.com", texto);
-        Assert.DoesNotContain("21999887766", texto);
-        Assert.DoesNotContain("outraSenha", texto);
-        Assert.DoesNotContain("segredoNaExcecao", texto);
-        Assert.DoesNotContain("senhaNaExcecao", texto);
-        Assert.Contains("observacao util", texto);
-        Assert.Contains("Maria", texto);
+        Assert.IsFalse(texto.Contains("senhaMuitoSecreta", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("cookieMuitoSecreto", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("tokenMuitoSecreto", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("maria@empresa.com", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("joao@exemplo.com", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("21999887766", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("outraSenha", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("segredoNaExcecao", StringComparison.Ordinal));
+        Assert.IsFalse(texto.Contains("senhaNaExcecao", StringComparison.Ordinal));
+        Assert.IsTrue(texto.Contains("observacao util", StringComparison.Ordinal));
+        Assert.IsTrue(texto.Contains("Maria", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Configuracao_SemEndpointOtlp_AplicacaoInicializa()
     {
         using var cliente = _fabrica.CreateClient();
 
         var resposta = await cliente.GetAsync("/health/live");
 
-        Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
     }
 
     private static (Logger Logger, StringWriter Saida) CriarLogger(HttpContext? contexto)

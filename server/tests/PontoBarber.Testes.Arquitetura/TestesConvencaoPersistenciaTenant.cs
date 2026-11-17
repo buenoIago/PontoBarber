@@ -5,6 +5,7 @@ using PontoBarber.Infra.Persistencia;
 
 namespace PontoBarber.Testes.Arquitetura;
 
+[TestClass]
 public class TestesConvencaoPersistenciaTenant
 {
     // Exceções registradas no TDD §8.1 e §11: identidades e perfis globais,
@@ -19,7 +20,7 @@ public class TestesConvencaoPersistenciaTenant
         "JobRun"
     };
 
-    [Fact]
+    [TestMethod]
     public void EntidadesDeNegocio_SemTenantId_SaoRejeitadas()
     {
         var entidades = typeof(IEntidade).Assembly
@@ -35,12 +36,12 @@ public class TestesConvencaoPersistenciaTenant
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToList();
 
-        Assert.True(
+        Assert.IsTrue(
             semTenant.Count == 0,
             $"Entidades de negócio sem IPertencenteTenant/TenantId: {string.Join(", ", semTenant)}");
     }
 
-    [Fact]
+    [TestMethod]
     public void ConvencoesPersistencia_ComEntidadeTenant_ConfiguraTenantIdEDataUtc()
     {
         using var contexto = new ContextoTeste();
@@ -50,24 +51,24 @@ public class TestesConvencaoPersistenciaTenant
         var criadoEmUtc = tipoEntidade.FindProperty(nameof(EntidadeTenantTeste.CreatedAtUtc))!;
         var opcionalUtc = tipoEntidade.FindProperty(nameof(EntidadeTenantTeste.OptionalAtUtc))!;
 
-        Assert.False(tenantId.IsNullable);
-        Assert.Equal("TenantId", tenantId.GetColumnName());
-        Assert.Equal("datetime2(3)", criadoEmUtc.GetColumnType());
-        Assert.Equal("datetime2(3)", opcionalUtc.GetColumnType());
+        Assert.IsFalse(tenantId.IsNullable);
+        Assert.AreEqual("TenantId", tenantId.GetColumnName());
+        Assert.AreEqual("datetime2(3)", criadoEmUtc.GetColumnType());
+        Assert.AreEqual("datetime2(3)", opcionalUtc.GetColumnType());
     }
 
-    [Fact]
+    [TestMethod]
     public void ConvencoesPersistencia_ComPropriedadeSemSufixoUtc_RejeitaMapeamento()
     {
         using var contexto = new ContextoSemSufixoTeste();
 
-        var excecao = Assert.Throws<InvalidOperationException>(() => { _ = contexto.Model; });
+        var excecao = Assert.ThrowsExactly<InvalidOperationException>(() => { _ = contexto.Model; });
 
-        Assert.Contains("CreatedAt", excecao.Message, StringComparison.Ordinal);
-        Assert.Contains("Utc", excecao.Message, StringComparison.Ordinal);
+        Assert.IsTrue(excecao.Message.Contains("CreatedAt", StringComparison.Ordinal));
+        Assert.IsTrue(excecao.Message.Contains("Utc", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [TestMethod]
     public void ConvencoesPersistencia_ComInstanteUtc_NormalizaKindNaLeituraEEscrita()
     {
         using var contexto = new ContextoTeste();
@@ -80,19 +81,19 @@ public class TestesConvencaoPersistenciaTenant
         var local = DateTime.SpecifyKind(new DateTime(2026, 11, 17, 10, 30, 0), DateTimeKind.Local);
 
         var escrito = (DateTime)conversor.ConvertToProvider(local)!;
-        Assert.Equal(DateTimeKind.Utc, escrito.Kind);
-        Assert.Equal(local.ToUniversalTime(), escrito);
+        Assert.AreEqual(DateTimeKind.Utc, escrito.Kind);
+        Assert.AreEqual(local.ToUniversalTime(), escrito);
 
         var lido = (DateTime)conversor.ConvertFromProvider(
             new DateTime(2026, 11, 17, 13, 30, 0, DateTimeKind.Unspecified))!;
-        Assert.Equal(DateTimeKind.Utc, lido.Kind);
-        Assert.Equal(13, lido.Hour);
+        Assert.AreEqual(DateTimeKind.Utc, lido.Kind);
+        Assert.AreEqual(13, lido.Hour);
 
         var conversorOpcional = opcionalUtc.GetValueConverter()!;
-        Assert.Null(conversorOpcional.ConvertToProvider(null));
+        Assert.IsNull(conversorOpcional.ConvertToProvider(null));
 
         var opcionalEscrito = (DateTime?)conversorOpcional.ConvertToProvider(local);
-        Assert.Equal(DateTimeKind.Utc, opcionalEscrito!.Value.Kind);
+        Assert.AreEqual(DateTimeKind.Utc, opcionalEscrito!.Value.Kind);
     }
 
     public sealed class EntidadeTenantTeste : IPertencenteTenant

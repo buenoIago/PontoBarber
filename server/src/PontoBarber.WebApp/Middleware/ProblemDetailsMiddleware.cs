@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using PontoBarber.WebApp.Erros;
 using PontoBarber.Aplicacao.Abstracoes;
+using PontoBarber.WebApp.Erros;
 
 namespace PontoBarber.WebApp.Middleware;
 
