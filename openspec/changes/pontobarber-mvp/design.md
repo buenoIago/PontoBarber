@@ -133,7 +133,7 @@ Mecanismos previstos no TDD que nunca foram adotados em código passam a ter dec
 - **Custo e operação indefinidos** → nenhum número de capacidade ou custo é afirmado antes de ADR-028; a decisão ocorre antes do go-live.
 - **Notificação perdida em falha pós-commit** → idempotência por `EventId` e reconciliação periódica.
 - **Migrations em ambiente sem provedor definido** → verificação de modelo pendente no CI e aplicação parametrizada no deploy.
-- **Integração futura dos assets da SPA** → hospedagem pelo ASP.NET Core documentada em ADR-033; o build Angular e a versão do Node serão definidos quando o frontend existir.
+- **Integração futura dos assets da SPA** → hospedagem pelo ASP.NET Core documentada em ADR-033; o build Angular usa o Angular CLI 22 e o Node.js 22 LTS (22.22.3 em `client/.nvmrc`, conforme TDD §6.1).
 - **Formatação de datas dependente do navegador** → `Intl` com fusos IANA e testes em três fusos, incluindo horário de verão (ADR-034).
 - **Mudança incompatível na serialização de erros** → gate obrigatório de comparação entre a serialização atual e a proposta com `ProblemDetails` nativo, preservando o contrato do ADR-017 (ADR-035, tarefa 1.12).
 

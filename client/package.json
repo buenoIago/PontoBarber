@@ -1,0 +1,38 @@
+{
+  "name": "ponto-barber-web",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "medir-bundle": "node scripts/medir-bundle.mjs",
+    "format:check": "prettier --check \"src/**/*.{ts,scss,html}\" \"scripts/*.mjs\" angular.json package.json README.md"
+  },
+  "private": true,
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0",
+    "npm": ">=10"
+  },
+  "dependencies": {
+    "@angular/common": "^22.3.0",
+    "@angular/compiler": "^22.3.0",
+    "@angular/core": "^22.3.0",
+    "@angular/forms": "^22.3.0",
+    "@angular/platform-browser": "^22.3.0",
+    "bootstrap": "^5.3.9",
+    "bootstrap-icons": "^1.13.2",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.2.8",
+    "@angular/cli": "^22.2.8",
+    "@angular/compiler-cli": "^22.3.0",
+    "prettier": "^3.8.1",
+    "sass": "^1.108.2",
+    "typescript": "~6.0.3"
+  }
+}

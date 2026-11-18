@@ -18,7 +18,7 @@
 
 ## 2. Fundação visual
 
-- [ ] 2.1 Configurar Bootstrap 5 com importação seletiva por SCSS, tokens de tema, Bootstrap Icons e orçamento de bundle; verificar build e medição do bundle inicial dentro do orçamento
+- [x] 2.1 Configurar Bootstrap 5 com importação seletiva por SCSS, tokens de tema, Bootstrap Icons e orçamento de bundle; verificar build e medição do bundle inicial dentro do orçamento
 - [ ] 2.2 Criar `shared/ui` com layout, botão, campo de formulário, tabela, estado vazio e diálogo com foco, rótulos e navegação por teclado; verificar testes de componente e axe sem violação crítica
 - [ ] 2.3 Configurar cliente HTTP com interceptação de erro, antiforgery e correlação; verificar teste de que erro da API é exibido de forma compreensível
 - [ ] 2.4 Criar testes E2E e auditoria axe no pipeline; verificar que uma violação crítica reprova a execução

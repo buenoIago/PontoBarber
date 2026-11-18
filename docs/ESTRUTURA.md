@@ -15,7 +15,7 @@ PontoBarber/
 ├── .opencode/skills/        # Skills de geração de PRD/TDD
 ├── deploy/docker/           # Dockerfile da API
 ├── docs/                    # PRD, SPEC, TDD e este guia
-├── client/                  # Reservado para o futuro frontend Angular (.gitkeep)
+├── client/                  # Workspace Angular 22 (Bootstrap 5 + SCSS + Bootstrap Icons)
 ├── openspec/config.yaml     # Configuração do OpenSpec
 ├── openspec/specs/          # Especificações consolidadas
 ├── openspec/changes/        # Proposta, design, specs delta e tarefas
@@ -39,6 +39,7 @@ PontoBarber/
 | `.agents/skills/` | Skills do OpenSpec usadas por agentes de código. Não participam do build nem do runtime. |
 | `.config/` | `dotnet-tools.json` fixa o `dotnet-ef` usado pelo CI e pelos comandos de migration. |
 | `.github/workflows/` | Workflow de restore, build, formatação, testes e verificação de modelo EF. |
+| `client/` | Workspace Angular 22 com Bootstrap 5 por importação seletiva SCSS, tokens de tema e Bootstrap Icons (ADR-001, ADR-026); orçamento de 300 KB gzip medido por `scripts/medir-bundle.mjs`. |
 | `.opencode/` | Comandos e skills para geração de PRD/TDD. São ferramentas de apoio, não dependências da aplicação. |
 | `server/PontoBarber.slnx` | Lista os sete projetos da solução, organizados em `/src/` e `/tests/`. |
 | `deploy/docker/` | `api.Dockerfile`: imagem Linux multi-stage da API, com `HEALTHCHECK` em `/health/live`. |
@@ -65,7 +66,8 @@ PontoBarber/
 ## Convenções
 
 - `bin/`, `obj/` e `TestResults/` são gerados localmente e nunca versionados.
-- `client/` está reservado apenas para o futuro frontend Angular; contém somente `.gitkeep`.
+- `client/` é o workspace Angular 22; funcionalidades ficam diretamente em `src/app/` e `shared/` fica em `src/app/shared/`, criados conforme as tarefas existirem, sem antecipá-los. Sem roteamento: os arquivos principais são `app.ts`, `app.html` e `app.config.ts`.
+- `client/src/environments/` segue o padrão `environment.ts` / `environment.development.ts`, com `fileReplacements` apenas na configuração de desenvolvimento. A API é servida na mesma origem (ADR-033), então não há URL de API, proxy nem segredos nesses arquivos.
 - Não existem `scripts/`, `publish/` ou `docker-compose.yml` nesta fase do projeto.
 - A SPA será servida pelo próprio ASP.NET Core quando o frontend existir (ADR-033), sem Nginx e sem imagem web separada.
 - Convenção de organização futura por funcionalidade: `Dominio/Modulos/<Feature>/`, `Aplicacao/Modulos/<Feature>/`, `Infra/Modulos/<Feature>/` e `Api/Modulos/<Feature>/`. As pastas serão criadas somente quando as features existirem, sem fundir ou renomear as quatro camadas atuais.

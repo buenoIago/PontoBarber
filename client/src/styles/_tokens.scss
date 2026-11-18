@@ -1,0 +1,18 @@
+// Tokens semânticos do tema (ADR-026).
+// Nenhuma paleta própria é inventada: os tokens são aliases dos valores já
+// definidos pelo Bootstrap 5.3 e de suas custom properties.
+
+$pb-color-accent: $primary;
+$pb-color-surface: $body-bg;
+$pb-color-text: $body-color;
+$pb-radius-control: $border-radius;
+$pb-font-family: $font-family-sans-serif;
+
+:root {
+  --pb-color-accent: var(--bs-primary);
+  --pb-color-surface: var(--bs-body-bg);
+  --pb-color-text: var(--bs-body-color);
+  --pb-radius-control: var(--bs-border-radius);
+  --pb-font-family: var(--bs-body-font-family);
+  --pb-focus-ring-color: var(--bs-focus-ring-color);
+}

@@ -1,0 +1,13 @@
+// Regras globais mínimas. Componentes e primitivas acessíveis ficam em
+// shared/ui na tarefa 2.2 (ADR-026).
+
+body {
+  font-family: var(--pb-font-family);
+  color: var(--pb-color-text);
+  background-color: var(--pb-color-surface);
+}
+
+:focus-visible {
+  outline: var(--bs-focus-ring-width) solid var(--pb-focus-ring-color);
+  outline-offset: var(--bs-focus-ring-offset);
+}

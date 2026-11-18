@@ -1,0 +1,6 @@
+// Entrada global de estilos referenciada no angular.json.
+// Caminhos relativos explícitos evitam resolver "bootstrap" para o pacote
+// completo em node_modules, preservando a importação seletiva (ADR-026).
+@use './styles/bootstrap';
+@use './styles/icons';
+@use './styles/base';

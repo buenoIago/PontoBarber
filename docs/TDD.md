@@ -339,7 +339,7 @@ Módulos de domínio mapeados a partir do PRD:
 | --- | --- | --- | --- | --- |
 | Linguagem backend | C# | 14 | Linguagem da plataforma .NET 10, tipagem forte e suporte a DDD | ADR-002 |
 | Runtime backend | .NET | 10 LTS | Suporte de longo prazo, desempenho e integração com ASP.NET Core | ADR-002 |
-| Linguagem frontend | TypeScript | 5.9 | Tipagem estática e integração com Angular | ADR-001 |
+| Linguagem frontend | TypeScript | 6.0.x | Tipagem estática e integração com Angular; o Angular 22 exige TypeScript `>=6.0.0 <6.1.0`, o que invalida a versão 5.9 anteriormente registrada | ADR-001 |
 | Runtime frontend | Node.js | 22 LTS | Necessário apenas para build e testes | ADR-001 |
 | Gerenciador de pacotes backend | NuGet | 6.x | Padrão do ecossistema .NET | ADR-002 |
 | Gerenciador de pacotes frontend | npm | 10.x | Padrão do Angular CLI e do ambiente de CI | ADR-001 |
@@ -500,25 +500,24 @@ PontoBarber/
 │       ├── PontoBarber.Testes.Integracao/
 │       └── PontoBarber.Testes.Arquitetura/
 ├── client/
-│   └── ponto-barber-web/
-│       ├── src/
-│       │   ├── app/
-│       │   │   ├── core/
-│       │   │   ├── shared/
-│       │   │   ├── features/
-│       │   │   │   ├── auth/
-│       │   │   │   ├── dashboard/
-│       │   │   │   ├── schedule/
-│       │   │   │   ├── services/
-│       │   │   │   ├── professionals/
-│       │   │   │   ├── customers/
-│       │   │   │   ├── settings/
-│       │   │   │   ├── public-booking/
-│       │   │   │   └── notifications/
-│       │   │   └── app.routes.ts
-│       │   └── styles/
-│       ├── e2e/
-│       └── package.json
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── [funcionalidades]/   # criadas conforme as tarefas, diretamente em app/
+│   │   │   ├── shared/
+│   │   │   ├── app.config.ts
+│   │   │   ├── app.html
+│   │   │   └── app.ts
+│   │   ├── styles/
+│   │   │   └── _*.scss              # parciais: tokens, bootstrap, ícones e base
+│   │   ├── environments/
+│   │   │   ├── environment.development.ts
+│   │   │   └── environment.ts
+│   │   ├── index.html
+│   │   ├── main.ts
+│   │   └── styles.scss
+│   ├── scripts/
+│   │   └── medir-bundle.mjs
+│   └── package.json
 ├── deploy/
 │   ├── docker/
 │   │   └── api.Dockerfile

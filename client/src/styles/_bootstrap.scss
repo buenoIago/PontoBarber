@@ -1,0 +1,27 @@
+// Bootstrap 5.3 por importação seletiva (ADR-026).
+// O pacote completo (bootstrap/scss/bootstrap) NÃO é importado.
+// Componentes adicionais entram apenas quando shared/ui passar a usá-los.
+
+// Base obrigatória
+@import 'bootstrap/scss/functions';
+@import 'bootstrap/scss/variables';
+@import 'bootstrap/scss/variables-dark';
+
+// Tokens SCSS dependem das variáveis acima
+@import 'tokens';
+
+@import 'bootstrap/scss/maps';
+@import 'bootstrap/scss/mixins';
+@import 'bootstrap/scss/root';
+
+// Parciais estruturais necessários nesta etapa
+@import 'bootstrap/scss/reboot';
+@import 'bootstrap/scss/type';
+@import 'bootstrap/scss/images';
+@import 'bootstrap/scss/containers';
+@import 'bootstrap/scss/grid';
+@import 'bootstrap/scss/helpers';
+@import 'bootstrap/scss/utilities';
+
+// API de utilities por último
+@import 'bootstrap/scss/utilities/api';
