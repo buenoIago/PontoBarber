@@ -14,3 +14,13 @@ Registradas após a revisão da tarefa 1.5, sem alteração de ADRs, sem renumer
 10. **Verificação de alterações pendentes no modelo EF** — habilitada em `ContextoPontoBarberFactory` + manifesto `dotnet-ef` 10.0.15; o comando `dotnet ef migrations has-pending-model-changes` executa sem banco. Como ainda não há migration/snapshot, o resultado é vácuo; a verificação passa a ser efetiva quando a primeira migration real for versionada, sem criar migration artificial apenas para o CI.
 
 Estas pendências não alteram as decisões dos ADRs nem o escopo aprovado das tarefas 1.5 a 1.9. Os itens 1 e 2 foram resolvidos na tarefa 1.9; os demais permanecem em aberto.
+
+11. **Substituição de bibliotecas planejadas** — FluentValidation, `Asp.Versioning.Mvc`, NetArchTest, Respawn e `date-fns`/`@date-fns/tz` nunca foram adotados em código. O TDD foi atualizado e ADR-029 a ADR-034 registrados; nenhum pacote precisa ser removido.
+12. **Hospedagem da SPA pelo ASP.NET Core** — ADR-033 substitui Nginx e imagem web separada; a configuração Nginx versionada foi removida. A integração dos assets depende do frontend (tarefa 2.5), sem scaffold nesta etapa.
+13. **ADRs históricos preservados** — ADR-003, ADR-007, ADR-011, ADR-012, ADR-013 e ADR-015 mantidos com substituição parcial; ADR-027 e ADR-028 inalterados.
+14. **DataAnnotations e regras compostas** — atributos cobrem formato de entrada; regras dependentes de estado devem permanecer em `Aplicacao` via `ExcecaoValidacaoAplicacao` quando implementadas (ADR-029).
+15. **`Intl` e horário de verão** — a conversão nativa depende da implementação do navegador; testes com três fusos e DST serão implementados junto do frontend (ADR-034).
+16. **Forwarded headers** — risco registrado na revisão da tarefa 1.10: `Program.cs` não usa `UseForwardedHeaders`; revisar quando o TLS for definido em ADR-028, sem alteração nesta etapa.
+17. **Lista oficial de tecnologias** — fonte autoritativa registrada no TDD §6.3. Vitest, axe-core, k6, OWASP ZAP e Swashbuckle/OpenAPI permanecem como ferramentas complementares autorizadas; nenhuma ferramenta semelhante será adicionada sem autorização.
+18. **FluentAssertions** — não utilizar; TDD §15.1 passou a referir somente `Assert` nativo do MSTest (ADR-036). Nenhum pacote precisou ser removido porque a biblioteca nunca esteve em `Directory.Packages.props`.
+19. **Gate de serialização do ProblemDetails** — antes de substituir `RespostaProblema`/`EscritorRespostaProblema` pelo tipo nativo com `Extensions`, comparar a serialização atual e a proposta para 400, 401, 403, 404, 409, 422 e 500, incluindo `detail` nulo e `errors` por campo. O código atual não será removido sem essa verificação (ADR-035, tarefa 1.12).

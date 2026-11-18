@@ -106,6 +106,23 @@ Instantes em UTC (`datetime2(3)`), horários de funcionamento como `TimeOnly` lo
 
 - **Por quê:** preserva indicadores e auditoria mesmo após alterações cadastrais (RF-SERV-008, RN-CLI-007).
 
+### 11. Substituições de mecanismos e hospedagem da SPA
+
+Mecanismos previstos no TDD que nunca foram adotados em código passam a ter decisões próprias; os ADRs anteriores são preservados como histórico com substituição parcial:
+
+- Validação de entrada com DataAnnotations e erros em `application/problem+json` (ADR-029).
+- Versionamento nativo por `/api/v1`, sem `Asp.Versioning.Mvc` (ADR-030).
+- Testes arquiteturais próprios com MSTest e reflexão, sem NetArchTest (ADR-031).
+- Isolamento com banco SQL Server exclusivo criado e removido por teste, sem Respawn (ADR-032).
+- SPA servida como arquivos estáticos pelo ASP.NET Core, sem Nginx e sem imagem web separada (ADR-033). TLS/HSTS permanecem em ADR-028.
+- Datas no frontend: `date-fns` / `@date-fns/tz` → `Date` e `Intl` nativos, utilizando `Intl.DateTimeFormat` e a opção `timeZone` com identificadores IANA da barbearia (ADR-034).
+- Respostas de erro com `Microsoft.AspNetCore.Mvc.ProblemDetails` nativo e `Extensions` para `code`, `traceId` e `errors`, mantendo o contrato do ADR-017 (ADR-035).
+- Assertivas com `Assert` nativo do MSTest; FluentAssertions não será utilizado (ADR-036).
+
+- **Por quê:** reduzir dependências nunca adotadas, alinhar-se à lista oficial de tecnologias, manter o contrato `/api/v1` explícito e manter API + SPA na mesma origem, preservando cookies `Secure` e antiforgery.
+- **Consequência:** a integração dos assets depende da criação futura do projeto Angular; nenhum scaffold foi criado nesta mudança. ADR-027 e ADR-028 não foram alterados.
+- **Ferramentas complementares:** Vitest, axe-core, k6, OWASP ZAP e Swashbuckle/OpenAPI são mantidos por decisão explícita; nenhuma ferramenta semelhante será adicionada sem autorização.
+
 ## Risks / Trade-offs
 
 - **Double booking sob concorrência** → lock por profissional/data, revalidação na transação, índice único e testes de concorrência dedicados.
@@ -116,6 +133,9 @@ Instantes em UTC (`datetime2(3)`), horários de funcionamento como `TimeOnly` lo
 - **Custo e operação indefinidos** → nenhum número de capacidade ou custo é afirmado antes de ADR-028; a decisão ocorre antes do go-live.
 - **Notificação perdida em falha pós-commit** → idempotência por `EventId` e reconciliação periódica.
 - **Migrations em ambiente sem provedor definido** → verificação de modelo pendente no CI e aplicação parametrizada no deploy.
+- **Integração futura dos assets da SPA** → hospedagem pelo ASP.NET Core documentada em ADR-033; o build Angular e a versão do Node serão definidos quando o frontend existir.
+- **Formatação de datas dependente do navegador** → `Intl` com fusos IANA e testes em três fusos, incluindo horário de verão (ADR-034).
+- **Mudança incompatível na serialização de erros** → gate obrigatório de comparação entre a serialização atual e a proposta com `ProblemDetails` nativo, preservando o contrato do ADR-017 (ADR-035, tarefa 1.12).
 
 ## Migration Plan
 

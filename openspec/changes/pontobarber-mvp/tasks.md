@@ -11,8 +11,9 @@
 - [x] 1.7 Implementar health checks de vivacidade e prontidão com falha de prontidão quando a persistência não responde; verificar teste de integração com banco indisponível
 - [x] 1.8 Configurar Serilog, OpenTelemetry com exportador OTLP e correlação de requisição, usuário e barbearia; verificar teste de que senha, cookie e e-mail/telefone completos não aparecem nos logs
 - [x] 1.9 Criar pipeline do GitHub Actions com restore, build, testes, análise e verificação de migrations pendentes, sem exigir provedor de nuvem; verificar execução verde em ambiente limpo
-- [ ] 1.10 Criar `Dockerfile` da API e da web com Nginx e build multi-stage; verificar imagem construída localmente e health check respondendo
+- [ ] 1.10 Criar `Dockerfile` da API com build multi-stage e `HEALTHCHECK` em `/health/live`; verificar imagem construída localmente e health check respondendo. A hospedagem dos arquivos estáticos da SPA pelo ASP.NET Core (ADR-033) fica pendente da existência do frontend e não conclui esta tarefa
 - [ ] 1.11 Documentar em `docs/` o comando de execução local, migrations e o contrato de erros; verificar que os comandos documentados executam como escritos
+- [ ] 1.12 Migrar as respostas de erro para `Microsoft.AspNetCore.Mvc.ProblemDetails` nativo com `Extensions` para `code`, `traceId` e `errors`; verificar diff de serialização vazio antes de substituir o código atual e preservar integralmente o contrato do ADR-017 (ADR-035)
 
 ## 2. Fundação visual
 
@@ -20,6 +21,7 @@
 - [ ] 2.2 Criar `shared/ui` com layout, botão, campo de formulário, tabela, estado vazio e diálogo com foco, rótulos e navegação por teclado; verificar testes de componente e axe sem violação crítica
 - [ ] 2.3 Configurar cliente HTTP com interceptação de erro, antiforgery e correlação; verificar teste de que erro da API é exibido de forma compreensível
 - [ ] 2.4 Criar testes E2E e auditoria axe no pipeline; verificar que uma violação crítica reprova a execução
+- [ ] 2.5 Integrar o build do Angular como arquivos estáticos servidos pelo ASP.NET Core, com fallback para `index.html` e a mesma origem da API; verificar rota não-API retornando a SPA e `/api/v1` respondendo (ADR-033) — depende do projeto Angular da tarefa 2.1
 
 ## 3. Identidade e acesso
 

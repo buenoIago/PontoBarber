@@ -14,6 +14,11 @@ Esta change estabelece o MVP completo do PontoBarber como base implementável: f
 - Normaliza status documentais divergentes (ADR-006 e ADR-016 aceitos; ADR-008 e ADR-009 rejeitados; ADR-013, ADR-025 e ADR-028 pendentes/propostos).
 - Desacopla o pipeline GitHub Actions de qualquer provedor de hospedagem: build, testes, imagem e migration não dependem do destino; deploy é etapa fina e parametrizada.
 - Define a fundação de execução de processos periódicos por abstração e idempotência, sem escolher biblioteca ou serviço.
+- Substitui mecanismos previstos no TDD que nunca foram adotados em código por recursos nativos ou próprios: DataAnnotations (ADR-029), versionamento `/api/v1` por rota (ADR-030), testes arquiteturais próprios com MSTest (ADR-031), recriação controlada do banco de testes (ADR-032) e `Date`/`Intl` no frontend (ADR-034).
+- Substitui o contêiner Nginx e a imagem web separada pela hospedagem dos arquivos estáticos da SPA no ASP.NET Core (ADR-033), sem criar o projeto Angular nesta mudança.
+- Preserva ADR-003, ADR-007, ADR-011, ADR-012, ADR-013 e ADR-015 como histórico, com substituições parciais registradas; ADR-027 e ADR-028 permanecem inalterados.
+- Registra a lista oficial de tecnologias como fonte autoritativa. FluentAssertions não será utilizado (Assert nativo do MSTest, ADR-036); Vitest, axe-core, k6, OWASP ZAP e Swashbuckle/OpenAPI permanecem como ferramentas complementares autorizadas por decisão explícita.
+- Padroniza as respostas de erro com `Microsoft.AspNetCore.Mvc.ProblemDetails` nativo e `Extensions` para `code`, `traceId` e `errors`, preservando integralmente o contrato HTTP/JSON do ADR-017 (ADR-035). A migração depende de gate obrigatório de comparação de serialização e não remove o código atual antes da verificação.
 - Não introduz novos requisitos funcionais: todo comportamento especificado tem origem na SPEC, no PRD ou no TDD.
 - **BREAKING**: nenhuma interface existente, pois o projeto ainda não possui código.
 
@@ -39,9 +44,9 @@ Nenhuma: o projeto ainda não possui specs em `openspec/specs/`.
 
 ## Impact
 
-- **Documentação**: `docs/TDD.md` corrigido (seções 1, 4.2, 5, 6, 8, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21 e apêndices). Nenhum ADR foi removido.
-- **Código**: criação de `server/src` (.NET 10, `.slnx`), `server/tests` e `client` (Angular 22 + Bootstrap 5), todos ainda inexistentes.
-- **APIs**: superfície `/api/v1` conforme TDD, sem versão anterior a preservar.
-- **Dependências**: stack fixada no TDD; sem Angular Material, sem Quartz e sem SDK de provedor de nuvem.
-- **Operação**: hospedagem, serviço de banco, gerenciador de segredos e destino de telemetria permanecem pendentes (ADR-028); o pipeline entrega artefatos independentes do destino.
-- **Riscos**: reserva concorrente (ADR-010), isolamento por tenant (ADR-006) e durabilidade da expiração de sugestão enquanto ADR-027 estiver pendente.
+- **Documentação**: `docs/TDD.md` atualizado nas seções de premissas, visão de contêineres, stack, estrutura, contrato de API, fuso horário, testes, infraestrutura, ADRs e rastreabilidade; ADR-029 a ADR-036 registrados. Nenhum ADR foi removido; os anteriores seguem como histórico.
+- **Código**: criação de `server/src` (.NET 10, `.slnx`), `server/tests` e `client` (Angular 22 + Bootstrap 5), todos ainda inexistentes. Nenhum scaffold frontend foi antecipado nesta mudança.
+- **APIs**: superfície `/api/v1` conforme TDD, com versionamento nativo por rota e sem versão anterior a preservar.
+- **Dependências**: lista oficial de tecnologias registrada no TDD §6.3; sem Angular Material, Quartz, SDK de provedor de nuvem, FluentValidation, FluentAssertions, `Asp.Versioning.Mvc`, NetArchTest, Respawn, `date-fns`, Moment.js ou Nginx. Vitest, axe-core, k6, OWASP ZAP e Swashbuckle/OpenAPI permanecem como ferramentas complementares autorizadas.
+- **Operação**: hospedagem, serviço de banco, gerenciador de segredos e destino de telemetria permanecem pendentes (ADR-028); o pipeline entrega artefatos independentes do destino. A SPA será servida pelo ASP.NET Core (ADR-033), sem contêiner web separado.
+- **Riscos**: reserva concorrente (ADR-010), isolamento por tenant (ADR-006), durabilidade da expiração de sugestão enquanto ADR-027 estiver pendente, integração futura dos assets Angular ao ASP.NET Core e mudança incompatível na serialização de erros, mitigada pelo gate do ADR-035.

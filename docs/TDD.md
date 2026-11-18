@@ -119,7 +119,7 @@ Premissa de volumetria para a V1.0: até 500 barbearias, até 5.000 profissionai
 | PREM-003 | O volume inicial é de até 500 barbearias e 20.000 agendamentos/dia | Escala horizontal e cache passam a ser necessários antes do previsto |
 | PREM-004 | A verificação do telefone comercial não bloqueia a V1.0 | Cadastro pode exigir fluxo adicional e integração externa |
 | PREM-005 | As metas numéricas dos RNFs são alvos propostos e serão validadas | Testes de carga e SLOs precisam ser recalibrados |
-| PREM-006 | O navegador alvo suporta ES2022, cookies e `Intl` com base IANA | Necessário transpilação adicional e polyfills |
+| PREM-006 | O navegador alvo suporta ES2022, cookies, `Date` e `Intl` com base IANA | Necessário transpilação adicional e polyfills |
 | PREM-007 | A equipe domina C#, Angular e SQL Server | Curva de aprendizado e prazo são afetados |
 | PREM-008 | O produto não exige CNPJ nem documentos no cadastro | Nenhuma validação cadastral adicional é necessária |
 
@@ -148,7 +148,7 @@ Premissa de volumetria para a V1.0: até 500 barbearias, até 5.000 profissionai
 
 | ID | Categoria | Meta | Solução técnica | Como verificar |
 | --- | --- | --- | --- | --- |
-| RNF-DESEMPENHO-001 | Desempenho | Agenda e telas principais em até 2 s no p95 | Lazy loading por rota, consultas projetadas, índices por tenant e período, compressão e cache HTTP de assets | Teste de carga k6 e métricas de p95 no Application Insights |
+| RNF-DESEMPENHO-001 | Desempenho | Agenda e telas principais em até 2 s no p95 | Lazy loading por rota, consultas projetadas, índices por tenant e período, compressão e cache HTTP de assets | Teste de carga k6 e métricas de p95 no destino definido em ADR-028 |
 | RNF-DESEMPENHO-002 | Desempenho | Disponibilidade em até 1 s no p95 | Consulta única com janelas indexadas e cálculo em memória limitado ao dia | Teste de carga e APM |
 | RNF-DESEMPENHO-003 | Desempenho | Confirmação em até 3 s no p95 | Transação curta com lock por profissional/data e índices de conflito | Teste de concorrência e APM |
 | RNF-SEGURANCA-001 | Segurança | Senhas irreversíveis | Identity com PBKDF2-HMAC-SHA512, 210.000 iterações e salt por usuário | Revisão de configuração e teste de hash |
@@ -204,15 +204,14 @@ flowchart TB
   subgraph Browser
     SPA[Angular 22 SPA]
   end
-  subgraph Linux Container - Web
-    NGINX[Nginx static + reverse proxy]
-    SPA --> NGINX
+  subgraph Linux Container - WebApp
+    ESTATICOS[ASP.NET Core - arquivos estaticos da SPA]
+    API[ASP.NET Core .NET 10 - API /api/v1]
+    Q[Processos periodicos]
+    SPA -->|HTTPS, mesma origem| ESTATICOS
+    SPA -->|/api/v1, mesma origem| API
+    API --> Q
   end
-  subgraph Linux Container - API
-    API[ASP.NET Core .NET 10]
-    Q[Processos periódicos]
-  end
-  NGINX -->|/api/v1| API
   API --> DB[(SQL Server)]
   Q --> DB
   API --> LOG[Serilog + OpenTelemetry Collector]
@@ -221,11 +220,12 @@ flowchart TB
 
 | Contêiner | Responsabilidade | Tecnologia | Comunicação |
 | --- | --- | --- | --- |
-| Web | Servir a SPA e encaminhar `/api` | Nginx + Angular 22 | HTTPS para o navegador; HTTP interno para a API |
-| API | Autenticação, autorização, regras de aplicação e domínio | ASP.NET Core .NET 10 | HTTPS interno, SQL e telemetria |
+| WebApp (API + SPA) | Servir os arquivos estáticos do Angular e expor a API na mesma origem | ASP.NET Core .NET 10 + assets Angular 22 | HTTPS para o navegador; `/api/v1` no mesmo host |
 | Banco | Persistência relacional | SQL Server 2022; serviço gerenciado a definir (ABT-014) | TDS 1433 |
 | Jobs | Expirações e rotinas periódicas | Adaptador de scheduler a definir (ADR-027) | — |
-| Observabilidade | Coleta de logs, métricas e traces | Serilog + OpenTelemetry + Application Insights | OTLP/HTTPS |
+| Observabilidade | Coleta de logs, métricas e traces | Serilog + OpenTelemetry; destino a definir (ADR-028) | OTLP/HTTPS |
+
+A hospedagem dos arquivos estáticos pelo ASP.NET Core substitui o contêiner Nginx e o contêiner web separado (ADR-033). A integração dos assets ocorre quando o projeto Angular existir, sem antecipar sua criação nesta etapa.
 
 A execução de processos periódicos é abstraída na aplicação e o adaptador de scheduler permanece em decisão pendente (ADR-027). A garantia de execução durável e coordenada entre instâncias somente pode ser afirmada após essa decisão; até lá, todo processo é implementado como operação idempotente, segura sob execução concorrente ou repetida.
 
@@ -366,7 +366,7 @@ Módulos de domínio mapeados a partir do PRD:
 | `Microsoft.AspNetCore.Authentication.Cookies` | 10 | Autenticação por cookie | Integrada ao Identity e adequada a SPA same-origin | JWT em `localStorage` — risco de XSS | MIT |
 | `Microsoft.EntityFrameworkCore.SqlServer` | 10 | Provider SQL Server | Suporte oficial, migrations e recursos de lock | Dapper puro — mais código e sem migrations | MIT |
 | `Microsoft.EntityFrameworkCore.Design` | 10 | Geração de migrations | Ferramenta oficial | Scripts SQL manuais — sem versionamento | MIT |
-| `FluentValidation.DependencyInjectionExtensions` | 12.x | Validação de entrada | Regras declarativas e mensagens consistentes | DataAnnotations — limitado para regras compostas | Apache-2.0 |
+| `System.ComponentModel.DataAnnotations` | 10 (integrado ao .NET) | Validação de entrada | Atributos nativos, integrados ao model binding; sem dependência externa | FluentValidation — substituído em ADR-029 | Integrado |
 | `Serilog.AspNetCore` | 9.x | Logs estruturados | Enriquecimento, sinks e correlação | `ILogger` puro — menos contexto | Apache-2.0 |
 | `Serilog.Sinks.OpenTelemetry` | 1.x | Envio de logs via OTLP | Destino neutro de provedor | Sink proprietário — lock-in | Apache-2.0 |
 | `OpenTelemetry.Extensions.Hosting` | 1.21 | Host de métricas e traces | Padrão aberto e exportação OTLP | APM proprietário — lock-in | Apache-2.0 |
@@ -376,16 +376,18 @@ Módulos de domínio mapeados a partir do PRD:
 | `Bootstrap` | 5.x | Base de layout e componentes | Decisão aprovada em ADR-026 | Angular Material — rejeitado em ADR-008 | MIT |
 | `bootstrap-icons` | 1.x | Ícones | Padronização visual aprovada em ADR-026 | Biblioteca de ícones própria — custo alto | MIT |
 | `sass` (dart-sass) | 1.x | SCSS e tokens de tema | Tema próprio sobre Bootstrap | CSS puro — sem tokens | MIT |
-| `Asp.Versioning.Mvc` | 8.x | Versionamento de API | Versionamento por URL e depreciação | Versionamento por header — menos explícito | MIT |
-| `Swashbuckle.AspNetCore` | 9.x | OpenAPI | Documentação e geração de clientes | NSwag - redundante | MIT |
+| Versionamento nativo por rotas `/api/v1` | — (ASP.NET Core routing) | Versionamento de API | Prefixo explícito na rota, sem pacote adicional | `Asp.Versioning.Mvc` e versionamento por header — substituídos em ADR-030 | Integrado |
+| `Swashbuckle.AspNetCore` | 9.x | OpenAPI | Documentação e geração de clientes; decisão aprovada no ADR-007 | NSwag - redundante | MIT |
 | `Microsoft.OpenApi` | 2.7.5 | Metadados OpenAPI (dependência transitiva) | Correção de CVE-2026-49451; versões 2.0.0 a 2.7.4 são vulneráveis | Microsoft.OpenApi 3.x - incompatível com o runtime atual | MIT |
 | `Serilog.Sinks.Console` | 6.x | Logs locais | Diagnóstico em desenvolvimento e container | Destino proprietário — lock-in | Apache-2.0 |
 | `Testcontainers.MsSql` | 4.x | SQL Server em testes | Isolamento real de banco | LocalDB — indisponível em Linux CI | MIT |
 | `Microsoft.AspNetCore.Mvc.Testing` | 10 | Testes de integração | `WebApplicationFactory` oficial | Servidor HTTP real — mais lento | MIT |
-| `Respawn` | 6.x | Limpeza de banco em testes | Reset rápido entre testes | Recriar banco — lento | MIT |
-| `date-fns` + `@date-fns/tz` | 4.x | Datas e fusos no frontend | Imutável, tree-shakeable e com suporte a IANA | Moment.js — legado e maior | MIT |
+| Limpeza controlada do banco de testes | — (SQL Server + Testcontainers) | Isolamento entre testes | Banco exclusivo por teste, criado e removido explicitamente | Respawn — substituído em ADR-032; banco em memória — sem fidelidade | Integrado |
+| APIs nativas JavaScript/TypeScript (`Date`, `Intl`) | ES2022 / `Intl` | Datas e fusos no frontend | `date-fns` / `@date-fns/tz` → `Date` e `Intl` nativos, utilizando `Intl.DateTimeFormat` e a opção `timeZone` com identificadores IANA da barbearia (ADR-034) | Moment.js — legado e maior | Integrado |
 
-**Correção de segurança (17/11/2026):** o template `webapi` do .NET 10 adicionou `Microsoft.AspNetCore.OpenApi` 10.0.3, que referencia `Microsoft.OpenApi` 2.0.0. Essa versão é afetada por **CVE-2026-49451** (`GHSA-v5pm-xwqc-g5wc`, severidade alta): um documento OpenAPI com referência circular de schema pode causar *stack overflow* e encerrar o processo durante o parsing. O restore passou a emitir `NU1903`. A versão de `Microsoft.OpenApi` foi fixada em **2.7.5**, primeira versão corrigida da linha 2.x; a linha 3.x também corrige (3.5.4+), mas não é compatível com o runtime atual. A escolha entre `Microsoft.AspNetCore.OpenApi` e `Swashbuckle.AspNetCore` será consolidada quando a documentação da API for implementada; em qualquer caso, a documentação permanece exposta apenas em Development e Staging.
+**Correção de segurança (17/11/2026):** o template `webapi` do .NET 10 adicionou `Microsoft.AspNetCore.OpenApi` 10.0.3, que referencia `Microsoft.OpenApi` 2.0.0. Essa versão é afetada por **CVE-2026-49451** (`GHSA-v5pm-xwqc-g5wc`, severidade alta): um documento OpenAPI com referência circular de schema pode causar *stack overflow* e encerrar o processo durante o parsing. O restore passou a emitir `NU1903`. A versão de `Microsoft.OpenApi` foi fixada em **2.7.5**, primeira versão corrigida da linha 2.x; a linha 3.x também corrige (3.5.4+), mas não é compatível com o runtime atual. A documentação permanece exposta apenas em Development e Staging.
+
+**Decisão x estado atual (OpenAPI):** a decisão aprovada no ADR-007 e registrada na lista oficial de tecnologias é `Swashbuckle.AspNetCore`/OpenAPI para documentação e geração de clientes. Atualmente o projeto referencia `Microsoft.AspNetCore.OpenApi` 10.0.3, dependência transitiva do template `webapi` do .NET 10, com `Microsoft.OpenApi` 2.7.5 fixado por segurança. Esse fato descreve **apenas o estado atual da implementação** e não substitui a decisão aprovada. Nenhuma dependência é alterada por esta correção documental; a consolidação entre implementação e decisão ocorrerá na tarefa de documentação da API.
 
 Bibliotecas deliberadamente ausentes:
 
@@ -397,8 +399,19 @@ Bibliotecas deliberadamente ausentes:
 | Redis | Sem gargalo mensurável; cache local e índices atendem à escala inicial |
 | NgRx | Signals e serviços com estado local cobrem o estado da SPA |
 | Angular Material + CDK | Rejeitado em ADR-008; a UI usa Bootstrap 5 + SCSS + Bootstrap Icons (ADR-026) |
+| FluentValidation | Substituído por DataAnnotations (ADR-029) |
+| FluentAssertions | Não utilizar; preferir `Assert` nativo do MSTest (lista oficial de tecnologias) |
+| `Asp.Versioning.Mvc` | Substituído por versionamento nativo em `/api/v1` (ADR-030) |
+| NetArchTest | Substituído por testes arquiteturais próprios com MSTest (ADR-031) |
+| Respawn | Substituído por criação e remoção controlada do banco de testes (ADR-032) |
+| Nginx | Substituído pelo ASP.NET Core servindo os arquivos estáticos da SPA (ADR-033) |
+| `date-fns` + `@date-fns/tz` | Substituídos por `Date` e `Intl` nativos com fusos IANA (ADR-034) |
 | Quartz.NET | Rejeitado em ADR-009; a estratégia de scheduler permanece pendente (ADR-027) |
 | Swagger UI em produção | Exposto apenas em Development e Staging |
+
+**Ferramentas complementares autorizadas:** Vitest (testes de unidade/componente frontend), axe-core (acessibilidade), k6 (testes de carga), OWASP ZAP (análise de segurança) e `Swashbuckle.AspNetCore`/OpenAPI (decisão aprovada no ADR-007) são mantidos por decisão explícita, ainda que não constem da lista oficial de tecnologias. Nenhuma ferramenta semelhante será adicionada sem autorização.
+
+**Lista oficial de tecnologias:** C# 14, .NET 10, ASP.NET Core Web API, ASP.NET Core Identity com cookies, EF Core 10, SQL Server 2022, MSTest 4, NSubstitute, Testcontainers.MsSql, Playwright, Serilog, OpenTelemetry, ProblemDetails nativo do ASP.NET Core, Angular 22, TypeScript, RxJS, Angular Signals, Bootstrap 5, SCSS, Bootstrap Icons, Docker, GitHub Actions, OpenSpec, dotnet-ef e SDK .NET 10.0.103.
 
 ## 6.4. Ferramentas de desenvolvimento
 
@@ -513,10 +526,7 @@ PontoBarber/
 │       └── package.json
 ├── deploy/
 │   ├── docker/
-│   │   ├── api.Dockerfile
-│   │   └── web.Dockerfile
-│   ├── nginx/
-│   │   └── default.conf
+│   │   └── api.Dockerfile
 │   └── github/
 │       └── workflows/
 └── scripts/
@@ -727,7 +737,7 @@ Regras adicionais:
 | Limites | Rate limit de 100 req/min por usuário e 20 req/min por IP em endpoints públicos |
 | Idempotência | `Idempotency-Key` obrigatório em `POST` de agendamento e de pagamento |
 | CSRF | Token antiforgery obrigatório em `POST`, `PUT`, `PATCH` e `DELETE` autenticados |
-| Erros | RFC 7807 `ProblemDetails` com `code`, `traceId` e `errors` |
+| Erros | RFC 7807 com `Microsoft.AspNetCore.Mvc.ProblemDetails` nativo e `Extensions` para `code`, `traceId` e `errors`; formato JSON inalterado (ADR-035) |
 | Concorrência | `If-Match` com `rowVersion` em atualizações de agendamento |
 | Cache | `Cache-Control: no-store` em dados autenticados; assets da SPA com hash e cache longo |
 
@@ -1031,7 +1041,7 @@ Implementação: eventos de domínio coletados no `DbContext` e despachados por 
 | Bloqueio | 5 tentativas inválidas → 5 minutos; 10 tentativas → 30 minutos |
 | Política de senha | Mínimo 8 caracteres, ao menos uma letra e um número; sem exigência de rotação |
 | CSRF | Antiforgery token com cookie `__Host-pb.csrf` e header `X-CSRF-TOKEN` |
-| CORS | Sem CORS: SPA e API são servidas na mesma origem via Nginx |
+| CORS | Sem CORS: SPA e API são servidas na mesma origem pelo ASP.NET Core (ADR-033) |
 
 Regras complementares:
 
@@ -1157,7 +1167,7 @@ Regras:
 
 - **Armazenamento:** todos os instantes em UTC (`datetime2(3)`), com sufixo `Utc` no nome.
 - **Configuração:** `Barbershop.TimeZoneId` em formato IANA (ex.: `America/Sao_Paulo`), validado na criação.
-- **Conversão:** feita no backend com `TimeZoneInfo.FindSystemTimeZoneById`; no frontend, com `@date-fns/tz`.
+- **Conversão:** feita no backend com `TimeZoneInfo.FindSystemTimeZoneById`; no frontend, com `Intl.DateTimeFormat` e `Date` nativos, usando o fuso IANA (ADR-034).
 - **Horários de funcionamento e disponibilidade:** armazenados como `TimeOnly` local da barbearia, sem offset.
 - **Bloqueios e agendamentos:** armazenados em UTC, convertidos para o fuso apenas na exibição.
 - **Indicadores:** "Hoje", "Esta semana" e "Este mês" calculados no fuso da barbearia e convertidos para intervalos UTC na consulta.
@@ -1253,10 +1263,10 @@ Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient 
 
 | Nível | Ferramenta | Escopo | Meta |
 | --- | --- | --- | --- |
-| Unitário | MSTest 4 + FluentAssertions | Entidades, valor objects, regras de disponibilidade, cálculo de períodos | ≥ 85% no domínio, ≥ 70% global |
+| Unitário | MSTest 4 (`Assert` nativo) | Entidades, valor objects, regras de disponibilidade, cálculo de períodos | ≥ 85% no domínio, ≥ 70% global |
 | Aplicação | MSTest + NSubstitute | Casos de uso, autorização, validação | ≥ 80% em `Aplicacao` |
 | Integração | MSTest + `WebApplicationFactory` + Testcontainers | Endpoints, EF Core, Identity, migrations, jobs | Fluxos críticos 100% |
-| Arquitetura | MSTest + NetArchTest | Regras de dependência e proibições | 100% das regras |
+| Arquitetura | MSTest + testes próprios com reflexão | Regras de dependência e proibições | 100% das regras |
 | Contrato | OpenAPI + verificação de DTOs | Compatibilidade entre API e cliente | Sem breaking change em `v1` |
 | Componente | Vitest + Angular TestBed | Componentes, guards, serviços e signals | ≥ 70% no frontend |
 | E2E | Playwright | Jornadas completas por perfil | 100% dos fluxos críticos |
@@ -1294,7 +1304,7 @@ Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient 
 
 - Testes unitários sem banco, com `IRelogio` e geradores determinísticos.
 - Testes de integração usam SQL Server em container via Testcontainers, com a mesma versão de produção.
-- Cada classe de teste cria um banco ou schema isolado; `Respawn` limpa dados entre testes.
+- Cada classe de teste cria e remove um banco ou schema SQL Server exclusivo, sem ferramenta de reset de terceiros (ADR-032).
 - Seed mínimo por teste, sem dependência de ordem de execução.
 - Testes de E2E usam banco dedicado e massa criada por API, nunca por acesso direto.
 - Testes de concorrência usam `Task.WhenAll` com 10 requisições simultâneas por horário.
@@ -1308,7 +1318,7 @@ Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient 
 - `dotnet format --verify-no-changes` e `dotnet build -warnaserror`.
 - `dotnet test` com cobertura mínima por projeto.
 - `npm run lint`, `npm run format:check`, `npm run test -- --coverage` e `npm run build`.
-- NetArchTest validando dependências e proibições.
+- Testes arquiteturais próprios com MSTest e reflexão validando dependências e proibições (ADR-031).
 - Verificação de modelo pendente do EF Core.
 - Análise de vulnerabilidades de pacotes e de imagem de container.
 - Revisão por par obrigatória, com pelo menos um aprovador.
@@ -1333,7 +1343,7 @@ Configuração por ambiente via `appsettings.{Environment}.json` e variáveis de
 | Componente | Serviço | Configuração | Escala |
 | --- | --- | --- | --- |
 | API | Container Linux (orquestração a definir) | 1,0 vCPU, 2 GiB, mínimo 2 réplicas | 2 a 6 réplicas; autoescala a definir |
-| Web | Container Linux com Nginx | Nginx + assets | 2 réplicas |
+| Web (SPA) | Arquivos estáticos servidos pelo ASP.NET Core no mesmo contêiner da API | Assets Angular 22 + ASP.NET Core; sem Nginx | Escala junto da API |
 | Banco | SQL Server 2022 (serviço gerenciado a definir) | Camada e armazenamento definidos na decisão de hospedagem | Escala vertical e read replica futura |
 | Jobs | Adaptador de scheduler (ADR-027) | Definido com a estratégia de scheduler | Definida com a estratégia de scheduler |
 | Segredos | Gerenciador de segredos (ADR-028) | A definir | — |
@@ -1497,6 +1507,16 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 | ADR-026 | Bootstrap 5 + SCSS + Bootstrap Icons como design system | Aceito | 17/11/2026 | ADR-008 |
 | ADR-027 | Estratégia de execução de processos periódicos | Pendente | 17/11/2026 | ADR-009 |
 | ADR-028 | Hospedagem, provedor de nuvem e serviços gerenciados | Pendente | 17/11/2026 | ADR-013 |
+| ADR-029 | Validação de entrada com DataAnnotations | Aceito | 18/11/2026 | ADR-015 (parcial) |
+| ADR-030 | Versionamento nativo por rotas `/api/v1` | Aceito | 18/11/2026 | ADR-007 (parcial) |
+| ADR-031 | Testes arquiteturais próprios com MSTest | Aceito | 18/11/2026 | ADR-003 (parcial) |
+| ADR-032 | Isolamento de banco de testes por recriação controlada | Aceito | 18/11/2026 | ADR-012 (parcial) |
+| ADR-033 | Hospedagem da SPA pelo ASP.NET Core | Aceito | 18/11/2026 | TDD §5.2; ADR-013 (parcial) |
+| ADR-034 | Datas e fusos no frontend com `Date` e `Intl` nativos | Aceito | 18/11/2026 | TDD §6.3; ADR-011 (parcial) |
+| ADR-035 | `ProblemDetails` nativo com `Extensions` preservando o contrato | Aceito | 18/11/2026 | ADR-017 (parcial) |
+| ADR-036 | Assertivas nativas do MSTest, sem FluentAssertions | Aceito | 18/11/2026 | Lista oficial de tecnologias |
+
+**Substituições parciais (18/11/2026):** ADR-003, ADR-007, ADR-012 e ADR-015 permanecem aceitos e registrados na íntegra como histórico; somente os mecanismos citados abaixo foram substituídos por ADR-031, ADR-030, ADR-032 e ADR-029, respectivamente. ADR-011 permanece vigente para UTC/IANA no backend; ADR-034 cobre apenas o frontend. ADR-017 permanece vigente quanto ao contrato HTTP/JSON; ADR-035 cobre apenas o mecanismo de serialização. ADR-013 segue proposto e substituído por ADR-028 quanto à hospedagem, sem alteração de ADR-027 ou ADR-028.
 
 ## 19.2. Registros
 
@@ -1560,6 +1580,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RN-AGD-001 a RN-AGD-021, RN-ATD-001 a RN-ATD-011
+- **Substituição parcial:** ADR-031 substitui apenas o mecanismo de verificação arquitetural (NetArchTest); o restante permanece vigente.
 
 **Contexto:** as regras de agenda, atendimento e pagamento são o núcleo do produto e precisam ser testáveis e independentes de banco e HTTP. A equipe é pequena e a escala inicial não justifica serviços distribuídos.
 
@@ -1676,6 +1697,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** Todos os RFs expostos por API
+- **Substituição parcial:** ADR-030 substitui apenas o mecanismo de versionamento (`Microsoft.AspNetCore.Mvc.Versioning`); REST com controllers, plural, `/api/v1`, OpenAPI e ProblemDetails permanecem vigentes.
 
 **Contexto:** a SPA consome operações transacionais bem definidas e o contrato precisa ser estável e documentado.
 
@@ -1786,6 +1808,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RN-DASH-002 a RN-DASH-005, RNF-AUDITORIA-001
+- **Substituição parcial:** ADR-034 substitui apenas a biblioteca de datas do frontend; UTC no banco, `TimeZoneId` IANA e conversão no backend permanecem vigentes.
 
 **Contexto:** cada barbearia opera em um único fuso e os indicadores dependem do calendário local. Comparar horários locais sem fuso gera erros em viradas de dia e horário de verão.
 
@@ -1813,6 +1836,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-CONCORRENCIA-001, RNF-SEGURANCA-002, RNF-RETENCAO-001
+- **Substituição parcial:** ADR-032 substitui apenas o mecanismo de limpeza de banco (Respawn); MSTest, Testcontainers, `WebApplicationFactory`, Vitest e Playwright permanecem vigentes.
 
 **Contexto:** as regras críticas envolvem concorrência, banco real e navegador. Testes apenas unitários não detectariam falhas de SQL, cookie ou acessibilidade.
 
@@ -1839,6 +1863,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - **Status:** Proposto
 - **Data:** 16/11/2026
 - **Substituído por:** ADR-028 (pendente)
+- **Substituição parcial:** ADR-033 substitui a imagem web separada pela hospedagem da SPA no ASP.NET Core; a decisão de hospedagem/provedor permanece em ADR-028.
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DISPONIBILIDADE-001, RNF-COMPATIBILIDADE-001
 
@@ -1871,7 +1896,9 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Contexto:** falhas de agenda, jobs e isolamento precisam ser diagnosticadas rapidamente, com correlação entre requisição, banco e job.
 
-**Decisão:** Serilog estruturado com enriquecimento de `TraceId` e `TenantId`, OpenTelemetry para traces e métricas, Application Insights como destino e health checks `/health/live` e `/health/ready`.
+**Decisão:** Serilog estruturado com enriquecimento de `TraceId` e `TenantId` para logs, OpenTelemetry para traces e métricas e health checks `/health/live` e `/health/ready`. O provider/exporter e o destino concreto da telemetria permanecem pendentes, condicionados à decisão de hospedagem e infraestrutura do ADR-028. Application Insights é mantido apenas como alternativa possível, não como destino escolhido ou aprovado.
+
+**Escopo da decisão x destino concreto:** Serilog e OpenTelemetry são decisões aprovadas e permanecem vigentes. O provider/exporter e o destino concreto da telemetria, inclusive eventual Application Insights, permanecem condicionados à decisão de hospedagem e infraestrutura registrada no ADR-028. Nenhum destino proprietário é escolhido nesta correção documental.
 
 **Alternativas consideradas:**
 
@@ -1895,6 +1922,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DESEMPENHO-003, manutenibilidade
+- **Substituição parcial:** ADR-029 substitui apenas a biblioteca de validação de entrada (FluentValidation); casos de uso explícitos, ausência de MediatR/AutoMapper e mapeamentos explícitos permanecem vigentes.
 
 **Contexto:** a equipe é pequena e o domínio tem poucos casos de uso por módulo. Indireção adicional aumenta o custo de leitura e depuração.
 
@@ -1949,6 +1977,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-USABILIDADE-001, RNF-SEGURANCA-002
+- **Substituição parcial:** ADR-035 substitui apenas o mecanismo de serialização (implementação com `ProblemDetails` nativo e `Extensions`); o contrato HTTP, o `Content-Type` e o formato JSON com `code`, `traceId` e `errors` permanecem integralmente vigentes.
 
 **Contexto:** a SPA precisa distinguir conflito de agenda, validação, autorização e concorrência para orientar o usuário.
 
@@ -2282,6 +2311,203 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Critérios de verificação:** nenhuma referência a provedor em `Dominio`/`Aplicacao`; pipeline executando build, testes, imagem e migration sem conhecer o destino; decisão registrada antes do go-live.
 
+### ADR-029 — Validação de entrada com DataAnnotations
+
+- **Status:** Aceito
+- **Data:** 18/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Substitui:** ADR-015 (parcial — apenas a biblioteca de validação)
+- **Requisitos relacionados:** RNF-SEGURANCA-001, ADR-017
+
+**Contexto:** o TDD previa FluentValidation, mas o pacote nunca foi introduzido no repositório. O .NET 10 já oferece atributos de validação integrados ao model binding do ASP.NET Core.
+
+**Decisão:** usar `System.ComponentModel.DataAnnotations` nos DTOs de entrada, com falhas convertidas para `application/problem+json`, `code` estável e erros por campo conforme ADR-017. Regras compostas ou dependentes de estado permanecem em `Aplicacao`, sinalizadas por `ExcecaoValidacaoAplicacao`.
+
+**Comportamento padrão × comportamento esperado:** com `[ApiController]`, o ASP.NET Core produz **400** automaticamente para erros de validação de DataAnnotations. Esse é o comportamento padrão do framework e **não** o comportamento esperado do PontoBarber. O projeto deverá configurar esse mapeamento para retornar **422**, preservando o contrato de erro do ADR-017 (`application/problem+json`, `code`, `traceId` e `errors`) e a estrutura de `ProblemDetails` adotada no ADR-035.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| FluentValidation | Regras fluentes | Dependência externa nunca adotada | Substituída por ADR-029 |
+| Validação somente no domínio | Regras centralizadas | Não cobre formato de entrada | Insuficiente na borda |
+| Sem validação de entrada | Menos código | Erros opacos e dados inválidos | Inaceitável |
+
+**Consequências:** menos dependências e validação alinhada ao model binding; regras complexas exigem código explícito na aplicação.
+
+**Critérios de verificação:** nenhum pacote FluentValidation; DTOs de entrada com atributos; resposta 422 com `code` e erros por campo; teste de integração de campo inválido.
+
+### ADR-030 — Versionamento nativo por rotas `/api/v1`
+
+- **Status:** Aceito
+- **Data:** 18/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Substitui:** ADR-007 (parcial — apenas o mecanismo de versionamento)
+- **Requisitos relacionados:** Todos os RFs expostos por API
+
+**Contexto:** o TDD citava `Microsoft.AspNetCore.Mvc.Versioning`, pacote nunca introduzido. O contrato já usa o prefixo `/api/v1` desde a fundação.
+
+**Decisão:** a versão é parte do prefixo da rota, sem pacote de versionamento: `[Route("api/v1/...")]` (ou groups equivalentes). Uma nova versão significa um novo prefixo com contrato isolado; não há header `api-version` nem negociação implícita. OpenAPI documenta cada prefixo.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| `Asp.Versioning.Mvc` | Depreciação e grupos prontos | Dependência não adotada | Substituído por ADR-030 |
+| Versionamento por header | URL estável | Menos explícito e difícil de testar | Rejeitado no TDD §6.3 |
+| Sem versionamento | Simples | Sem caminho de evolução | Inaceitável |
+
+**Consequências:** contrato explícito na URL; breaking change exige novo prefixo; clientes fixam a versão chamada.
+
+**Critérios de verificação:** nenhum pacote de versionamento; rotas iniciadas por `/api/v1`; teste de contrato sem breaking change em `v1`.
+
+### ADR-031 — Testes arquiteturais próprios com MSTest
+
+- **Status:** Aceito
+- **Data:** 18/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Substitui:** ADR-003 (parcial — apenas a verificação arquitetural)
+- **Requisitos relacionados:** manutenibilidade, ADR-003
+
+**Contexto:** o TDD previa NetArchTest; o projeto `PontoBarber.Testes.Arquitetura` já implementa as regras com MSTest e reflexão, sem biblioteca de terceiros.
+
+**Decisão:** regras de dependência e convenções são testes MSTest com reflexão e metadados do EF Core, mantidos no projeto de arquitetura. Nenhuma biblioteca de teste arquitetural é introduzida.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| NetArchTest | DSL pronta | Dependência não adotada | Substituída por ADR-031 |
+| Revisão manual | Sem código | Não automatizada | Quality gate exige automação |
+| Nenhum teste | Menos manutenção | Fronteiras sem garantia | Rejeitado |
+
+**Consequências:** ausência de dependência extra e regras legíveis; mudanças de convenção exigem atualização manual dos testes.
+
+**Critérios de verificação:** suíte arquitetural verde; `Dominio` sem referências a EF Core, ASP.NET Core, Identity ou agendamento; convenções de `TenantId` e UTC verificadas.
+
+### ADR-032 — Isolamento de banco de testes por recriação controlada
+
+- **Status:** Aceito
+- **Data:** 18/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Substitui:** ADR-012 (parcial — apenas a limpeza de banco)
+- **Requisitos relacionados:** RNF-CONCORRENCIA-001, RNF-SEGURANCA-002
+
+**Contexto:** o TDD previa Respawn; a fixture atual já usa SQL Server 2022 real em container e um banco com nome único por teste.
+
+**Decisão:** cada teste de integração cria e remove explicitamente um banco SQL Server exclusivo no container compartilhado do assembly; o container é descartado no encerramento. Não há ferramenta de reset de terceiros, nem banco em memória.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Respawn | Reset rápido | Dependência não adotada | Substituído por ADR-032 |
+| Banco em memória | Rápido | Sem fidelidade a SQL Server | Rejeitado em ADR-012 |
+| Banco compartilhado sem limpeza | Simples | Dependência de ordem | Inaceitável |
+
+**Consequências:** isolamento real e ausência de estado residual; custo de criação/remoção por teste; Docker continua obrigatório no CI.
+
+**Critérios de verificação:** nenhum pacote Respawn; testes independentes da ordem; suíte de integração verde em CI.
+
+### ADR-033 — Hospedagem da SPA pelo ASP.NET Core
+
+- **Status:** Aceito
+- **Data:** 18/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Substitui:** TDD §5.2, §7 e §16.2; ADR-013 (parcial — imagem web separada)
+- **Requisitos relacionados:** ADR-001, ADR-007, ADR-028 (somente TLS)
+
+**Contexto:** a topologia anterior previa um contêiner web com Nginx servindo a SPA e encaminhando `/api` ao contêiner da API. SPA e API já compartilham a mesma origem, e o projeto Angular ainda não existe.
+
+**Decisão:** o próprio ASP.NET Core serve os arquivos estáticos do build Angular e aplica fallback para `index.html` nas rotas da SPA; a API permanece sob `/api/v1` no mesmo host e porta. Não há Nginx, contêiner web separado nem CORS. TLS/HSTS continuam sob responsabilidade da infraestrutura a definir em ADR-028. A integração dos assets será implementada quando o projeto Angular existir; nenhum scaffold é criado nesta etapa.
+
+**Escopo do fallback:** o fallback para `index.html` atende somente às rotas da aplicação frontend. Rotas inexistentes sob `/api/v1` não podem retornar `index.html`: devem preservar o comportamento HTTP de erro da API. Os endpoints `/health/live` e `/health/ready` também devem preservar seus próprios comportamentos e nunca ser capturados pelo fallback da SPA.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Nginx + proxy reverso | Servidor estático consolidado | Processo/contêiner adicional | Substituído por ADR-033 |
+| CDN separada | Escala de assets | Dependência de hospedagem | Fora de escopo até ADR-028 |
+| CORS entre origens | Separação de deploys | Cookies `Secure` e CSRF mais frágeis | Rejeitado no TDD §11 |
+
+**Consequências:** uma única imagem para API e SPA; escala conjunta; health checks permanecem na API; o build frontend precisa produzir assets estáticos quando for implementado.
+
+**Critérios de verificação:** nenhuma configuração Nginx versionada; somente rotas da SPA retornam `index.html`; rota inexistente sob `/api/v1` mantém o erro HTTP da API; `/health/live` e `/health/ready` preservam seus comportamentos e não são capturados pelo fallback; nenhuma política CORS adicionada.
+
+### ADR-034 — Datas e fusos no frontend com `Date` e `Intl` nativos
+
+- **Status:** Aceito
+- **Data:** 18/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Substitui:** TDD §6.3 e §12.4 (parcial — biblioteca de datas do frontend); ADR-011 (parcial)
+- **Requisitos relacionados:** ADR-011, PREM-006, RNF-COMPATIBILIDADE-001
+
+**Contexto:** o TDD previa `date-fns` + `@date-fns/tz`, nenhum pacote frontend foi introduzido e PREM-006 já assume navegador com ES2022 e `Intl` com base IANA.
+
+**Decisão:** `date-fns` / `@date-fns/tz` → `Date` e `Intl` nativos, utilizando `Intl.DateTimeFormat` e a opção `timeZone` com identificadores IANA da barbearia. O backend continua com UTC no banco e `TimeZoneInfo` (ADR-011). Horários de funcionamento seguem sendo valores locais sem offset, convertidos na borda.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| `date-fns` + `@date-fns/tz` | API rica e imutável | Dependências não adotadas | Substituídas por ADR-034 |
+| Moment.js | Familiar | Legado e maior | Rejeitado no TDD §6.3 |
+| Biblioteca própria de fusos | Controle total | Manutenção de dados IANA | Rejeitado |
+
+**Consequências:** nenhuma dependência de datas no frontend; formatação sujeita à implementação de `Intl` do navegador; horários inexistentes em horário de verão exigem tratamento explícito.
+
+**Critérios de verificação:** nenhum pacote `date-fns` ou Moment.js; instante trafegado em UTC; exibição no `TimeZoneId` da barbearia; testes com `America/Sao_Paulo`, `America/Manaus` e fuso com horário de verão.
+
+### ADR-035 — `ProblemDetails` nativo com `Extensions` preservando o contrato
+
+- **Status:** Aceito
+- **Data:** 18/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Substitui:** ADR-017 (parcial — apenas o mecanismo de serialização)
+- **Requisitos relacionados:** RNF-USABILIDADE-001, RNF-SEGURANCA-002
+
+**Contexto:** a lista oficial de tecnologias exige `Microsoft.AspNetCore.Mvc.ProblemDetails` nativo do ASP.NET Core. A implementação atual usa um `record` próprio (`RespostaProblema`) serializado por `EscritorRespostaProblema`, enquanto o ADR-017 define um contrato HTTP/JSON que não pode mudar.
+
+**Decisão:** utilizar `Microsoft.AspNetCore.Mvc.ProblemDetails` com `Extensions["code"]`, `Extensions["traceId"]` e `Extensions["errors"]`, mantendo `application/problem+json`, o status HTTP e a estrutura contratual estabelecida no ADR-017. Nomes, casing e presença das propriedades são contratuais; a ordem das propriedades no JSON **não** é critério de compatibilidade.
+
+**Gate de compatibilidade semântica/estrutural (obrigatório antes de alterar código):** capturar as respostas atuais para 400, 401, 403, 404, 409, 422 e 500, incluindo `detail` nulo/vazio e `errors` por campo; gerar a serialização proposta em teste de caracterização; comparar **status HTTP**, **Content-Type**, **nomes e casing das propriedades**, **presença ou ausência de propriedades**, **tratamento de valores `null`**, **estrutura e conteúdo de `errors`**, **preservação de `detail` e demais informações contratuais** e **presença e formato de `traceId`**, normalizando seu valor dinâmico durante a comparação. A comparação é semântica e estrutural, não textual nem byte a byte; a ordem das propriedades não deve ser considerada incompatibilidade. Somente após equivalência semântica a implementação atual poderá ser substituída. O código atual não será removido antes dessa verificação.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| `record` próprio (implementação atual) | Controle total do JSON | Fora da lista oficial | Substituído como mecanismo, com gate |
+| Mensagens livres | Simples | Sem contrato | Rejeitado no ADR-017 |
+| Códigos HTTP apenas | Padrão | Perde granularidade | Rejeitado no ADR-017 |
+
+**Consequências:** alinhamento à lista oficial e ao tipo nativo do framework; risco de divergência de serialização mitigado pelo gate; nenhuma mudança de contrato para os clientes.
+
+**Critérios de verificação:** equivalência semântica/estrutural entre a resposta atual e a proposta pelos critérios do gate acima, sem exigir ordem idêntica das propriedades; catálogo de códigos testado; middleware global e middleware de tenant usando o mesmo escritor; contrato do ADR-017 preservado integralmente.
+
+### ADR-036 — Assertivas nativas do MSTest, sem FluentAssertions
+
+- **Status:** Aceito
+- **Data:** 18/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Substitui:** lista oficial de tecnologias (sem ADR anterior)
+- **Requisitos relacionados:** ADR-012, qualidade de testes
+
+**Contexto:** o TDD §15.1 previa `FluentAssertions` nos testes unitários, mas a lista oficial de tecnologias não inclui essa biblioteca. O MSTest 4 já oferece `Assert` nativo suficiente para as asserções do projeto.
+
+**Decisão:** utilizar exclusivamente `Assert` nativo do MSTest (`AreEqual`, `IsTrue`, `ThrowsExactly`, `CollectionAssert` etc.). Não adicionar FluentAssertions nem biblioteca asserção semelhante sem autorização. `NSubstitute` permanece como biblioteca de mocking.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| FluentAssertions | Sintaxe fluente | Fora da lista oficial | Não utilizar |
+| `if`/`throw` manual | Sem dependência | Perde integração com o runner | Rejeitado |
+
+**Consequências:** uma dependência a menos e padronização no runner já adotado; asserções um pouco mais verbosas.
+
+**Critérios de verificação:** nenhuma referência a FluentAssertions no repositório; suíte verde com `Assert` nativo; cobertura mínima inalterada.
+
 ---
 
 # 20. Plano de implementação
@@ -2411,11 +2637,11 @@ Decisões pendentes que dependem de confirmação: ADR-013/ADR-028 (hospedagem e
 | RNF-DESEMPENHO-001 a 003 | API, banco e frontend | ADR-001, ADR-019 | k6 e métricas de p95 |
 | RNF-SEGURANCA-001 a 003 | Identity, API e banco | ADR-005, ADR-020 | Revisão e testes de segurança |
 | RNF-CONCORRENCIA-001 | `Aplicacao/Appointments` | ADR-010, ADR-021 | Teste com 10 requisições simultâneas |
-| RNF-DISPONIBILIDADE-001 | Infraestrutura e health checks | ADR-013, ADR-014, ADR-025 | Monitoramento e teste de rollback |
+| RNF-DISPONIBILIDADE-001 | Infraestrutura e health checks | ADR-013, ADR-014, ADR-025, ADR-033 | Monitoramento e teste de rollback |
 | RNF-PRIVACIDADE-001 | API, logs e banco | ADR-014, ADR-023 | Revisão de PII e testes de acesso |
 | RNF-AUDITORIA-001 | `AppointmentHistory` | ADR-023 | Teste de histórico e autor |
 | RNF-ACESSIBILIDADE-001 | Frontend | ADR-026 | axe e revisão manual |
-| RNF-COMPATIBILIDADE-001 | Frontend | ADR-001 | Playwright em Chromium, Firefox e WebKit |
+| RNF-COMPATIBILIDADE-001 | Frontend | ADR-001, ADR-034 | Playwright em Chromium, Firefox e WebKit |
 | RNF-USABILIDADE-001 | Feature `public-booking` | ADR-026 | Teste de usabilidade e E2E |
 | RNF-RETENCAO-001 | Banco e domínio | ADR-004, ADR-023 | Teste de snapshots e desativação |
 
