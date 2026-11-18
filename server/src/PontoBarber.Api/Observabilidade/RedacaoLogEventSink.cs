@@ -3,12 +3,12 @@ using Serilog.Core;
 using Serilog.Events;
 using Serilog.Parsing;
 
-namespace PontoBarber.WebApp.Observabilidade;
+namespace PontoBarber.Api.Observabilidade;
 
 /// <summary>
 /// Aplica redação ao LogEvent antes de encaminhá-lo a qualquer destino,
-/// console ou OTLP. Trabalha mensagem, exceção e valores estruturados,
-/// inclusive objetos desconstruídos e coleções aninhadas.
+/// atualmente o console estruturado. Trabalha mensagem, exceção e valores
+/// estruturados, inclusive objetos desconstruídos e coleções aninhadas.
 /// </summary>
 public sealed class RedacaoLogEventSink(params ILogEventSink[] destinos) : ILogEventSink
 {

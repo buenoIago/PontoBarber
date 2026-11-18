@@ -1,10 +1,10 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
-using PontoBarber.WebApp.Tenant;
+using PontoBarber.Api.Tenant;
 using Serilog.Core;
 using Serilog.Events;
 
-namespace PontoBarber.WebApp.Observabilidade;
+namespace PontoBarber.Api.Observabilidade;
 
 /// <summary>
 /// Adiciona os dados de correlação da requisição e mascara propriedades

@@ -19,16 +19,17 @@ PontoBarber/
 ├── openspec/config.yaml     # Configuração do OpenSpec
 ├── openspec/specs/          # Especificações consolidadas
 ├── openspec/changes/        # Proposta, design, specs delta e tarefas
-├── server/src/              # Quatro projetos da aplicação
-├── server/tests/            # Testes de unidade, integração e arquitetura
+├── server/                  # Solução, quatro projetos e testes
+│   ├── PontoBarber.slnx
+│   ├── src/
+│   └── tests/
 ├── .dockerignore
 ├── .editorconfig
 ├── .gitignore
 ├── AGENTS.md                # Instruções para agentes (opcional)
 ├── Directory.Build.props
 ├── Directory.Packages.props
-├── global.json
-└── PontoBarber.slnx
+└── global.json
 ```
 
 ## Responsabilidade dos diretórios
@@ -39,13 +40,14 @@ PontoBarber/
 | `.config/` | `dotnet-tools.json` fixa o `dotnet-ef` usado pelo CI e pelos comandos de migration. |
 | `.github/workflows/` | Workflow de restore, build, formatação, testes e verificação de modelo EF. |
 | `.opencode/` | Comandos e skills para geração de PRD/TDD. São ferramentas de apoio, não dependências da aplicação. |
+| `server/PontoBarber.slnx` | Lista os sete projetos da solução, organizados em `/src/` e `/tests/`. |
 | `deploy/docker/` | `api.Dockerfile`: imagem Linux multi-stage da API, com `HEALTHCHECK` em `/health/live`. |
 | `docs/` | `PRD.md`, `SPEC.md`, `TDD.md` e `ESTRUTURA.md`. Este último resume a organização; os demais são a fonte de requisitos e decisões. |
 | `openspec/` | Especificações executáveis, proposta, design, plano de tarefas e pendências. Não altera o runtime. |
 | `server/src/PontoBarber.Dominio/` | Entidades, contratos e regras de domínio; não depende de infraestrutura (ADR-003). |
 | `server/src/PontoBarber.Aplicacao/` | Casos de uso, DTOs, portas e erros de aplicação (ADR-003, ADR-017). |
 | `server/src/PontoBarber.Infra/` | EF Core, SQL Server, convenções de persistência e design-time factory (ADR-004). |
-| `server/src/PontoBarber.WebApp/` | Composição da API ASP.NET Core, controllers, middleware, health checks e observabilidade. |
+| `server/src/PontoBarber.Api/` | Composição da API ASP.NET Core, controllers, middleware, health checks e observabilidade. |
 | `server/tests/` | `PontoBarber.Testes.Unidade`, `PontoBarber.Testes.Integracao` e `PontoBarber.Testes.Arquitetura` (ADR-012, ADR-031, ADR-032). |
 
 ## Arquivos na raiz
@@ -59,7 +61,6 @@ PontoBarber/
 | `Directory.Build.props` | TFM `net10.0`, C# 14, nullable, analisadores e warnings como erro. |
 | `Directory.Packages.props` | Versões centralizadas de pacotes, incluindo a correção de CVE do `Microsoft.OpenApi`. |
 | `global.json` | Fixa o SDK .NET 10.0.103. |
-| `PontoBarber.slnx` | Lista os sete projetos da solução. |
 
 ## Convenções
 
@@ -67,7 +68,7 @@ PontoBarber/
 - `client/` está reservado apenas para o futuro frontend Angular; contém somente `.gitkeep`.
 - Não existem `scripts/`, `publish/` ou `docker-compose.yml` nesta fase do projeto.
 - A SPA será servida pelo próprio ASP.NET Core quando o frontend existir (ADR-033), sem Nginx e sem imagem web separada.
-- Pastas por funcionalidade (`Modulos/`) serão introduzidas somente quando as features funcionais forem implementadas, sem fundir ou renomear as quatro camadas atuais.
+- Convenção de organização futura por funcionalidade: `Dominio/Modulos/<Feature>/`, `Aplicacao/Modulos/<Feature>/`, `Infra/Modulos/<Feature>/` e `Api/Modulos/<Feature>/`. As pastas serão criadas somente quando as features existirem, sem fundir ou renomear as quatro camadas atuais.
 
 ## Referências
 

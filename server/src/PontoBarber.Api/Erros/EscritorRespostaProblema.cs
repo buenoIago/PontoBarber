@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace PontoBarber.WebApp.Erros;
+namespace PontoBarber.Api.Erros;
 
 /// <summary>
 /// Escrita centralizada de respostas RFC 7807 para erros que não passam

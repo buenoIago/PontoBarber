@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PontoBarber.Api/PontoBarber.Api.csproj" />
+    <Project Path="src/PontoBarber.Aplicacao/PontoBarber.Aplicacao.csproj" />
+    <Project Path="src/PontoBarber.Dominio/PontoBarber.Dominio.csproj" />
+    <Project Path="src/PontoBarber.Infra/PontoBarber.Infra.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PontoBarber.Testes.Arquitetura/PontoBarber.Testes.Arquitetura.csproj" />
+    <Project Path="tests/PontoBarber.Testes.Integracao/PontoBarber.Testes.Integracao.csproj" />
+    <Project Path="tests/PontoBarber.Testes.Unidade/PontoBarber.Testes.Unidade.csproj" />
+  </Folder>
+</Solution>

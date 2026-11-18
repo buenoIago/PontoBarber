@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\PontoBarber.WebApp\PontoBarber.WebApp.csproj" />
+    <ProjectReference Include="..\..\src\PontoBarber.Api\PontoBarber.Api.csproj" />
     <ProjectReference Include="..\..\src\PontoBarber.Infra\PontoBarber.Infra.csproj" />
   </ItemGroup>
 

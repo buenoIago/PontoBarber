@@ -4,8 +4,8 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
-using PontoBarber.WebApp.Observabilidade;
-using PontoBarber.WebApp.Tenant;
+using PontoBarber.Api.Observabilidade;
+using PontoBarber.Api.Tenant;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
@@ -117,10 +117,10 @@ public class TestesObservabilidade : IDisposable
     }
 
     [TestMethod]
-    public void RedacaoAntesDosSinks_EventosDestinoOTLP_NaoContemValoresCompletos()
+    public void RedacaoAntesDosSinks_EventosParaQualquerDestino_NaoContemValoresCompletos()
     {
-        // O sink de captura representa o destino OTLP: recebe o LogEvent
-        // exatamente como o exporter receberia, após a redação global.
+        // O sink de captura representa qualquer destino futuro: recebe o
+        // LogEvent exatamente como o destino receberia, após a redação global.
         var captura = new SinkCaptura();
         var logger = new LoggerConfiguration()
             .MinimumLevel.Verbose()
@@ -164,7 +164,7 @@ public class TestesObservabilidade : IDisposable
     }
 
     [TestMethod]
-    public async Task Configuracao_SemEndpointOtlp_AplicacaoInicializa()
+    public async Task Configuracao_SemDestinoExterno_AplicacaoInicializa()
     {
         using var cliente = _fabrica.CreateClient();
 

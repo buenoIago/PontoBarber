@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using PontoBarber.Api.Erros;
 using PontoBarber.Aplicacao.Abstracoes;
-using PontoBarber.WebApp.Erros;
 
-namespace PontoBarber.WebApp.Middleware;
+namespace PontoBarber.Api.Middleware;
 
 /// <summary>
 /// Converte exceções em ProblemDetails com content-type application/problem+json,

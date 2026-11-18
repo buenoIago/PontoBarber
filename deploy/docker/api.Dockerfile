@@ -1,4 +1,4 @@
-# build: restaura e publica somente o grafo da API (WebApp -> Aplicacao -> Infra -> Dominio).
+# build: restaura e publica somente o grafo da API (Api -> Aplicacao -> Infra -> Dominio).
 FROM mcr.microsoft.com/dotnet/sdk:10.0.103 AS build
 
 WORKDIR /src
@@ -6,16 +6,16 @@ WORKDIR /src
 # global.json fixa o SDK 10.0.103; props centrais definem TFM, analisadores e versoes de pacotes.
 COPY global.json Directory.Build.props Directory.Packages.props ./
 
-COPY server/src/PontoBarber.WebApp/PontoBarber.WebApp.csproj server/src/PontoBarber.WebApp/
+COPY server/src/PontoBarber.Api/PontoBarber.Api.csproj server/src/PontoBarber.Api/
 COPY server/src/PontoBarber.Aplicacao/PontoBarber.Aplicacao.csproj server/src/PontoBarber.Aplicacao/
 COPY server/src/PontoBarber.Dominio/PontoBarber.Dominio.csproj server/src/PontoBarber.Dominio/
 COPY server/src/PontoBarber.Infra/PontoBarber.Infra.csproj server/src/PontoBarber.Infra/
 
-RUN dotnet restore server/src/PontoBarber.WebApp/PontoBarber.WebApp.csproj
+RUN dotnet restore server/src/PontoBarber.Api/PontoBarber.Api.csproj
 
 COPY server/src/ server/src/
 
-RUN dotnet publish server/src/PontoBarber.WebApp/PontoBarber.WebApp.csproj \
+RUN dotnet publish server/src/PontoBarber.Api/PontoBarber.Api.csproj \
     --configuration Release \
     --no-restore \
     --output /app/publish
@@ -41,4 +41,4 @@ USER app
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl --fail --silent --show-error --max-time 3 http://127.0.0.1:8080/health/live > /dev/null || exit 1
 
-ENTRYPOINT ["dotnet", "PontoBarber.WebApp.dll"]
+ENTRYPOINT ["dotnet", "PontoBarber.Api.dll"]

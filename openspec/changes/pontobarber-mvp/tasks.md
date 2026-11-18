@@ -10,6 +10,7 @@
 - [x] 1.6 Implementar contrato de erro `application/problem+json` com código estável, `traceId` e erros por campo; verificar testes de conflito e de validação
 - [x] 1.7 Implementar health checks de vivacidade e prontidão com falha de prontidão quando a persistência não responde; verificar teste de integração com banco indisponível
 - [x] 1.8 Configurar Serilog, OpenTelemetry com exportador OTLP e correlação de requisição, usuário e barbearia; verificar teste de que senha, cookie e e-mail/telefone completos não aparecem nos logs
+  - Nota histórica: a instrumentação/exportação OTLP foi adiada por ADR-037; Serilog, correlação e redação permanecem vigentes. Ver `follow-ups.md` item 20.
 - [x] 1.9 Criar pipeline do GitHub Actions com restore, build, testes, análise e verificação de migrations pendentes, sem exigir provedor de nuvem; verificar execução verde em ambiente limpo
 - [x] 1.10 Criar `Dockerfile` da API com build multi-stage e `HEALTHCHECK` em `/health/live`; verificar imagem construída localmente e health check respondendo. A hospedagem dos arquivos estáticos da SPA pelo ASP.NET Core (ADR-033) fica pendente da existência do frontend e não conclui esta tarefa
 - [ ] 1.11 Documentar em `docs/` o comando de execução local, migrations e o contrato de erros; verificar que os comandos documentados executam como escritos
@@ -122,7 +123,7 @@
 - [ ] 14.2 Executar auditoria de acessibilidade em todas as telas principais e corrigir violações; verificar relatório axe e checklist manual de teclado
 - [ ] 14.3 Executar revisão de segurança: isolamento por tenant, CSRF, autorização por recurso, segredos e dependências; verificar ausência de achados críticos ou altos
 - [ ] 14.4 Executar restauração de backup em ambiente isolado e registrar RTO e RPO; verificar relatório de restauração com dados íntegros
-- [ ] 14.5 Revisar logs e traces quanto a dados sensíveis e confirmar exportação OTLP configurável; verificar amostra de telemetria sem senha, cookie ou contato completo
+- [ ] 14.5 Revisar logs quanto a dados sensíveis; verificar amostra de log sem senha, cookie ou contato completo. Reintrodução de traces/exportação OTLP depende de decisão futura (ADR-037)
 - [ ] 14.6 Atualizar `docs/` com contratos finais, processos periódicos e limitações conhecidas; verificar que a documentação corresponde ao comportamento implementado
 
 ## 15. Produção

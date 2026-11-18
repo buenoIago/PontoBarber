@@ -31,17 +31,17 @@ jobs:
         run: dotnet tool restore
 
       - name: Restore
-        run: dotnet restore PontoBarber.slnx
+        run: dotnet restore server/PontoBarber.slnx
 
       - name: Build
-        run: dotnet build PontoBarber.slnx --no-restore -warnaserror
+        run: dotnet build server/PontoBarber.slnx --no-restore -warnaserror
 
       - name: Verificação de formatação
-        run: dotnet format PontoBarber.slnx --verify-no-changes --no-restore
+        run: dotnet format server/PontoBarber.slnx --verify-no-changes --no-restore
 
       - name: Testes com cobertura
         run: >
-          dotnet test PontoBarber.slnx --no-build --no-restore
+          dotnet test server/PontoBarber.slnx --no-build --no-restore
           --collect:"XPlat Code Coverage"
           --results-directory TestResults
 
@@ -51,7 +51,7 @@ jobs:
           if find server/src/PontoBarber.Infra -path '*/Migrations/*Snapshot.cs' -print -quit | grep -q .; then
             dotnet ef migrations has-pending-model-changes \
               --project server/src/PontoBarber.Infra/PontoBarber.Infra.csproj \
-              --startup-project server/src/PontoBarber.WebApp/PontoBarber.WebApp.csproj
+              --startup-project server/src/PontoBarber.Api/PontoBarber.Api.csproj
           else
             echo "Sem migration/snapshot: verificacao de modelo NAO executada (limitacao documentada)."
           fi

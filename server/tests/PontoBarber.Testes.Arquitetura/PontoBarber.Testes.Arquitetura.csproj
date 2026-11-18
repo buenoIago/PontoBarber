@@ -18,7 +18,7 @@
     <ProjectReference Include="..\..\src\PontoBarber.Dominio\PontoBarber.Dominio.csproj" />
     <ProjectReference Include="..\..\src\PontoBarber.Aplicacao\PontoBarber.Aplicacao.csproj" />
     <ProjectReference Include="..\..\src\PontoBarber.Infra\PontoBarber.Infra.csproj" />
-    <ProjectReference Include="..\..\src\PontoBarber.WebApp\PontoBarber.WebApp.csproj" />
+    <ProjectReference Include="..\..\src\PontoBarber.Api\PontoBarber.Api.csproj" />
   </ItemGroup>
 
 </Project>

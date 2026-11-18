@@ -1,22 +1,14 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using OpenTelemetry;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Trace;
+using PontoBarber.Api.Health;
+using PontoBarber.Api.Middleware;
+using PontoBarber.Api.Observabilidade;
+using PontoBarber.Api.Tenant;
 using PontoBarber.Aplicacao.Abstracoes;
 using PontoBarber.Infra;
-using PontoBarber.Infra.Persistencia;
-using PontoBarber.WebApp.Health;
-using PontoBarber.WebApp.Middleware;
-using PontoBarber.WebApp.Observabilidade;
-using PontoBarber.WebApp.Tenant;
 using Serilog;
-using Serilog.Core;
 
 var builder = WebApplication.CreateBuilder(args);
-
-var endpointOtlp = builder.Configuration["Observabilidade:OTLP:Endpoint"];
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -30,18 +22,6 @@ var loggerConsole = new LoggerConfiguration()
     .WriteTo.Sink(new SinkConsoleSeguro())
     .CreateLogger();
 
-var loggers = new List<Logger> { loggerConsole };
-var destinos = new List<ILogEventSink> { loggerConsole };
-
-if (!string.IsNullOrWhiteSpace(endpointOtlp))
-{
-    var loggerOtlp = new LoggerConfiguration()
-        .WriteTo.OpenTelemetry(opcoes => opcoes.Endpoint = endpointOtlp)
-        .CreateLogger();
-    loggers.Add(loggerOtlp);
-    destinos.Add(loggerOtlp);
-}
-
 builder.Host.UseSerilog((contexto, servicos, configuracao) =>
 {
     configuracao
@@ -52,34 +32,10 @@ builder.Host.UseSerilog((contexto, servicos, configuracao) =>
         .Enrich.WithProperty("Versao", typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0")
         .Enrich.With(new CorrelacaoLogEnricher(servicos.GetRequiredService<IHttpContextAccessor>()))
         .Destructure.With<PoliticaRedacaoSensiveis>()
-        .WriteTo.Sink(new RedacaoLogEventSink(destinos.ToArray()));
+        .WriteTo.Sink(new RedacaoLogEventSink(loggerConsole));
 });
 
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tracing =>
-    {
-        tracing.AddAspNetCoreInstrumentation();
-        tracing.AddSqlClientInstrumentation();
-
-        if (!string.IsNullOrWhiteSpace(endpointOtlp))
-            tracing.AddOtlpExporter(opcoes => opcoes.Endpoint = new Uri(endpointOtlp));
-    })
-    .WithMetrics(metrics =>
-    {
-        metrics.AddAspNetCoreInstrumentation();
-
-        if (!string.IsNullOrWhiteSpace(endpointOtlp))
-            metrics.AddOtlpExporter(opcoes => opcoes.Endpoint = new Uri(endpointOtlp));
-    });
-
-builder.Services.AddDbContext<ContextoPontoBarber>((servicos, options) =>
-{
-    var configuracao = servicos.GetRequiredService<IConfiguration>();
-    var stringConexao = configuracao.GetConnectionString("DefaultConnection");
-
-    if (!string.IsNullOrWhiteSpace(stringConexao))
-        options.UseSqlServer(stringConexao);
-});
+builder.Services.AddInfrastructureServices();
 
 builder.Services.AddHealthChecks()
     .AddCheck("vivacidade", () => HealthCheckResult.Healthy(), tags: ["live"])
@@ -118,8 +74,7 @@ try
 }
 finally
 {
-    foreach (var logger in loggers)
-        logger.Dispose();
+    loggerConsole.Dispose();
 }
 
 public partial class Program;

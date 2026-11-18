@@ -1,6 +1,6 @@
 using PontoBarber.Aplicacao.Abstracoes;
 
-namespace PontoBarber.WebApp.Tenant;
+namespace PontoBarber.Api.Tenant;
 
 /// <summary>
 /// Expõe o tenant validado pelo middleware sem permitir que o corpo da

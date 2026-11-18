@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PontoBarber.Infra.Persistencia;
 
-namespace PontoBarber.WebApp.Health;
+namespace PontoBarber.Api.Health;
 
 /// <summary>
 /// Verifica se a persistência relacional responde, resolvendo o contexto em

@@ -1,8 +1,8 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using PontoBarber.Api.Middleware;
 using PontoBarber.Aplicacao.Abstracoes;
-using PontoBarber.WebApp.Middleware;
 
 namespace PontoBarber.Testes.Integracao;
 

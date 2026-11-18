@@ -40,7 +40,7 @@ A aplicação é empacotada em containers Linux sobre SQL Server 2022. O serviç
 | Datas e horários | UTC no banco, `TimeZoneId` IANA por barbearia | ADR-011 |
 | Testes | MSTest, WebApplicationFactory, Testcontainers e Playwright | ADR-012 |
 | Infraestrutura | Containers Linux e GitHub Actions; hospedagem e provedor de nuvem pendentes | ADR-025, ADR-028 |
-| Observabilidade | Serilog estruturado + OpenTelemetry + health checks | ADR-014 |
+| Observabilidade | Serilog estruturado + health checks; instrumentação/exportação adiada | ADR-014, ADR-037 |
 
 ---
 
@@ -204,7 +204,7 @@ flowchart TB
   subgraph Browser
     SPA[Angular 22 SPA]
   end
-  subgraph Linux Container - WebApp
+  subgraph Linux Container - Api
     ESTATICOS[ASP.NET Core - arquivos estaticos da SPA]
     API[ASP.NET Core .NET 10 - API /api/v1]
     Q[Processos periodicos]
@@ -214,16 +214,16 @@ flowchart TB
   end
   API --> DB[(SQL Server)]
   Q --> DB
-  API --> LOG[Serilog + OpenTelemetry Collector]
+  API --> LOG[Serilog - console JSON]
   API --> HC[Health checks]
 ```
 
 | Contêiner | Responsabilidade | Tecnologia | Comunicação |
 | --- | --- | --- | --- |
-| WebApp (API + SPA) | Servir os arquivos estáticos do Angular e expor a API na mesma origem | ASP.NET Core .NET 10 + assets Angular 22 | HTTPS para o navegador; `/api/v1` no mesmo host |
+| Api (API + SPA) | Servir os arquivos estáticos do Angular e expor a API na mesma origem | ASP.NET Core .NET 10 + assets Angular 22 | HTTPS para o navegador; `/api/v1` no mesmo host |
 | Banco | Persistência relacional | SQL Server 2022; serviço gerenciado a definir (ABT-014) | TDS 1433 |
 | Jobs | Expirações e rotinas periódicas | Adaptador de scheduler a definir (ADR-027) | — |
-| Observabilidade | Coleta de logs, métricas e traces | Serilog + OpenTelemetry; destino a definir (ADR-028) | OTLP/HTTPS |
+| Observabilidade | Logs estruturados e health checks | Serilog com saída JSON no console; telemetria adiada (ADR-037) | JSON no console |
 
 A hospedagem dos arquivos estáticos pelo ASP.NET Core substitui o contêiner Nginx e o contêiner web separado (ADR-033). A integração dos assets ocorre quando o projeto Angular existir, sem antecipar sua criação nesta etapa.
 
@@ -236,12 +236,12 @@ A execução de processos periódicos é abstraída na aplicação e o adaptador
 | `PontoBarber.Dominio` | Entidades, valor objects, enums, eventos de domínio, regras invariantes | Nenhuma | ADR-003 |
 | `PontoBarber.Aplicacao` | Casos de uso, DTOs, validação, autorização de aplicação, portas | Dominio | ADR-003 |
 | `PontoBarber.Infra` | EF Core, Identity, adaptador de scheduler, e-mail futuro, relógio, storage | Aplicacao, Dominio | ADR-004, ADR-005, ADR-027 |
-| `PontoBarber.WebApp` | Controllers, filters, middleware, composição, health checks | Aplicacao, Infra | ADR-007 |
+| `PontoBarber.Api` | Controllers, filters, middleware, composição, health checks | Aplicacao, Infra | ADR-007 |
 | `PontoBarber.Contracts` | DTOs públicos compartilhados com o frontend | Nenhuma | ADR-007 |
 | `PontoBarber.Web` | SPA Angular, rotas, componentes, serviços HTTP | Contracts (gerado) | ADR-001 |
 | `PontoBarber.Testes.Unidade` | Testes de domínio e aplicação | Dominio, Aplicacao | ADR-012 |
-| `PontoBarber.Testes.Integracao` | Testes de API, banco e jobs | WebApp, Infra | ADR-012 |
-| `PontoBarber.E2ETests` | Fluxos de navegador | Web, WebApp | ADR-012 |
+| `PontoBarber.Testes.Integracao` | Testes de API, banco e jobs | Api, Infra | ADR-012 |
+| `PontoBarber.E2ETests` | Fluxos de navegador | Web, Api | ADR-012 |
 
 Módulos de domínio mapeados a partir do PRD:
 
@@ -262,7 +262,7 @@ Módulos de domínio mapeados a partir do PRD:
 
 - `Dominio` não referencia EF Core, ASP.NET Core, Identity, bibliotecas de agendamento de tarefas ou qualquer biblioteca de infraestrutura.
 - `Aplicacao` depende de `Dominio` e de abstrações próprias (`IContextoAplicacao`, `IRelogio`, `IContextoTenant`, `IServicoIdentidade`).
-- `Infra` implementa as abstrações de `Aplicacao`; `WebApp` depende de `Aplicacao` e `Infra` apenas na composição.
+- `Infra` implementa as abstrações de `Aplicacao`; `Api` depende de `Aplicacao` e `Infra` apenas na composição.
 - Controllers não contêm regra de negócio: apenas traduzem HTTP, acionam casos de uso e devolvem `ProblemDetails`.
 - Um módulo não acessa diretamente o `DbContext` de outro; a comunicação ocorre por casos de uso, eventos de domínio ou projeções de leitura.
 - Entidades de outro agregado são referenciadas por identificador, não por navegação cruzada.
@@ -368,11 +368,6 @@ Módulos de domínio mapeados a partir do PRD:
 | `Microsoft.EntityFrameworkCore.Design` | 10 | Geração de migrations | Ferramenta oficial | Scripts SQL manuais — sem versionamento | MIT |
 | `System.ComponentModel.DataAnnotations` | 10 (integrado ao .NET) | Validação de entrada | Atributos nativos, integrados ao model binding; sem dependência externa | FluentValidation — substituído em ADR-029 | Integrado |
 | `Serilog.AspNetCore` | 9.x | Logs estruturados | Enriquecimento, sinks e correlação | `ILogger` puro — menos contexto | Apache-2.0 |
-| `Serilog.Sinks.OpenTelemetry` | 1.x | Envio de logs via OTLP | Destino neutro de provedor | Sink proprietário — lock-in | Apache-2.0 |
-| `OpenTelemetry.Extensions.Hosting` | 1.21 | Host de métricas e traces | Padrão aberto e exportação OTLP | APM proprietário — lock-in | Apache-2.0 |
-| `OpenTelemetry.Instrumentation.AspNetCore` | 1.21 | Instrumentação de requisições HTTP | Traces automáticos de ASP.NET Core | Instrumentação manual — mais código | Apache-2.0 |
-| `OpenTelemetry.Instrumentation.SqlClient` | 1.21 | Instrumentação de SQL Server | Traces de comandos e duração | Instrumentação manual — mais código | Apache-2.0 |
-| `OpenTelemetry.Exporter.OpenTelemetryProtocol` | 1.21 | Exportação OTLP de traces e métricas | Destino neutro de provedor | Exporter proprietário — lock-in | Apache-2.0 |
 | `Bootstrap` | 5.x | Base de layout e componentes | Decisão aprovada em ADR-026 | Angular Material — rejeitado em ADR-008 | MIT |
 | `bootstrap-icons` | 1.x | Ícones | Padronização visual aprovada em ADR-026 | Biblioteca de ícones própria — custo alto | MIT |
 | `sass` (dart-sass) | 1.x | SCSS e tokens de tema | Tema próprio sobre Bootstrap | CSS puro — sem tokens | MIT |
@@ -411,7 +406,7 @@ Bibliotecas deliberadamente ausentes:
 
 **Ferramentas complementares autorizadas:** Vitest (testes de unidade/componente frontend), axe-core (acessibilidade), k6 (testes de carga), OWASP ZAP (análise de segurança) e `Swashbuckle.AspNetCore`/OpenAPI (decisão aprovada no ADR-007) são mantidos por decisão explícita, ainda que não constem da lista oficial de tecnologias. Nenhuma ferramenta semelhante será adicionada sem autorização.
 
-**Lista oficial de tecnologias:** C# 14, .NET 10, ASP.NET Core Web API, ASP.NET Core Identity com cookies, EF Core 10, SQL Server 2022, MSTest 4, NSubstitute, Testcontainers.MsSql, Playwright, Serilog, OpenTelemetry, ProblemDetails nativo do ASP.NET Core, Angular 22, TypeScript, RxJS, Angular Signals, Bootstrap 5, SCSS, Bootstrap Icons, Docker, GitHub Actions, OpenSpec, dotnet-ef e SDK .NET 10.0.103.
+**Lista oficial de tecnologias:** C# 14, .NET 10, ASP.NET Core Web API, ASP.NET Core Identity com cookies, EF Core 10, SQL Server 2022, MSTest 4, NSubstitute, Testcontainers.MsSql, Playwright, Serilog, ProblemDetails nativo do ASP.NET Core, Angular 22, TypeScript, RxJS, Angular Signals, Bootstrap 5, SCSS, Bootstrap Icons, Docker, GitHub Actions, OpenSpec, dotnet-ef e SDK .NET 10.0.103.
 
 ## 6.4. Ferramentas de desenvolvimento
 
@@ -447,7 +442,6 @@ Bibliotecas deliberadamente ausentes:
 
 ```text
 PontoBarber/
-├── PontoBarber.slnx
 ├── Directory.Build.props
 ├── Directory.Packages.props
 ├── .editorconfig
@@ -461,6 +455,7 @@ PontoBarber/
 │   ├── specs/
 │   └── changes/
 ├── server/
+│   ├── PontoBarber.slnx
 │   ├── src/
 │   │   ├── PontoBarber.Dominio/
 │   │   │   ├── Common/
@@ -492,7 +487,7 @@ PontoBarber/
 │   │   │   ├── Jobs/
 │   │   │   ├── Time/
 │   │   │   └── DependencyInjection.cs
-│   │   ├── PontoBarber.WebApp/
+│   │   ├── PontoBarber.Api/
 │   │   │   ├── Controllers/
 │   │   │   ├── Filters/
 │   │   │   ├── Middleware/
@@ -559,7 +554,7 @@ PontoBarber/
 | `Dominio/Payments` | ATD, DASH | Pagamento presencial |
 | `Dominio/Notifications` | NOTIF | Notificação interna |
 | `Aplicacao/Dashboard` | DASH | Projeções e consultas agregadas |
-| `WebApp/Controllers` | Todos | Contratos HTTP versionados |
+| `Api/Controllers` | Todos | Contratos HTTP versionados |
 | `client/src/app/features/public-booking` | PUB | Página pública e wizard de agendamento |
 | `client/src/app/features/schedule` | AGD, ATD | Agenda diária, semanal e mensal |
 | `client/src/app/features/settings` | CONF, HOR | Configurações e disponibilidade |
@@ -1187,7 +1182,7 @@ Regras:
 | WhatsApp | A definir | Notificações externas | Assíncrona | 10 s | 3 | Apenas notificação interna | Fora do escopo |
 | Gateway de pagamento | A definir | Cobrança online | Síncrona | 15 s | 2 | Pagamento presencial | Fora do escopo |
 | E-mail transacional | A definir | Recuperação de senha | Assíncrona | 10 s | 3 | Atendimento administrativo | ABT-006 |
-| Coletor OTLP | A definir | Telemetria (logs, métricas e traces) | Assíncrona | 5 s | 3 | Buffer local e descarte | ADR-014 |
+| Coletor OTLP | Adiado | Telemetria (logs, métricas e traces) | — | — | — | Reintrodução futura por ADR-037 | ADR-037 |
 
 **Contratos e versionamento:** integrações futuras serão isoladas por interfaces em `Aplicacao/Abstracoes` e adaptadores em `Infra/Integrations`, com contrato versionado e testes de contrato.
 
@@ -1242,9 +1237,9 @@ Eventos obrigatórios:
 | Frontend | Core Web Vitals (LCP, INP, CLS) | LCP > 2,5 s no p75 |
 | Integrações | Latência e erros por dependência | Erro > 5% por 5 min |
 
-Traces: OpenTelemetry com instrumentação de ASP.NET Core, EF Core, HttpClient e do adaptador de scheduler; amostragem adaptativa de 10% em produção e 100% em staging.
+Traces e métricas: instrumentação e exportação OpenTelemetry adiadas por ADR-037, até existir destino definido em ADR-028 e necessidade operacional.
 
-**Configuração atual (F0):** o endpoint OTLP é lido de `Observabilidade:OTLP:Endpoint`. Quando vazio, a aplicação continua operando apenas com logs no console e instrumentação local, sem exigir coletor. O enriquecimento de correlação usa `HttpContext.TraceIdentifier`, `SpanId`, usuário autenticado em hash e o `TenantId` validado pelo middleware. A redação é aplicada por `RedacaoLogEventSink` **antes de qualquer sink** — inclusive OTLP — e combina regras de nomes sensíveis com máscaras de e-mail, telefone, pares chave/valor e cabeçalhos `Bearer`.
+**Configuração atual (F0):** a aplicação opera com logs estruturados em JSON no console, sem exigir coletor ou destino externo. O enriquecimento de correlação usa `HttpContext.TraceIdentifier` (`TraceId` e `RequestId`), usuário autenticado em hash e o `TenantId` validado pelo middleware. A redação é aplicada por `RedacaoLogEventSink` **antes de qualquer sink** e combina regras de nomes sensíveis com máscaras de e-mail, telefone, pares chave/valor e cabeçalhos `Bearer`.
 
 ## 14.3. Alertas e plantão
 
@@ -1347,7 +1342,7 @@ Configuração por ambiente via `appsettings.{Environment}.json` e variáveis de
 | Banco | SQL Server 2022 (serviço gerenciado a definir) | Camada e armazenamento definidos na decisão de hospedagem | Escala vertical e read replica futura |
 | Jobs | Adaptador de scheduler (ADR-027) | Definido com a estratégia de scheduler | Definida com a estratégia de scheduler |
 | Segredos | Gerenciador de segredos (ADR-028) | A definir | — |
-| Telemetria | Coletor OTLP (destino a definir) | Retenção definida na decisão de hospedagem | — |
+| Telemetria | Não configurada na V1; adiada por ADR-037 | A definir em decisão futura (ADR-028) | — |
 | Registry | Registry OCI configurável | Imagens versionadas por SHA | — |
 | DNS/TLS | Provedor a definir (ADR-028) | HTTPS | — |
 
@@ -1515,8 +1510,9 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 | ADR-034 | Datas e fusos no frontend com `Date` e `Intl` nativos | Aceito | 18/11/2026 | TDD §6.3; ADR-011 (parcial) |
 | ADR-035 | `ProblemDetails` nativo com `Extensions` preservando o contrato | Aceito | 18/11/2026 | ADR-017 (parcial) |
 | ADR-036 | Assertivas nativas do MSTest, sem FluentAssertions | Aceito | 18/11/2026 | Lista oficial de tecnologias |
+| ADR-037 | Adiamento da instrumentação e exportação OpenTelemetry | Aceito | 18/11/2026 | ADR-014 (parcial) |
 
-**Substituições parciais (18/11/2026):** ADR-003, ADR-007, ADR-012 e ADR-015 permanecem aceitos e registrados na íntegra como histórico; somente os mecanismos citados abaixo foram substituídos por ADR-031, ADR-030, ADR-032 e ADR-029, respectivamente. ADR-011 permanece vigente para UTC/IANA no backend; ADR-034 cobre apenas o frontend. ADR-017 permanece vigente quanto ao contrato HTTP/JSON; ADR-035 cobre apenas o mecanismo de serialização. ADR-013 segue proposto e substituído por ADR-028 quanto à hospedagem, sem alteração de ADR-027 ou ADR-028.
+**Substituições parciais (18/11/2026):** ADR-003, ADR-007, ADR-012 e ADR-015 permanecem aceitos e registrados na íntegra como histórico; somente os mecanismos citados abaixo foram substituídos por ADR-031, ADR-030, ADR-032 e ADR-029, respectivamente. ADR-011 permanece vigente para UTC/IANA no backend; ADR-034 cobre apenas o frontend. ADR-017 permanece vigente quanto ao contrato HTTP/JSON; ADR-035 cobre apenas o mecanismo de serialização. ADR-014 permanece vigente para Serilog, correlação, redação e health checks; ADR-037 adia apenas instrumentação/exportação OpenTelemetry. ADR-013 segue proposto e substituído por ADR-028 quanto à hospedagem, sem alteração de ADR-027 ou ADR-028.
 
 ## 19.2. Registros
 
@@ -1572,7 +1568,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 - Negativas: `.slnx` ainda não é suportado por todas as ferramentas antigas.
 - Custos e riscos: exigir Visual Studio 17.14+ ou Rider atual.
 
-**Critérios de verificação:** `dotnet build PontoBarber.slnx` funciona; `global.json` fixa SDK 10; `Directory.Packages.props` presente.
+**Critérios de verificação:** `dotnet build server/PontoBarber.slnx` funciona; `global.json` fixa SDK 10; `Directory.Packages.props` presente.
 
 ### ADR-003 — Clean Architecture com DDD tático e monólito modular
 
@@ -1893,6 +1889,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DISPONIBILIDADE-001, RNF-AUDITORIA-001
+- **Substituição parcial:** ADR-037 adia a instrumentação e a exportação OpenTelemetry; Serilog, logs estruturados, correlação, redação de dados sensíveis e health checks permanecem vigentes.
 
 **Contexto:** falhas de agenda, jobs e isolamento precisam ser diagnosticadas rapidamente, com correlação entre requisição, banco e job.
 
@@ -2290,7 +2287,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 - Aplicação empacotada em containers Linux; a orquestração é definida com a hospedagem.
 - Banco relacional SQL Server 2022, conforme ADR-004; o serviço gerenciado é escolhido com a hospedagem.
-- Telemetria por OpenTelemetry com exportador OTLP configurável e logs estruturados por Serilog; nenhum destino proprietário é obrigatório.
+- Telemetria: logs estruturados por Serilog; instrumentação e exportação OpenTelemetry adiadas por ADR-037, sem destino proprietário obrigatório.
 - Segredos acessados por abstração de configuração e gerenciador de segredos escolhido na decisão.
 - O pipeline do GitHub Actions é independente do provedor: build, testes, imagem e migration não dependem do destino; o deploy é etapa fina e parametrizada.
 - `Dominio` e `Aplicacao` não contêm código específico de provedor.
@@ -2508,6 +2505,34 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Critérios de verificação:** nenhuma referência a FluentAssertions no repositório; suíte verde com `Assert` nativo; cobertura mínima inalterada.
 
+### ADR-037 — Adiamento da instrumentação e exportação OpenTelemetry
+
+- **Status:** Aceito
+- **Data:** 18/11/2026
+- **Decisores:** Equipe PontoBarber
+- **Substitui:** ADR-014 (parcial — apenas instrumentação/exportação OpenTelemetry)
+- **Requisitos relacionados:** RNF-AUDITORIA-001, RNF-DISPONIBILIDADE-001
+
+**Contexto:** o ADR-014 aprovou Serilog para logs estruturados e OpenTelemetry para traces e métricas. A decisão de hospedagem e infraestrutura (ADR-028) continua pendente, portanto não há coletor, exporter nem destino concreto de telemetria. Na fundação da V1, a aplicação opera apenas com logs no console. Manter pacotes e configuração de exportação antecipada adiciona complexidade sem benefício operacional concreto.
+
+**Decisão:** manter o Serilog como solução de logging da aplicação, com saída estruturada em JSON no console, enriquecimento de correlação (`TraceId`/`RequestId`, `UserId` em hash e `TenantId`) e redação de dados sensíveis aplicada antes de qualquer sink. A instrumentação e a exportação OpenTelemetry — incluindo traces, métricas e o sink OTLP de logs — ficam **adiadas** até que exista destino definido na decisão de hospedagem (ADR-028) e necessidade operacional demonstrada. Nenhum fornecedor de APM, coletor ou destino de telemetria é escolhido nesta decisão. Os health checks `/health/live` e `/health/ready` permanecem vigentes.
+
+**Alternativas consideradas:**
+
+| Alternativa | Prós | Contras | Motivo da rejeição |
+| --- | --- | --- | --- |
+| Manter OTel configurado, mas desligado | Preserva decisão anterior | Cinco dependências sem uso efetivo | Complexidade sem benefício na V1 |
+| Remover Serilog | Menos dependências | Perde auditoria, correlação e redação | Rejeitado; Serilog permanece aprovado |
+| Escolher APM agora | Telemetria completa | Antecipa ADR-028 e cria lock-in | Rejeitado; destino ainda pendente |
+
+**Consequências:**
+
+- Positivas: fundação menor e mais fácil de compreender; configuração de telemetria deixou de existir sem destino; Serilog, correlação e redação permanecem integralmente funcionais.
+- Negativas: a V1 não terá traces e métricas automáticos nem exportação OTLP.
+- Riscos controlados: quando ADR-028 definir hospedagem/telemetria, a reintrodução deve ocorrer por novo ADR, preservando o contrato de redação.
+
+**Critérios de verificação:** nenhuma dependência OpenTelemetry ou sink OTLP referenciado; `appsettings.json` sem chave `Observabilidade:OTLP:Endpoint`; testes de correlação e redação verdes; health checks respondendo; `openspec validate --all --strict` verde.
+
 ---
 
 # 20. Plano de implementação
@@ -2617,7 +2642,7 @@ Decisões pendentes que dependem de confirmação: ADR-013/ADR-028 (hospedagem e
 
 | Requisito | Componente | ADR | Teste/verificação |
 | --- | --- | --- | --- |
-| RF-AUTH-001 a RF-AUTH-004 | `WebApp/Auth`, `Infra/Identity`, feature `auth` | ADR-005, ADR-020 | Integração de registro, login e logout; E2E |
+| RF-AUTH-001 a RF-AUTH-004 | `Api/Auth`, `Infra/Identity`, feature `auth` | ADR-005, ADR-020 | Integração de registro, login e logout; E2E |
 | RF-AUTH-005 a RF-AUTH-010 | `Aplicacao/Tenants`, `Aplicacao/Professionals` | ADR-005, ADR-006 | Integração de criação de barbearia, convite e vínculo |
 | RF-EMP-001 a RF-EMP-003 | `Aplicacao/Tenants` | ADR-006, ADR-017 | Integração e teste de autorização |
 | RF-SERV-001 a RF-SERV-008 | `Dominio/Services`, `Aplicacao/Services` | ADR-004, ADR-023 | Unitário de catálogo e snapshot; integração |

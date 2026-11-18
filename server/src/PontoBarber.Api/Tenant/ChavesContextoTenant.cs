@@ -1,4 +1,4 @@
-namespace PontoBarber.WebApp.Tenant;
+namespace PontoBarber.Api.Tenant;
 
 public static class ChavesContextoTenant
 {

@@ -4,7 +4,7 @@ using System.Text.Json;
 using Serilog.Core;
 using Serilog.Events;
 
-namespace PontoBarber.WebApp.Observabilidade;
+namespace PontoBarber.Api.Observabilidade;
 
 /// <summary>
 /// Sink de console que emite JSON com máscara adicional sobre mensagem,

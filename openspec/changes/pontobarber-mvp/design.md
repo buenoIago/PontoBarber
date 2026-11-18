@@ -34,7 +34,7 @@ O design abaixo cobre apenas o "como" que não está fixado nos documentos e que
 
 ### 1. Monólito modular com Clean Architecture
 
-Solução única `PontoBarber.slnx` com `Dominio`, `Aplicacao`, `Infra`, `WebApp` e projetos de teste. `Dominio` não referencia EF Core, ASP.NET Core, Identity nem bibliotecas de agendamento. `Aplicacao` expõe casos de uso por feature e depende de abstrações; `Infra` implementa persistência, identidade e adaptadores.
+Solução única `server/PontoBarber.slnx` com `Dominio`, `Aplicacao`, `Infra`, `Api` e projetos de teste. `Dominio` não referencia EF Core, ASP.NET Core, Identity nem bibliotecas de agendamento. `Aplicacao` expõe casos de uso por feature e depende de abstrações; `Infra` implementa persistência, identidade e adaptadores.
 
 - **Por quê:** o TDD já fixa o estilo (ADR-003); manter as referências unidirecionais é o que viabiliza trocar o adaptador de scheduler e o destino de execução sem tocar em regra de negócio.
 - **Alternativa descartada:** separar serviços por capability. Aumentaria custo operacional e contraria o monólito modular aprovado.
@@ -88,7 +88,7 @@ Bootstrap 5 importado por módulos (reboot, grid, utilities e componentes usados
 
 ### 8. Contrato de erro e observabilidade neutros de provedor
 
-Erros em `application/problem+json` com código estável, `traceId` de correlação e erros por campo. Logs estruturados com Serilog, métricas e traces por OpenTelemetry com exportador OTLP configurável. Nenhum SDK de provedor entra em `Dominio`/`Aplicacao`; sinks proprietários não são obrigatórios.
+Erros em `application/problem+json` com código estável, `traceId` de correlação e erros por campo. Logs estruturados com Serilog em JSON no console, com correlação e redação de dados sensíveis. Instrumentação, métricas, traces e exportação OTLP foram adiados por ADR-037 até decisão de destino em ADR-028. Nenhum SDK de provedor entra em `Dominio`/`Aplicacao`; sinks proprietários não são obrigatórios.
 
 - **Por quê:** permite trocar destino junto da decisão de hospedagem (ADR-028) sem reescrever código.
 - **Alternativa descartada:** SDK de APM proprietário como dependência direta — lock-in prematuro.
