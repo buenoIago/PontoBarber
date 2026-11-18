@@ -1,9 +1,9 @@
 using System.Security.Claims;
-using PontoBarber.Api.Erros;
-using PontoBarber.Api.Tenant;
-using PontoBarber.Aplicacao.Abstracoes;
+using PontoBarber.Api.Compartilhado.Erros;
+using PontoBarber.Api.Compartilhado.Tenant;
+using PontoBarber.Aplicacao.Compartilhado;
 
-namespace PontoBarber.Api.Middleware;
+namespace PontoBarber.Api.Compartilhado.Http;
 
 /// <summary>
 /// Resolve o tenant a partir da rota e só o disponibiliza ao contexto após

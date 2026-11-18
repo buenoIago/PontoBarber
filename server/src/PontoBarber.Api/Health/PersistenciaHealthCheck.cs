@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using PontoBarber.Infra.Persistencia;
+using PontoBarber.Infra.Compartilhado.Orm;
 
 namespace PontoBarber.Api.Health;
 

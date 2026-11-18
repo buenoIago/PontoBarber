@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using PontoBarber.Api.Compartilhado.Http;
+using PontoBarber.Api.Compartilhado.Observabilidade;
+using PontoBarber.Api.Compartilhado.Tenant;
 using PontoBarber.Api.Health;
-using PontoBarber.Api.Middleware;
-using PontoBarber.Api.Observabilidade;
-using PontoBarber.Api.Tenant;
-using PontoBarber.Aplicacao.Abstracoes;
+using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Infra;
 using Serilog;
 

@@ -458,7 +458,7 @@ PontoBarber/
 │   ├── PontoBarber.slnx
 │   ├── src/
 │   │   ├── PontoBarber.Dominio/
-│   │   │   ├── Common/
+│   │   │   ├── Compartilhado/
 │   │   │   ├── Identity/
 │   │   │   ├── Tenants/
 │   │   │   ├── Professionals/
@@ -468,7 +468,7 @@ PontoBarber/
 │   │   │   ├── Payments/
 │   │   │   └── Notifications/
 │   │   ├── PontoBarber.Aplicacao/
-│   │   │   ├── Abstractions/
+│   │   │   ├── Compartilhado/
 │   │   │   ├── Auth/
 │   │   │   ├── Tenants/
 │   │   │   ├── Professionals/
@@ -479,7 +479,7 @@ PontoBarber/
 │   │   │   ├── Dashboard/
 │   │   │   └── Notifications/
 │   │   ├── PontoBarber.Infra/
-│   │   │   ├── Persistence/
+│   │   │   ├── Compartilhado/Orm/
 │   │   │   │   ├── Configurations/
 │   │   │   │   ├── Migrations/
 │   │   │   │   └── Interceptors/
@@ -490,7 +490,7 @@ PontoBarber/
 │   │   ├── PontoBarber.Api/
 │   │   │   ├── Controllers/
 │   │   │   ├── Filters/
-│   │   │   ├── Middleware/
+│   │   │   ├── Compartilhado/Http/
 │   │   │   ├── Authorization/
 │   │   │   ├── Program.cs
 │   │   │   └── appsettings.json

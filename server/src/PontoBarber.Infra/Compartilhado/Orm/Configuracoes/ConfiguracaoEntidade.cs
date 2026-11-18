@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using PontoBarber.Dominio.Comum;
+using PontoBarber.Dominio.Compartilhado;
 
-namespace PontoBarber.Infra.Persistencia.Configuracoes;
+namespace PontoBarber.Infra.Compartilhado.Orm.Configuracoes;
 
 /// <summary>
 /// Base para configurações concretas de entidades, aplicadas por

@@ -1,4 +1,4 @@
-namespace PontoBarber.Dominio.Comum;
+namespace PontoBarber.Dominio.Compartilhado;
 
 /// <summary>
 /// Identifica uma entidade persistida com chave primária do tipo <see cref="Guid"/>.

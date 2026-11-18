@@ -1,4 +1,4 @@
-namespace PontoBarber.Aplicacao.Abstracoes;
+namespace PontoBarber.Aplicacao.Compartilhado;
 
 /// <summary>
 /// Verifica se o usuário autenticado possui vínculo ativo com a barbearia.

@@ -1,4 +1,4 @@
-namespace PontoBarber.Api.Tenant;
+namespace PontoBarber.Api.Compartilhado.Tenant;
 
 public static class ChavesContextoTenant
 {

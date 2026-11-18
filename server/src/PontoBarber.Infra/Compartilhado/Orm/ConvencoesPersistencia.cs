@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using PontoBarber.Dominio.Comum;
+using PontoBarber.Dominio.Compartilhado;
 
-namespace PontoBarber.Infra.Persistencia;
+namespace PontoBarber.Infra.Compartilhado.Orm;
 
 /// <summary>
 /// Convenções de persistência compartilhadas por todas as entidades.

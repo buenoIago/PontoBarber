@@ -2,9 +2,9 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using PontoBarber.Api.Middleware;
-using PontoBarber.Api.Tenant;
-using PontoBarber.Aplicacao.Abstracoes;
+using PontoBarber.Api.Compartilhado.Http;
+using PontoBarber.Api.Compartilhado.Tenant;
+using PontoBarber.Aplicacao.Compartilhado;
 
 namespace PontoBarber.Testes.Integracao;
 

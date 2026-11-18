@@ -1,7 +1,7 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
-using PontoBarber.Dominio.Comum;
-using PontoBarber.Infra.Persistencia;
+using PontoBarber.Dominio.Compartilhado;
+using PontoBarber.Infra.Compartilhado.Orm;
 
 namespace PontoBarber.Testes.Arquitetura;
 

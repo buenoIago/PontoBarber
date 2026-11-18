@@ -1,4 +1,4 @@
-namespace PontoBarber.Api.Erros;
+namespace PontoBarber.Api.Compartilhado.Erros;
 
 /// <summary>
 /// Representação serializada de um RFC 7807 ProblemDetails com os campos

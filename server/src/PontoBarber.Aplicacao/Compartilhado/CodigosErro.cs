@@ -1,4 +1,4 @@
-namespace PontoBarber.Aplicacao.Abstracoes;
+namespace PontoBarber.Aplicacao.Compartilhado;
 
 /// <summary>
 /// Catálogo de códigos de erro estáveis definido no TDD §11.1.

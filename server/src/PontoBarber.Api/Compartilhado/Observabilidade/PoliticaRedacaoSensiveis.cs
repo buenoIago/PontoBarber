@@ -2,7 +2,7 @@ using System.Reflection;
 using Serilog.Core;
 using Serilog.Events;
 
-namespace PontoBarber.Api.Observabilidade;
+namespace PontoBarber.Api.Compartilhado.Observabilidade;
 
 /// <summary>
 /// Mascara propriedades sensíveis ao desconstruir objetos em logs estruturados.

@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using PontoBarber.Infra.Persistencia;
+using PontoBarber.Infra.Compartilhado.Orm;
 
 namespace PontoBarber.Infra;
 

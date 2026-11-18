@@ -1,4 +1,4 @@
-namespace PontoBarber.Aplicacao.Abstracoes;
+namespace PontoBarber.Aplicacao.Compartilhado;
 
 /// <summary>
 /// Falha de validação com erros por campo.

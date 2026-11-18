@@ -1,4 +1,4 @@
-namespace PontoBarber.Aplicacao.Abstracoes;
+namespace PontoBarber.Aplicacao.Compartilhado;
 
 /// <summary>
 /// Conflito de regra de negócio mapeado para um código estável do catálogo.

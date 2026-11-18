@@ -1,4 +1,4 @@
-using PontoBarber.Aplicacao.Abstracoes;
+using PontoBarber.Aplicacao.Compartilhado;
 
 namespace PontoBarber.Infra;
 

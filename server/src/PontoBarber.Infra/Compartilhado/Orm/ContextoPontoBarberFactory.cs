@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using PontoBarber.Aplicacao.Abstracoes;
+using PontoBarber.Aplicacao.Compartilhado;
 
-namespace PontoBarber.Infra.Persistencia;
+namespace PontoBarber.Infra.Compartilhado.Orm;
 
 /// <summary>
 /// Cria o contexto usado apenas por ferramentas de design-time do EF Core.

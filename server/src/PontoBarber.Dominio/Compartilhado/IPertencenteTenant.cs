@@ -1,4 +1,4 @@
-namespace PontoBarber.Dominio.Comum;
+namespace PontoBarber.Dominio.Compartilhado;
 
 /// <summary>
 /// Identifica uma entidade que pertence a uma barbearia específica (tenant),

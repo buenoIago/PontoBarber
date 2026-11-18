@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace PontoBarber.Api.Observabilidade;
+namespace PontoBarber.Api.Compartilhado.Observabilidade;
 
 /// <summary>
 /// Regras de redação aplicadas a logs estruturados e texto renderizado.

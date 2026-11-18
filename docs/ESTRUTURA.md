@@ -69,6 +69,7 @@ PontoBarber/
 - Não existem `scripts/`, `publish/` ou `docker-compose.yml` nesta fase do projeto.
 - A SPA será servida pelo próprio ASP.NET Core quando o frontend existir (ADR-033), sem Nginx e sem imagem web separada.
 - Convenção de organização futura por funcionalidade: `Dominio/Modulos/<Feature>/`, `Aplicacao/Modulos/<Feature>/`, `Infra/Modulos/<Feature>/` e `Api/Modulos/<Feature>/`. As pastas serão criadas somente quando as features existirem, sem fundir ou renomear as quatro camadas atuais.
+- Código transversal de cada camada fica em `Compartilhado/`: `Dominio/Compartilhado/`, `Aplicacao/Compartilhado/`, `Infra/Compartilhado/Orm/` e `Api/Compartilhado/{Erros,Http,Observabilidade,Tenant}/`.
 
 ## Referências
 

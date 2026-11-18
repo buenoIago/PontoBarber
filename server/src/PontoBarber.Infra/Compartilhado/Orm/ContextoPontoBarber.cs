@@ -1,10 +1,10 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using PontoBarber.Aplicacao.Abstracoes;
-using PontoBarber.Dominio.Comum;
+using PontoBarber.Aplicacao.Compartilhado;
+using PontoBarber.Dominio.Compartilhado;
 
-namespace PontoBarber.Infra.Persistencia;
+namespace PontoBarber.Infra.Compartilhado.Orm;
 
 /// <summary>
 /// Contexto de persistência do PontoBarber. O filtro global por tenant é
