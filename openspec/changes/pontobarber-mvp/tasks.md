@@ -13,8 +13,8 @@
   - Nota histórica: a instrumentação/exportação OTLP foi adiada por ADR-037; Serilog, correlação e redação permanecem vigentes. Ver `follow-ups.md` item 20.
 - [x] 1.9 Criar pipeline do GitHub Actions com restore, build, testes, análise e verificação de migrations pendentes, sem exigir provedor de nuvem; verificar execução verde em ambiente limpo
 - [x] 1.10 Criar `Dockerfile` da API com build multi-stage e `HEALTHCHECK` em `/health/live`; verificar imagem construída localmente e health check respondendo. A hospedagem dos arquivos estáticos da SPA pelo ASP.NET Core (ADR-033) fica pendente da existência do frontend e não conclui esta tarefa
-- [ ] 1.11 Documentar em `docs/` o comando de execução local, migrations e o contrato de erros; verificar que os comandos documentados executam como escritos
-- [ ] 1.12 Migrar as respostas de erro para `Microsoft.AspNetCore.Mvc.ProblemDetails` nativo com `Extensions` para `code`, `traceId` e `errors`; verificar diff de serialização vazio antes de substituir o código atual e preservar integralmente o contrato do ADR-017 (ADR-035)
+- [x] 1.11 Documentar em `docs/` o comando de execução local, migrations e o contrato de erros; verificar que os comandos documentados executam como escritos
+- [x] 1.12 Migrar as respostas de erro para `Microsoft.AspNetCore.Mvc.ProblemDetails` nativo com `Extensions` para `code`, `traceId` e `errors`; antes de substituir o código atual, verificar equivalência semântica e estrutural da serialização para 400, 401, 403, 404, 409, 422 e 500, incluindo `detail` nulo/vazio e `errors` por campo: status HTTP, `Content-Type`, nomes e casing das propriedades, presença ou ausência das propriedades, tratamento de valores `null`, estrutura e conteúdo de `errors`, preservação de `detail` e dos demais campos contratuais e presença/formato de `traceId` com normalização do valor dinâmico; a ordem das propriedades não é critério de incompatibilidade; preservar integralmente o contrato do ADR-017 (ADR-035)
 
 ## 2. Fundação visual
 

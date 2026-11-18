@@ -137,7 +137,7 @@ A imagem expõe a porta `8080`, roda como usuário `app` e possui `HEALTHCHECK` 
 
 ## 6. Contrato de erros
 
-Respostas de erro usam `Content-Type: application/problem+json` e os campos:
+Respostas de erro usam `Content-Type: application/problem+json` e os campos. A serialização usa `Microsoft.AspNetCore.Mvc.ProblemDetails` nativo, com `code`, `traceId` e `errors` em `Extensions` (ADR-035, tarefa 1.12):
 
 | Campo | Origem |
 | --- | --- |
@@ -176,7 +176,6 @@ dotnet test server/PontoBarber.slnx --no-build --no-restore `
 - TDD prevê `tenant.not_found`/404; a implementação retorna 403/`tenant.forbidden` para tenant inválido ou sem vínculo.
 - O 401 usa `auth.invalid_credentials`; há sugestão pendente de `auth.unauthenticated` nas pendências do OpenSpec.
 - ADR-029 prevê 422 para validação de DataAnnotations; a implementação atual ainda usa 400.
-- ADR-035 prevê `ProblemDetails` nativo com `Extensions`; a implementação usa `RespostaProblema` e será migrada na tarefa 1.12.
 
 ## Referências
 

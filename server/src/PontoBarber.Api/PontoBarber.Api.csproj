@@ -12,4 +12,10 @@
     <ProjectReference Include="..\PontoBarber.Infra\PontoBarber.Infra.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>PontoBarber.Testes.Integracao</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

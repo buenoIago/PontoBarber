@@ -19,7 +19,7 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next)
         catch (Exception excecao) when (!contexto.Response.HasStarted)
         {
             var (status, codigo, titulo, detalhe, erros) = Mapear(excecao);
-            await EscritorRespostaProblema.EscreverAsync(contexto, status, codigo, titulo, detalhe, erros);
+            await EscritorProblemDetails.EscreverAsync(contexto, status, codigo, titulo, detalhe, erros);
         }
     }
 

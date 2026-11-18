@@ -34,7 +34,7 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
         if (contexto.User.Identity?.IsAuthenticated != true ||
             !Guid.TryParse(userIdValue, out var usuarioId))
         {
-            await EscritorRespostaProblema.EscreverAsync(
+            await EscritorProblemDetails.EscreverAsync(
                 contexto,
                 StatusCodes.Status401Unauthorized,
                 CodigosErro.AutenticacaoCredenciaisInvalidas,
@@ -54,7 +54,7 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
     }
 
     private static Task NegarAcessoAsync(HttpContext contexto) =>
-        EscritorRespostaProblema.EscreverAsync(
+        EscritorProblemDetails.EscreverAsync(
             contexto,
             StatusCodes.Status403Forbidden,
             CodigosErro.TenantNegado,
