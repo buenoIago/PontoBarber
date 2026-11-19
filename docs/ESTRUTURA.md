@@ -66,7 +66,7 @@ PontoBarber/
 ## Convenções
 
 - `bin/`, `obj/` e `TestResults/` são gerados localmente e nunca versionados.
-- `client/` é o workspace Angular 22; funcionalidades ficam diretamente em `src/app/` e `shared/` fica em `src/app/shared/`, criados conforme as tarefas existirem, sem antecipá-los. Sem roteamento: os arquivos principais são `app.ts`, `app.html` e `app.config.ts`.
+- `client/` é o workspace Angular 22; funcionalidades ficam diretamente em `src/app/` e os componentes compartilhados em `src/app/shared/ui/<componente>/`, cada um com `.ts` e `.html`. Sem roteamento: os arquivos principais são `app.ts`, `app.html` e `app.config.ts`. Testes de componente e auditoria axe serão configurados na tarefa 2.4; não há arquivos `.spec.ts` junto aos componentes.
 - `client/src/environments/` segue o padrão `environment.ts` / `environment.development.ts`, com `fileReplacements` apenas na configuração de desenvolvimento. A API é servida na mesma origem (ADR-033), então não há URL de API, proxy nem segredos nesses arquivos.
 - Não existem `scripts/`, `publish/` ou `docker-compose.yml` nesta fase do projeto.
 - A SPA será servida pelo próprio ASP.NET Core quando o frontend existir (ADR-033), sem Nginx e sem imagem web separada.

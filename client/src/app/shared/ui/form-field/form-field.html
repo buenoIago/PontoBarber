@@ -1,0 +1,19 @@
+<div class="mb-3">
+  <label class="form-label" [for]="id()">
+    {{ rotulo() }}
+    @if (obrigatorio()) {
+      <span aria-hidden="true">*</span>
+      <span class="visually-hidden"> (obrigatório)</span>
+    }
+  </label>
+
+  <ng-content />
+
+  @if (dica()) {
+    <p class="form-text" [id]="idDica()">{{ dica() }}</p>
+  }
+
+  @if (erro()) {
+    <p class="text-danger" role="alert" [id]="idErro()">{{ erro() }}</p>
+  }
+</div>

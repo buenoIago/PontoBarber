@@ -357,7 +357,7 @@ Módulos de domínio mapeados a partir do PRD:
 | Frontend | Angular | 22 | SPA standalone, zoneless e signals | ADR-001 |
 | Frontend | Bootstrap 5 + SCSS + Bootstrap Icons | 5.x | Componentes, layout e ícones; design system em `shared/ui` | ADR-026 |
 | Testes backend | MSTest | 4.x | Testes unitários e de integração | ADR-012 |
-| Testes frontend | Vitest + Playwright | 3.x / 1.5x | Testes de unidade, componente e E2E | ADR-012 |
+| Testes frontend | Vitest + Playwright | 3.x / 1.5x | Testes de unidade, componente e E2E; instalação e configuração do Vitest e do axe previstas para a tarefa 2.4 | ADR-012 |
 
 ## 6.3. Bibliotecas
 
@@ -504,6 +504,13 @@ PontoBarber/
 │   │   ├── app/
 │   │   │   ├── [funcionalidades]/   # criadas conforme as tarefas, diretamente em app/
 │   │   │   ├── shared/
+│   │   │   │   └── ui/
+│   │   │   │       ├── button/
+│   │   │   │       ├── dialog/
+│   │   │   │       ├── empty-state/
+│   │   │   │       ├── form-field/
+│   │   │   │       ├── layout/
+│   │   │   │       └── table/
 │   │   │   ├── app.config.ts
 │   │   │   ├── app.html
 │   │   │   └── app.ts
@@ -532,7 +539,7 @@ PontoBarber/
 
 - Projetos, namespaces e tipos em PascalCase; variáveis e parâmetros em camelCase; campos privados com `_camelCase`.
 - Rotas da API em kebab-case e plural: `/api/v1/barbershops/{barbershopId}/appointments`.
-- Componentes Angular com sufixo `.component.ts`, serviços `.service.ts`, guards `.guard.ts` e modelos `.models.ts`.
+- Componentes Angular em arquivos `.ts` com template `.html`, sem sufixo `.component`; serviços `.service.ts`, guards `.guard.ts` e modelos `.models.ts`. Cada componente compartilhado fica em uma pasta com seus arquivos `.ts` e `.html`, conforme o projeto de referência.
 - Testes nomeados `Metodo_Cenario_Resultado` no backend e `should comportamento when cenario` no frontend.
 - Um caso de uso por classe em `Aplicacao`, com sufixo `Handler` ou `Service` e método único `HandleAsync`.
 - DTOs de entrada terminam em `Request`; de saída, em `Response`.
@@ -1267,6 +1274,8 @@ Traces e métricas: instrumentação e exportação OpenTelemetry adiadas por AD
 | Acessibilidade | Playwright + axe-core | Telas principais | Zero violações críticas |
 | Carga | k6 | Agenda, disponibilidade e confirmação | Metas da seção 17 |
 | Segurança | OWASP ZAP baseline + `npm audit`/`dotnet list package` | Superfície HTTP e dependências | Zero alto/crítico |
+
+A instalação e a configuração do Vitest para testes de componente, bem como a auditoria axe, ocorrem na tarefa 2.4. Os componentes compartilhados em `shared/ui` seguem a convenção de somente `.ts` e `.html`, sem arquivos `.spec.ts`.
 
 ## 15.2. Cenários críticos
 

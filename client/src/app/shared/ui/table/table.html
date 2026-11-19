@@ -1,0 +1,13 @@
+<div class="table-responsive">
+  <table class="table">
+    @if (legenda()) {
+      <caption>
+        {{
+          legenda()
+        }}
+      </caption>
+    }
+
+    <ng-content />
+  </table>
+</div>

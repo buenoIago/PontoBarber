@@ -1,0 +1,9 @@
+<div class="text-center" role="status">
+  <h2>{{ titulo() }}</h2>
+
+  @if (descricao()) {
+    <p>{{ descricao() }}</p>
+  }
+
+  <ng-content />
+</div>

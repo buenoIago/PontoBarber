@@ -1,0 +1,7 @@
+<dialog #dialog [attr.aria-labelledby]="tituloId" (close)="aoFechar()" (click)="aoClicar($event)">
+  <h2 [id]="tituloId">{{ titulo() }}</h2>
+
+  <ng-content />
+
+  <button type="button" class="btn btn-secondary" (click)="fechar()">Fechar</button>
+</dialog>

@@ -1,0 +1,13 @@
+<a class="visually-hidden-focusable" href="#conteudo">Pular para o conteúdo</a>
+
+<header>
+  <ng-content select="[appLayoutHeader]" />
+</header>
+
+<main id="conteudo" tabindex="-1">
+  <ng-content />
+</main>
+
+<footer>
+  <ng-content select="[appLayoutFooter]" />
+</footer>

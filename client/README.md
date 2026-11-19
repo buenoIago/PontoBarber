@@ -38,4 +38,4 @@ Os budgets nativos do `angular.json` (`initial`: aviso 400 kB, erro 450 kB) são
 
 Avisos de depreciação do Sass `@import` são esperados com Bootstrap 5.3 (documentado pelo próprio Bootstrap) e não impedem a compilação.
 
-Testes de componente, E2E e acessibilidade pertencem às tarefas 2.2 e 2.4.
+Testes de componente com Vitest e auditoria axe serão instalados e configurados na tarefa 2.4; nesta etapa não há arquivos `.spec.ts` junto aos componentes.
