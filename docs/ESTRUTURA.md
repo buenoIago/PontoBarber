@@ -48,7 +48,7 @@ PontoBarber/
 | `server/src/PontoBarber.Dominio/` | Entidades, contratos e regras de domínio; não depende de infraestrutura (ADR-003). |
 | `server/src/PontoBarber.Aplicacao/` | Casos de uso, DTOs, portas e erros de aplicação (ADR-003, ADR-017). |
 | `server/src/PontoBarber.Infra/` | EF Core, SQL Server, convenções de persistência e design-time factory (ADR-004). |
-| `server/src/PontoBarber.Api/` | Composição da API ASP.NET Core, controllers, middleware, health checks e observabilidade. |
+| `server/src/PontoBarber.Api/` | Composição da API ASP.NET Core, controllers, middleware, health checks, observabilidade e hospedagem da SPA. O build Angular é copiado para `wwwroot` no output/publicação; o fallback para `index.html` não captura `/api` nem `/health` (ADR-033). |
 | `server/tests/` | `PontoBarber.Testes.Unidade`, `PontoBarber.Testes.Integracao` e `PontoBarber.Testes.Arquitetura` (ADR-012, ADR-031, ADR-032). |
 
 ## Arquivos na raiz

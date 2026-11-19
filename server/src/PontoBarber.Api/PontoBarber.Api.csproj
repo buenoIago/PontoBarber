@@ -18,4 +18,19 @@
     </AssemblyAttribute>
   </ItemGroup>
 
+  <!-- ADR-033: copia o build da SPA para o output/publicação, sem versionar artefatos. -->
+  <Target Name="CopiarAssetsSpa" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <_AssetSpa Include="../../../client/dist/ponto-barber-web/browser/**/*"
+                 Condition="Exists('../../../client/dist/ponto-barber-web/browser/index.html')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AssetSpa)"
+          DestinationFiles="@(_AssetSpa->'$(TargetDir)wwwroot/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_AssetSpa)"
+          DestinationFiles="@(_AssetSpa->'$(PublishDir)wwwroot/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'$(PublishDir)' != ''" />
+  </Target>
+
 </Project>

@@ -25,7 +25,7 @@
   - Nota (19/11/2026): o cliente está configurado conforme o contrato do TDD. Permanecem pendentes para a integração com o backend, sem implementação nesta tarefa: (1) emissão do cookie `__Host-pb.csrf` e validação do header `X-CSRF-TOKEN` pelo ASP.NET Core; (2) consumo do header `X-Correlation-Id` pela API, que hoje gera o `TraceId` internamente e o devolve no corpo do erro.
 - [x] 2.4 Criar testes E2E e auditoria axe no pipeline; verificar que uma violação crítica reprova a execução
   - Inclui os testes de componentes e a configuração do axe adiados da tarefa 2.2.
-- [ ] 2.5 Integrar o build do Angular como arquivos estáticos servidos pelo ASP.NET Core, com fallback para `index.html` e a mesma origem da API; verificar rota não-API retornando a SPA e `/api/v1` respondendo (ADR-033) — depende do projeto Angular da tarefa 2.1
+- [x] 2.5 Integrar o build do Angular como arquivos estáticos servidos pelo ASP.NET Core, com fallback para `index.html` e a mesma origem da API; verificar rota não-API retornando a SPA e `/api/v1` respondendo (ADR-033) — depende do projeto Angular da tarefa 2.1
 
 ## 3. Identidade e acesso
 

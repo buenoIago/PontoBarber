@@ -1,3 +1,11 @@
+# frontend: gera os assets da SPA que serão servidos pelo ASP.NET Core (ADR-033).
+FROM node:22-alpine AS frontend
+WORKDIR /src/client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci
+COPY client/ ./
+RUN npm run build
+
 # build: restaura e publica somente o grafo da API (Api -> Aplicacao -> Infra -> Dominio).
 FROM mcr.microsoft.com/dotnet/sdk:10.0.103 AS build
 
@@ -12,6 +20,8 @@ COPY server/src/PontoBarber.Dominio/PontoBarber.Dominio.csproj server/src/PontoB
 COPY server/src/PontoBarber.Infra/PontoBarber.Infra.csproj server/src/PontoBarber.Infra/
 
 RUN dotnet restore server/src/PontoBarber.Api/PontoBarber.Api.csproj
+
+COPY --from=frontend /src/client/dist/ponto-barber-web/browser/ /src/client/dist/ponto-barber-web/browser/
 
 COPY server/src/ server/src/
 

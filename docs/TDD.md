@@ -492,6 +492,7 @@ PontoBarber/
 │   │   │   ├── Filters/
 │   │   │   ├── Compartilhado/Http/
 │   │   │   ├── Authorization/
+│   │   │   ├── wwwroot/             # assets da SPA copiados do build Angular (ADR-033)
 │   │   │   ├── Program.cs
 │   │   │   └── appsettings.json
 │   │   └── PontoBarber.Contracts/
