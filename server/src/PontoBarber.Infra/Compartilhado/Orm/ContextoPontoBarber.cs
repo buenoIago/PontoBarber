@@ -1,8 +1,10 @@
 using System.Reflection;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Dominio.Compartilhado;
+using PontoBarber.Infra.Identity;
 
 namespace PontoBarber.Infra.Compartilhado.Orm;
 
@@ -12,7 +14,7 @@ namespace PontoBarber.Infra.Compartilhado.Orm;
 /// </summary>
 public class ContextoPontoBarber(
     DbContextOptions<ContextoPontoBarber> options,
-    IContextoTenant contextoTenant) : DbContext(options)
+    IContextoTenant contextoTenant) : IdentityDbContext<Usuario>(options)
 {
     private static readonly MethodInfo _fabricaEntidades = typeof(ModelBuilder)
         .GetMethods(BindingFlags.Public | BindingFlags.Instance)
@@ -25,13 +27,13 @@ public class ContextoPontoBarber(
 
     private readonly IContextoTenant _contextoTenant = contextoTenant;
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        base.OnModelCreating(modelBuilder);
+        base.OnModelCreating(builder);
 
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ContextoPontoBarber).Assembly);
-        ConvencoesPersistencia.Aplicar(modelBuilder);
-        AplicarFiltrosTenant(modelBuilder);
+        builder.ApplyConfigurationsFromAssembly(typeof(ContextoPontoBarber).Assembly);
+        ConvencoesPersistencia.Aplicar(builder);
+        AplicarFiltrosTenant(builder);
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)

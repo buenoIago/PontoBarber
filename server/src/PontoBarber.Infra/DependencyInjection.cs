@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PontoBarber.Infra.Compartilhado.Orm;
+using PontoBarber.Infra.Identity;
 
 namespace PontoBarber.Infra;
 
@@ -20,6 +21,8 @@ public static class DependencyInjection
             if (!string.IsNullOrWhiteSpace(stringConexao))
                 options.UseSqlServer(stringConexao);
         });
+
+        services.AddIdentityPontoBarber();
 
         return services;
     }

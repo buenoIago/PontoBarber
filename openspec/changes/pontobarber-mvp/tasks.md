@@ -29,7 +29,8 @@
 
 ## 3. Identidade e acesso
 
-- [ ] 3.1 Configurar ASP.NET Core Identity, política de senha e cookie com atributos de segurança; verificar teste de criação de usuário e de cookie inacessível a JavaScript
+- [x] 3.1 Configurar ASP.NET Core Identity, política de senha e cookie com atributos de segurança; verificar teste de criação de usuário e de cookie inacessível a JavaScript
+  - Nota (19/11/2026): cookie `__Host-pb.auth` com `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`; senha mínima de 8 caracteres com letra e número; hash PBKDF2-HMAC-SHA512 com 210.000 iterações. Os testes de cookie, hash e rejeição de senha fraca passaram. O teste de criação com banco real depende de Testcontainers e não pôde ser executado neste ambiente (Docker indisponível).
 - [ ] 3.2 Implementar cadastro de cliente e cadastro de barbeiro em fluxos distintos; verificar testes de cadastro válido, e-mail duplicado e confirmação divergente
 - [ ] 3.3 Implementar login compartilhado com mensagem genérica e bloqueio por tentativas; verificar testes de credencial inválida e de bloqueio temporário
 - [ ] 3.4 Implementar `/auth/me`, logout e alteração de senha; verificar testes de sessão encerrada após logout e de alteração com senha atual válida

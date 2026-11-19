@@ -15,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddAuthentication();
+// AddIdentity (via AddInfrastructureServices) registra a autenticação e o cookie.
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<IContextoTenant, ContextoTenantHttp>();
 builder.Services.AddScoped<IResolutorVinculoTenant, ResolutorVinculoTenantNegaTodos>();
