@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using PontoBarber.Infra.Compartilhado.Identity;
 using PontoBarber.Infra.Compartilhado.Orm;
+using PontoBarber.Infra.Identity;
 
 namespace PontoBarber.Infra.Identity;
 
@@ -32,7 +34,8 @@ public static class DependencyInjection
                 opcoes.SignIn.RequireConfirmedAccount = false;
             })
             .AddEntityFrameworkStores<ContextoPontoBarber>()
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            .AddClaimsPrincipalFactory<ClaimsUsuario>();
 
         // PBKDF2-HMAC-SHA512 com 210.000 iterações (TDD §11.1 / RNF-SEGURANCA-001).
         services.Configure<PasswordHasherOptions>(opcoes => opcoes.IterationCount = 210_000);

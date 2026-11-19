@@ -1,0 +1,16 @@
+<section class="mx-auto" style="max-width: 32rem">
+  <h1 class="h3">Bem-vindo ao PontoBarber</h1>
+  <p class="text-body-secondary">Como você deseja entrar?</p>
+
+  <div class="d-grid gap-3">
+    <app-button (click)="selecionado.emit('cliente')">Sou cliente</app-button>
+    <app-button variante="outline" (click)="selecionado.emit('profissional')">
+      Sou profissional
+    </app-button>
+  </div>
+
+  <p class="mt-4">
+    Já possui conta?
+    <button type="button" class="btn btn-link p-0" (click)="entrar.emit()">Entrar</button>
+  </p>
+</section>

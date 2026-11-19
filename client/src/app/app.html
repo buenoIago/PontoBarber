@@ -1,3 +1,19 @@
-<main class="container py-4">
-  <h1>PontoBarber</h1>
-</main>
+@if (erro()) {
+  <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+}
+
+@if (exibirConta()) {
+  <app-conta />
+} @else {
+  @switch (tela()) {
+    @case ('escolha') {
+      <app-escolha-perfil (selecionado)="escolherPerfil($event)" (entrar)="abrirLogin()" />
+    }
+    @case ('cadastro') {
+      <app-cadastro [perfil]="perfil()" (voltar)="abrirEscolha()" />
+    }
+    @case ('login') {
+      <app-login (voltar)="abrirEscolha()" />
+    }
+  }
+}

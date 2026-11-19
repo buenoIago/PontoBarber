@@ -5,6 +5,8 @@ using PontoBarber.Api.Compartilhado.Http;
 using PontoBarber.Api.Compartilhado.Logging;
 using PontoBarber.Api.Compartilhado.Tenant;
 using PontoBarber.Api.Health;
+using PontoBarber.Api.Modulos.Auth;
+using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Infra;
 using Serilog;
@@ -16,9 +18,10 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
 // AddIdentity (via AddInfrastructureServices) registra a autenticação e o cookie.
-builder.Services.AddAuthorization();
+builder.Services.AdicionarAuthApi();
 builder.Services.AddScoped<IContextoTenant, ContextoTenantHttp>();
 builder.Services.AddScoped<IResolutorVinculoTenant, ResolutorVinculoTenantNegaTodos>();
+builder.Services.AddScoped<ServicoConta>();
 
 var loggerConsole = new LoggerConfiguration()
     .WriteTo.Sink(new SinkConsoleSeguro())
@@ -50,11 +53,19 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    // ADR-007: UI interativa sobre o documento nativo, sem gerar um segundo OpenAPI.
+    app.UseSwaggerUI(opcoes =>
+    {
+        opcoes.RoutePrefix = "swagger";
+        opcoes.SwaggerEndpoint("/openapi/v1.json", "PontoBarber API v1");
+    });
 }
 
 app.UseHttpsRedirection();
 app.UseSerilogRequestLogging();
 app.UseMiddleware<ProblemDetailsMiddleware>();
+app.UseMiddleware<AntiforgeryMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();

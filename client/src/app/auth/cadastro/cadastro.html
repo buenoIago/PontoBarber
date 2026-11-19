@@ -1,0 +1,78 @@
+<section class="mx-auto" style="max-width: 32rem">
+  <h1 class="h3">Criar conta</h1>
+
+  <p class="text-body-secondary">
+    Cadastro de {{ perfil() === 'cliente' ? 'cliente' : 'profissional' }}
+  </p>
+
+  <form (submit)="enviar(); $event.preventDefault()">
+    <app-form-field id="nome" rotulo="Nome completo">
+      <input
+        id="nome"
+        name="nome"
+        class="form-control"
+        [value]="nomeCompleto()"
+        (input)="nomeCompleto.set($any($event.target).value)"
+        required
+      />
+    </app-form-field>
+
+    <app-form-field id="email" rotulo="E-mail" [obrigatorio]="true">
+      <input
+        id="email"
+        name="email"
+        type="email"
+        class="form-control"
+        autocomplete="email"
+        [value]="email()"
+        (input)="email.set($any($event.target).value)"
+        required
+      />
+    </app-form-field>
+
+    <app-form-field id="telefone" rotulo="Telefone" [obrigatorio]="true">
+      <input
+        id="telefone"
+        name="telefone"
+        type="tel"
+        class="form-control"
+        autocomplete="tel"
+        [value]="telefone()"
+        (input)="telefone.set($any($event.target).value)"
+        required
+      />
+    </app-form-field>
+
+    <app-form-field id="senha" rotulo="Senha" [obrigatorio]="true">
+      <input
+        id="senha"
+        name="senha"
+        type="password"
+        class="form-control"
+        autocomplete="new-password"
+        [value]="senha()"
+        (input)="senha.set($any($event.target).value)"
+        required
+      />
+    </app-form-field>
+
+    <app-form-field id="confirmarSenha" rotulo="Confirmar senha" [obrigatorio]="true">
+      <input
+        id="confirmarSenha"
+        name="confirmarSenha"
+        type="password"
+        class="form-control"
+        autocomplete="new-password"
+        [value]="confirmarSenha()"
+        (input)="confirmarSenha.set($any($event.target).value)"
+        required
+      />
+    </app-form-field>
+
+    <div class="d-grid">
+      <app-button tipo="submit">Cadastrar</app-button>
+    </div>
+  </form>
+
+  <button type="button" class="btn btn-link mt-3" (click)="voltar.emit()">Voltar</button>
+</section>

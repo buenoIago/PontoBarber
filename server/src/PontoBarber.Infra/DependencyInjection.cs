@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PontoBarber.Aplicacao.Auth;
+using PontoBarber.Infra.Compartilhado.Identity;
 using PontoBarber.Infra.Compartilhado.Orm;
 using PontoBarber.Infra.Identity;
 
@@ -23,6 +25,7 @@ public static class DependencyInjection
         });
 
         services.AddIdentityPontoBarber();
+        services.AddScoped<IIdentidade, AdaptadorIdentidade>();
 
         return services;
     }
