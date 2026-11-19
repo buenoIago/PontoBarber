@@ -52,7 +52,7 @@ Consultas de dashboard e de clientes filtram por `TenantId` e período mesmo com
 
 ### 3. Identidade com cookie e proteção CSRF
 
-ASP.NET Core Identity com cookie `HttpOnly`, `Secure`, `SameSite=Lax`, expiração deslizante e absoluta, e antiforgery obrigatório em métodos que alteram estado. `/auth/me` devolve perfil, vínculos e permissões derivadas. Cadastros de cliente e barbeiro são fluxos distintos sobre a mesma tabela de usuários; o perfil não é escolhido livremente após o cadastro.
+ASP.NET Core Identity com cookie persistente `HttpOnly`, `Secure`, `SameSite=Lax`, expiração deslizante por perfil (60 dias de inatividade para clientes; 30 dias para barbeiros e proprietários), sem limite absoluto, e antiforgery obrigatório em métodos que alteram estado. `/auth/me` devolve perfil, vínculos e permissões derivadas. Cadastros de cliente e barbeiro são fluxos distintos sobre a mesma tabela de usuários; o perfil não é escolhido livremente após o cadastro. A autenticação também é distinta: barbeiros e proprietários usam e-mail e senha; clientes usam código OTP de 6 dígitos enviado por e-mail, com validade de 5 minutos, uso único e limites de tentativas e reenvio. A identidade do cliente é global, sem vínculo obrigatório com barbearia.
 
 - **Por quê:** decisões ADR-005 e ADR-016 já aprovadas; cookie evita token em storage e o antiforgery cobre a superfície restante.
 - **Alternativa descartada:** JWT em `localStorage`. Risco de XSS e reimplementação de revogação.

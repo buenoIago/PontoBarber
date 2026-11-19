@@ -20,9 +20,10 @@ O sistema busca centralizar a gestão da barbearia e simplificar o processo de a
   - Sou cliente.
   - Sou barbeiro.
 - O sistema deve disponibilizar formulários de cadastro separados para clientes e barbeiros.
-- O sistema deve disponibilizar uma tela de login compartilhada entre todos os perfis.
 - O sistema deve permitir que clientes criem uma conta para utilizar as funcionalidades de agendamento.
 - O sistema deve permitir que barbeiros criem uma conta para utilizar a plataforma.
+- O sistema deve autenticar clientes por código OTP de 6 dígitos enviado por e-mail, sem uso de senha.
+- O sistema deve autenticar barbeiros e proprietários por e-mail e senha.
 - Após o cadastro, o barbeiro deve escolher entre:
   - Criar uma nova barbearia.
   - Entrar em uma barbearia existente por meio de um código de convite.
@@ -39,7 +40,13 @@ O sistema busca centralizar a gestão da barbearia e simplificar o processo de a
   - Barbeiro.
   - Cliente.
 - O cadastro de clientes e barbeiros deve ocorrer por meio de fluxos separados.
-- O login deve ser compartilhado entre todos os perfis.
+- Cliente e barbeiro/proprietário possuem fluxos de autenticação distintos: OTP por e-mail para clientes, e-mail e senha para profissionais.
+- O e-mail do cliente é obrigatório e único na plataforma; a identidade do cliente é global e não depende de vínculo com uma barbearia.
+- O telefone do cliente é obrigatório no cadastro e serve para que o barbeiro tenha acesso ao contato do cliente e possa conversar com ele; não é usado para login, autenticação, recuperação de conta nem envio de OTP.
+- O cliente poderá escolher a barbearia posteriormente, quando desejar agendar.
+- O código OTP do cliente terá 6 dígitos, validade de 5 minutos e poderá ser utilizado apenas uma vez.
+- A solicitação e a validação do OTP deverão possuir limites de tentativas e de reenvio para evitar abuso.
+- Respostas de solicitação e validação de OTP não deverão revelar se o e-mail já possui conta.
 - Clientes precisam possuir uma conta para realizar agendamentos. Não será permitido realizar agendamentos anonimamente.
 - Um usuário cadastrado como barbeiro poderá criar uma barbearia ou entrar em uma existente.
 - O barbeiro que criar uma barbearia será automaticamente definido como proprietário daquele estabelecimento.
@@ -58,8 +65,6 @@ O sistema busca centralizar a gestão da barbearia e simplificar o processo de a
 - Nome.
 - E-mail.
 - Telefone.
-- Senha.
-- Confirmar senha.
 
 **Cadastro de barbeiro:**
 - Nome.
@@ -68,9 +73,15 @@ O sistema busca centralizar a gestão da barbearia e simplificar o processo de a
 - Senha.
 - Confirmar senha.
 
-**Login:**
+**Autenticação de cliente:**
+- E-mail para solicitar o código.
+- Código OTP de 6 dígitos para validar.
+
+**Login de barbeiro/proprietário:**
 - E-mail.
 - Senha.
+
+O telefone do cliente é obrigatório no cadastro e sua finalidade é permitir que o barbeiro tenha acesso ao contato do cliente e possa conversar com ele. O telefone não será utilizado para login, autenticação, recuperação de conta nem envio de OTP. A autenticação do cliente continua sendo exclusivamente por e-mail, com código OTP de 6 dígitos; o e-mail permanece obrigatório e único.
 
 **Criação de barbearia:**
 - Nome da barbearia.
@@ -88,15 +99,32 @@ O sistema busca centralizar a gestão da barbearia e simplificar o processo de a
 ### Restrições e validações
 
 - Todos os campos de cadastro de cliente e barbeiro devem ser obrigatórios.
-- O e-mail deve possuir um formato válido.
+- O e-mail deve possuir um formato válido e único na plataforma.
 - O sistema não deve permitir o cadastro de contas utilizando um e-mail já cadastrado.
-- A confirmação de senha deve corresponder à senha informada.
+- A confirmação de senha deve corresponder à senha informada no cadastro de barbeiro.
+- O código OTP deverá ser armazenado de forma segura, expirar em 5 minutos e ser invalidado após o uso.
+- A resposta à solicitação de código não deverá distinguir e-mail existente de e-mail novo.
 - Os campos obrigatórios da barbearia devem ser preenchidos durante sua criação.
 - O Instagram não deve ser obrigatório.
 - O cadastro da barbearia não deve exigir CNPJ ou documentos pessoais.
 - O telefone comercial da barbearia deverá ser verificado, conforme procedimento ainda a ser definido.
 - O código de convite informado deve corresponder a uma barbearia existente.
 - O sistema não deve permitir que um barbeiro entre em uma barbearia utilizando um código inválido.
+
+### Políticas de sessão
+
+| Perfil | Autenticação | Expiração por inatividade |
+| --- | --- | --- |
+| Cliente | E-mail + OTP de 6 dígitos | 60 dias |
+| Barbeiro | E-mail + senha | 30 dias |
+| Proprietário | E-mail + senha | 30 dias |
+
+- A sessão deve utilizar cookie persistente.
+- A expiração deve ser deslizante: cada acesso válido renova o prazo de inatividade correspondente ao perfil.
+- Não deve haver limite absoluto de duração da sessão.
+- Se o usuário permanecer inativo pelo prazo definido para seu perfil, deverá autenticar novamente.
+- O logout deve encerrar a sessão imediatamente.
+- A política de 60 dias é exclusiva dos clientes; barbeiros e proprietários compartilham a política de 30 dias.
 
 ## 2. Módulo de Empresa (Barbearia)
 

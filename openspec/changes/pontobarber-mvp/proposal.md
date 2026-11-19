@@ -27,7 +27,7 @@ Esta change estabelece o MVP completo do PontoBarber como base implementável: f
 ### New Capabilities
 
 - `platform-foundation`: estrutura da solução, isolamento multi-tenant, convenções de persistência e API, design system Bootstrap, observabilidade, health checks, pipeline independente de hospedagem e artefatos de container.
-- `identity-and-access`: cadastro separado de cliente e barbeiro, login compartilhado, sessão por cookie, CSRF, bloqueio por tentativas, autorização por perfil e por recurso.
+- `identity-and-access`: cadastro separado de cliente e barbeiro, autenticação por OTP de e-mail para clientes e por senha para barbeiros/proprietários, sessão por cookie persistente com expiração deslizante por perfil (60 dias para clientes; 30 dias para barbeiros e proprietários) e sem limite absoluto, CSRF, limites de tentativas, autorização por perfil e por recurso.
 - `barbershop-and-professionals`: criação e edição da barbearia, código de convite, entrada de profissional, gestão de vínculos e dados da empresa.
 - `service-catalog`: catálogo modelo, cadastro, edição e desativação lógica de serviços, com preço e duração preservados em agendamentos.
 - `availability-and-hours`: horários gerais de funcionamento, disponibilidade semanal, bloqueios pontuais e cálculo de horários disponíveis.

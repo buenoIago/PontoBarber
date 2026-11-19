@@ -101,7 +101,7 @@ Premissa de volumetria para a V1.0: até 500 barbearias, até 5.000 profissionai
 
 ## 3.2. Fora do escopo
 
-- WhatsApp, e-mail, SMS e integrações de calendário — previstos para versões futuras no PRD.
+- WhatsApp, SMS e integrações de calendário — previstos para versões futuras no PRD. O e-mail é utilizado na V1 para o código OTP de clientes; o provedor de envio permanece a definir.
 - Gateway de pagamento, cobrança online e pagamento antecipado — pagamento é presencial na V1.0.
 - Aplicativo móvel nativo — a V1.0 é web responsiva.
 - Relatórios financeiros avançados e conciliação — não previstos no PRD.
@@ -320,9 +320,9 @@ Módulos de domínio mapeados a partir do PRD:
 
 ### 5.5.4. Login e sessão
 
-1. Cliente ou profissional envia e-mail e senha para `POST /api/v1/auth/login`.
-2. A API valida via `SignInManager`, aplica bloqueio por tentativas e emite cookie `__Host-pb.auth`.
-3. O cookie é `HttpOnly`, `Secure`, `SameSite=Lax`, com expiração deslizante de 8 horas e absoluta de 7 dias.
+1. Barbeiro ou proprietário envia e-mail e senha para `POST /api/v1/auth/login`. Cliente solicita código OTP por e-mail e o valida em fluxo próprio, sem senha.
+2. A API valida as credenciais do perfil, aplica limites de tentativas e emite cookie `__Host-pb.auth`.
+3. O cookie é persistente, `HttpOnly`, `Secure`, `SameSite=Lax`, com expiração deslizante por perfil: 60 dias de inatividade para clientes e 30 dias para barbeiros e proprietários. Não há limite absoluto de duração; cada acesso válido renova o prazo do perfil e, após a inatividade, é necessário autenticar novamente.
 4. A SPA consulta `GET /api/v1/auth/me` para obter perfil, tenant ativo e permissões.
 5. Logout remove o cookie e invalida a sessão no servidor.
 
@@ -1033,16 +1033,20 @@ Implementação: eventos de domínio coletados no `DbContext` e despachados por 
 
 | Item | Decisão |
 | --- | --- |
-| Método de login | E-mail e senha via ASP.NET Core Identity |
+| Método de login | Barbeiro/proprietário: e-mail e senha via ASP.NET Core Identity. Cliente: código OTP de 6 dígitos por e-mail, sem senha |
 | Hash de senha | PBKDF2-HMAC-SHA512, 210.000 iterações, salt de 128 bits (padrão Identity v3) |
-| Sessão | Cookie `__Host-pb.auth` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`) |
-| Expiração | Deslizante de 8 horas; absoluta de 7 dias |
+| Sessão | Cookie persistente `__Host-pb.auth` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`) |
+| Expiração | Cliente: 60 dias de inatividade; barbeiro e proprietário: 30 dias de inatividade. Deslizante: cada acesso válido renova o prazo do perfil |
+| Limite absoluto | Nenhum — a sessão termina por inatividade ou logout |
 | Renovação | Renovação no servidor a cada requisição autenticada; `SecurityStamp` validado a cada 30 minutos |
 | Recuperação de acesso | Fora do escopo da V1.0; procedimento administrativo documentado |
 | MFA | Não na V1.0; previsto para perfis proprietários em versão futura |
 | Bloqueio | 5 tentativas inválidas → 5 minutos; 10 tentativas → 30 minutos |
 | Política de senha | Mínimo 8 caracteres, ao menos uma letra e um número; sem exigência de rotação |
 | CSRF | Antiforgery token com cookie `__Host-pb.csrf` e header `X-CSRF-TOKEN` |
+| Código OTP do cliente | 6 dígitos, válido por 5 minutos, armazenado de forma segura e utilizável uma única vez; limites de tentativas de validação e de reenvio |
+| Canal do OTP | Somente e-mail na V1.0; WhatsApp e SMS ficam como possibilidades futuras |
+| Identidade do cliente | Global na plataforma, sem vínculo obrigatório com barbearia; escolha da barbearia no momento do agendamento |
 | CORS | Sem CORS: SPA e API são servidas na mesma origem pelo ASP.NET Core (ADR-033) |
 
 Regras complementares:
@@ -1050,7 +1054,10 @@ Regras complementares:
 - Cookies de autenticação nunca são acessíveis por JavaScript.
 - `SecurityStamp` é renovado em troca de senha e em logout global.
 - Login, logout, troca de senha e registro são auditados sem registrar senha.
-- A resposta de login é sempre genérica para credenciais inválidas.
+- O logout encerra a sessão imediatamente; a política de 60 dias é exclusiva de clientes e a de 30 dias é compartilhada por barbeiros e proprietários.
+- A resposta de login é sempre genérica para credenciais inválidas; a solicitação e a validação do OTP não revelam se o e-mail já possui conta.
+- Código OTP expirado, já utilizado ou inválido recebe a mesma resposta genérica; novos códigos invalidem os anteriores.
+- O telefone do cliente não é exigido para autenticação.
 - Sessões de usuários desativados são invalidadas na próxima validação de `SecurityStamp`.
 - O identificador do tenant ativo não é confiado ao cookie; vem da rota e é validado por vínculo.
 
@@ -1188,7 +1195,7 @@ Regras:
 | Verificação de telefone | A definir | Validar telefone comercial | Assíncrona | 10 s | 2 | Cadastro segue pendente de verificação | ABT-005 |
 | WhatsApp | A definir | Notificações externas | Assíncrona | 10 s | 3 | Apenas notificação interna | Fora do escopo |
 | Gateway de pagamento | A definir | Cobrança online | Síncrona | 15 s | 2 | Pagamento presencial | Fora do escopo |
-| E-mail transacional | A definir | Recuperação de senha | Assíncrona | 10 s | 3 | Atendimento administrativo | ABT-006 |
+| E-mail transacional | A definir | Envio do código OTP de cliente e recuperação futura de senha | Assíncrona | 10 s | 3 | Atendimento administrativo | ABT-006, ABT-018 |
 | Coletor OTLP | Adiado | Telemetria (logs, métricas e traces) | — | — | — | Reintrodução futura por ADR-037 | ADR-037 |
 
 **Contratos e versionamento:** integrações futuras serão isoladas por interfaces em `Aplicacao/Abstracoes` e adaptadores em `Infra/Integrations`, com contrato versionado e testes de contrato.
@@ -1640,8 +1647,9 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RF-AUTH-001 a RF-AUTH-010, RNF-SEGURANCA-001, RNF-SEGURANCA-002
+- **Substituição parcial:** o login por senha compartilhado entre perfis foi substituído, para clientes, por autenticação com código OTP de 6 dígitos enviado por e-mail. Cookie seguro, antiforgery, isolamento e autorização por perfil permanecem vigentes; barbeiros e proprietários continuam com e-mail e senha.
 
-**Contexto:** o produto tem login compartilhado entre perfis, cadastros separados e não possui integração com provedor de identidade externo.
+**Contexto:** o produto tem cadastros separados, perfis com fluxos de autenticação distintos e não possui integração com provedor de identidade externo.
 
 **Decisão:** ASP.NET Core Identity com `UserManager`, `SignInManager`, hash PBKDF2 e cookie `__Host-pb.auth`. Perfis de negócio (`CustomerProfile`, `ProfessionalProfile`) são entidades separadas ligadas ao usuário.
 
@@ -2606,7 +2614,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 | ABT-003 | Premissa | Hospedagem em um único provedor e região (a definir em ADR-028) | Latência e continuidade | Tecnologia | Antes da F7 |
 | ABT-004 | Premissa | Metas de RNF são alvos propostos | Testes de carga e SLOs | Produto e Tecnologia | Antes da F7 |
 | ABT-005 | Questão | Como e quando o telefone comercial será verificado? | Cadastro e confiança dos dados | Produto | Antes da F1 |
-| ABT-006 | Questão | Qual política de senha, recuperação e duração de sessão será adotada? | Segurança e experiência | Produto e Tecnologia | Antes da F1 |
+| ABT-006 | Questão | Qual política de senha (barbeiros/proprietários) será adotada? A duração da sessão já está definida na Seção 11.1 | Segurança e experiência | Produto e Tecnologia | Antes da F1 |
 | ABT-007 | Questão | Como tratar pagamentos parciais ou múltiplas formas? | Modelo de pagamento e dashboard | Produto | Antes da F4 |
 | ABT-008 | Questão | Quais eventos e conteúdos mínimos as notificações terão? | Modelo de notificação | Produto | Antes da F5 |
 | ABT-009 | Questão | Qual política de retenção, anonimização e exclusão será adotada? | Conformidade LGPD | Produto e Jurídico | Antes do go-live |
@@ -2618,7 +2626,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 | ABT-015 | Premissa | Bootstrap 5 + SCSS + Bootstrap Icons como design system (ADR-026) | UI e acessibilidade | Produto e Design | Resolvido em ADR-026 |
 | ABT-016 | Premissa | Banco único com `TenantId` é suficiente para a escala e o isolamento | Segurança e operação | Tecnologia | Antes da F1 |
 | ABT-017 | Premissa | Estratégia de execução de processos periódicos permanece pendente (ADR-027) | Jobs e disponibilidade | Tecnologia | Antes da conclusão da F3 |
-| ABT-018 | Questão | Qual provedor de e-mail será usado para recuperação de senha? | Fluxo de recuperação | Produto e Tecnologia | Versão futura |
+| ABT-018 | Questão | Qual provedor de e-mail será usado para o código OTP de clientes (e eventual recuperação futura de senha)? | Autenticação de clientes na V1.0 | Produto e Tecnologia | Antes da F1 — provedor ainda não escolhido |
 | ABT-019 | Questão | Qual o SLA de suporte e janela de manutenção? | Operação e alertas | Produto | Antes do go-live |
 | ABT-020 | Questão | Qual o domínio público definitivo e a política de slugs? | Página pública e SEO | Produto | Antes da F7 |
 
