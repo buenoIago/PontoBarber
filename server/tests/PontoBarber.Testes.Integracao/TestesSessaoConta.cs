@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -116,6 +117,70 @@ public sealed class TestesSessaoConta
     }
 
     [TestMethod]
+    public async Task LoginProfissional_CookiePersistenteComTrintaDias()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        var cliente = fabrica.CreateClient(_opcoesCliente);
+        var (email, senha) = await CriarUsuarioAsync(cliente, "/api/v1/auth/register/professional");
+
+        var resposta = await PostComAntiforgeryAsync(cliente, "/api/v1/auth/login", new { email, senha });
+
+        Assert.AreEqual(HttpStatusCode.NoContent, resposta.StatusCode);
+        var cookie = resposta.Headers.GetValues("Set-Cookie")
+            .FirstOrDefault(valor => valor.Contains("__Host-pb.auth", StringComparison.Ordinal));
+        Assert.IsNotNull(cookie, "Cookie de autenticação não emitido.");
+        Assert.IsTrue(cookie.Contains("expires=", StringComparison.OrdinalIgnoreCase), "Cookie não persistente.");
+        var expiracao = ObterExpiracaoCookie(cookie);
+        var esperado = DateTimeOffset.UtcNow.AddDays(30);
+        Assert.IsTrue(
+            Math.Abs((expiracao - esperado).TotalMinutes) <= 2,
+            $"Expiração inesperada: {expiracao}; esperado próximo de {esperado}.");
+    }
+
+    [TestMethod]
+    public async Task Sessao_ComAcessoValidoAposMetadeDoPrazo_RenovaCookie()
+    {
+        var relogio = new RelogioFalso(DateTimeOffset.UtcNow);
+        using var fabrica = CriarFabricaComBanco(relogio);
+        var cliente = fabrica.CreateClient(_opcoesCliente);
+        var (email, senha) = await CriarUsuarioAsync(cliente, "/api/v1/auth/register/professional");
+        Assert.AreEqual(
+            HttpStatusCode.NoContent,
+            (await PostComAntiforgeryAsync(cliente, "/api/v1/auth/login", new { email, senha })).StatusCode);
+
+        // 16 dias > metade dos 30: o handler dispara a renovação deslizante.
+        relogio.Avancar(TimeSpan.FromDays(16));
+        var resposta = await cliente.GetAsync("/api/v1/auth/me");
+
+        Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
+        var cookie = resposta.Headers.GetValues("Set-Cookie")
+            .FirstOrDefault(valor => valor.Contains("__Host-pb.auth", StringComparison.Ordinal));
+        Assert.IsNotNull(cookie, "Cookie não foi renovado.");
+        var expiracao = ObterExpiracaoCookie(cookie);
+        var esperado = relogio.Agora.AddDays(30);
+        Assert.IsTrue(
+            Math.Abs((expiracao - esperado).TotalMinutes) <= 2,
+            $"Expiração renovada inesperada: {expiracao}; esperado próximo de {esperado}.");
+    }
+
+    [TestMethod]
+    public async Task Sessao_AposInatividadeDeTrintaDias_ExigeNovaAutenticacao()
+    {
+        var relogio = new RelogioFalso(DateTimeOffset.UtcNow);
+        using var fabrica = CriarFabricaComBanco(relogio);
+        var cliente = fabrica.CreateClient(_opcoesCliente);
+        var (email, senha) = await CriarUsuarioAsync(cliente, "/api/v1/auth/register/professional");
+        Assert.AreEqual(
+            HttpStatusCode.NoContent,
+            (await PostComAntiforgeryAsync(cliente, "/api/v1/auth/login", new { email, senha })).StatusCode);
+
+        relogio.Avancar(TimeSpan.FromDays(31));
+        var resposta = await cliente.GetAsync("/api/v1/auth/me");
+
+        Assert.AreEqual(HttpStatusCode.Unauthorized, resposta.StatusCode);
+    }
+
+    [TestMethod]
     public async Task AlterarSenha_ComSenhaAtualIncorreta_Retorna400()
     {
         using var fabrica = CriarFabricaComBanco();
@@ -154,20 +219,28 @@ public sealed class TestesSessaoConta
     }
 
     private static WebApplicationFactory<Program> CriarFabricaComBanco() =>
+        CriarFabricaComBanco(TimeProvider.System);
+
+    private static WebApplicationFactory<Program> CriarFabricaComBanco(TimeProvider relogio) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:DefaultConnection"] =
                         ConfiguracaoTestesIntegracao.Container.ObterStringConexao("master")
-                })));
+                }));
+            builder.ConfigureServices(servicos => servicos.AddSingleton(relogio));
+        });
 
-    private static async Task<(string Email, string Senha)> CriarUsuarioAsync(HttpClient cliente)
+    private static async Task<(string Email, string Senha)> CriarUsuarioAsync(
+        HttpClient cliente,
+        string rota = "/api/v1/auth/register/customer")
     {
         var email = "sessao-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
         var senha = "Senha123";
 
-        var resposta = await PostComAntiforgeryAsync(cliente, "/api/v1/auth/register/customer", new
+        var resposta = await PostComAntiforgeryAsync(cliente, rota, new
         {
             nomeCompleto = "Usuário Sessão",
             email,
@@ -241,5 +314,23 @@ public sealed class TestesSessaoConta
     {
         using var documento = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync());
         return documento.RootElement.Clone();
+    }
+
+    private static DateTimeOffset ObterExpiracaoCookie(string cookie)
+    {
+        var atributo = cookie.Split(';')
+            .Select(parte => parte.Trim())
+            .FirstOrDefault(parte => parte.StartsWith("expires=", StringComparison.OrdinalIgnoreCase));
+        Assert.IsNotNull(atributo, $"Cookie sem expires: {cookie}");
+        return DateTimeOffset.Parse(atributo!["expires=".Length..], CultureInfo.InvariantCulture);
+    }
+
+    private sealed class RelogioFalso(DateTimeOffset agora) : TimeProvider
+    {
+        public DateTimeOffset Agora { get; private set; } = agora;
+
+        public override DateTimeOffset GetUtcNow() => Agora;
+
+        public void Avancar(TimeSpan intervalo) => Agora = Agora.Add(intervalo);
     }
 }

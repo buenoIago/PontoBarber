@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -5,13 +7,15 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Infra.Identity;
 
 namespace PontoBarber.Testes.Integracao;
 
 /// <summary>
-/// ADR-005 / TDD §11.1: Identity com política de senha e cookie protegido.
-/// Não cobre cadastro, login, logout nem autorização (Tasks 3.2 a 3.5).
+/// ADR-005 / TDD §11.1: Identity com política de senha, cookie protegido e
+/// duração de sessão por perfil. Não cobre cadastro, login, logout nem
+/// autorização (Tasks 3.2 a 3.5).
 /// </summary>
 [TestClass]
 public sealed class TestesIdentity : IDisposable
@@ -37,8 +41,57 @@ public sealed class TestesIdentity : IDisposable
         Assert.AreEqual(CookieSecurePolicy.Always, opcoes.Cookie.SecurePolicy);
         Assert.AreEqual(SameSiteMode.Lax, opcoes.Cookie.SameSite);
         Assert.AreEqual("/", opcoes.Cookie.Path);
-        Assert.AreEqual(TimeSpan.FromHours(8), opcoes.ExpireTimeSpan);
+        // Reserva para tickets sem ExpiresUtc; o prazo real é definido por perfil no OnSigningIn.
+        Assert.AreEqual(TimeSpan.FromDays(30), opcoes.ExpireTimeSpan);
         Assert.IsTrue(opcoes.SlidingExpiration);
+        Assert.IsNotNull(opcoes.TimeProvider);
+        Assert.IsNotNull(opcoes.Events?.OnSigningIn);
+    }
+
+    [TestMethod]
+    [DataRow(ServicoConta.TipoCliente, 60)]
+    [DataRow(ServicoConta.TipoBarbeiro, 30)]
+    public async Task EventoSigningIn_DeveDefinirPrazoPorPerfil(string tipo, int dias)
+    {
+        var relogio = new RelogioFalso(new DateTimeOffset(2026, 11, 19, 12, 0, 0, TimeSpan.Zero));
+        using var fabrica = CriarFabricaComRelogio(relogio);
+        var opcoes = ObterOpcoesCookie(fabrica);
+
+        var contexto = CriarContexto(opcoes, new Claim("UserType", tipo));
+        await opcoes.Events!.OnSigningIn!(contexto);
+
+        Assert.AreEqual(relogio.Agora, contexto.Properties.IssuedUtc);
+        Assert.AreEqual(relogio.Agora.AddDays(dias), contexto.Properties.ExpiresUtc);
+        Assert.IsTrue(contexto.Properties.IsPersistent);
+        Assert.IsTrue(contexto.Properties.AllowRefresh);
+    }
+
+    [TestMethod]
+    public async Task EventoSigningIn_Proprietario_CompartilhaPrazoDeProfissional()
+    {
+        var relogio = new RelogioFalso(new DateTimeOffset(2026, 11, 19, 12, 0, 0, TimeSpan.Zero));
+        using var fabrica = CriarFabricaComRelogio(relogio);
+        var opcoes = ObterOpcoesCookie(fabrica);
+
+        var contexto = CriarContexto(opcoes,
+            new Claim("UserType", ServicoConta.TipoBarbeiro),
+            new Claim("TenantOwner", "true"));
+        await opcoes.Events!.OnSigningIn!(contexto);
+
+        Assert.AreEqual(relogio.Agora.AddDays(30), contexto.Properties.ExpiresUtc);
+    }
+
+    [TestMethod]
+    public async Task EventoSigningIn_SemPerfilConhecido_UsaPrazoMenor()
+    {
+        var relogio = new RelogioFalso(new DateTimeOffset(2026, 11, 19, 12, 0, 0, TimeSpan.Zero));
+        using var fabrica = CriarFabricaComRelogio(relogio);
+        var opcoes = ObterOpcoesCookie(fabrica);
+
+        var contexto = CriarContexto(opcoes);
+        await opcoes.Events!.OnSigningIn!(contexto);
+
+        Assert.AreEqual(relogio.Agora.AddDays(30), contexto.Properties.ExpiresUtc);
     }
 
     [TestMethod]
@@ -94,5 +147,33 @@ public sealed class TestesIdentity : IDisposable
             "Senha123");
 
         Assert.IsTrue(resultado.Succeeded, string.Join("; ", resultado.Errors.Select(erro => erro.Code)));
+    }
+
+    private static WebApplicationFactory<Program> CriarFabricaComRelogio(RelogioFalso relogio) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureServices(servicos => servicos.AddSingleton<TimeProvider>(relogio)));
+
+    private static CookieAuthenticationOptions ObterOpcoesCookie(WebApplicationFactory<Program> fabrica) =>
+        fabrica.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(IdentityConstants.ApplicationScheme);
+
+    private static CookieSigningInContext CriarContexto(
+        CookieAuthenticationOptions opcoes,
+        params Claim[] claims)
+    {
+        var esquema = new AuthenticationScheme(
+            IdentityConstants.ApplicationScheme, null, typeof(CookieAuthenticationHandler));
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "Teste"));
+        return new CookieSigningInContext(
+            new DefaultHttpContext(), esquema, opcoes, principal, new AuthenticationProperties(), new CookieOptions());
+    }
+
+    private sealed class RelogioFalso(DateTimeOffset agora) : TimeProvider
+    {
+        public DateTimeOffset Agora { get; private set; } = agora;
+
+        public override DateTimeOffset GetUtcNow() => Agora;
+
+        public void Avancar(TimeSpan intervalo) => Agora = Agora.Add(intervalo);
     }
 }

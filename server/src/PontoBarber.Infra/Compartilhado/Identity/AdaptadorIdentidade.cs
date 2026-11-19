@@ -62,8 +62,9 @@ public sealed class AdaptadorIdentidade(
             return usuario is null ? ResultadoAutenticacao.CredenciaisInvalidas : ResultadoAutenticacao.Bloqueado;
 
         var tentativasAntes = await usuarios.GetAccessFailedCountAsync(usuario);
+        // Cookie persistente: a duração por perfil é aplicada no evento OnSigningIn.
         var resultado = await entradas.PasswordSignInAsync(
-            usuario, senha, isPersistent: false, lockoutOnFailure: false);
+            usuario, senha, isPersistent: true, lockoutOnFailure: false);
 
         if (resultado.Succeeded)
             return ResultadoAutenticacao.Sucesso;
