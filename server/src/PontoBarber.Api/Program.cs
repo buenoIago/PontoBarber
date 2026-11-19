@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PontoBarber.Api.Compartilhado.Http;
-using PontoBarber.Api.Compartilhado.Observabilidade;
+using PontoBarber.Api.Compartilhado.Logging;
 using PontoBarber.Api.Compartilhado.Tenant;
 using PontoBarber.Api.Health;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Infra;
 using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,8 @@ var loggerConsole = new LoggerConfiguration()
 builder.Host.UseSerilog((contexto, servicos, configuracao) =>
 {
     configuracao
+        .MinimumLevel.Information()
+        .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
         .ReadFrom.Configuration(contexto.Configuration)
         .Enrich.FromLogContext()
         .Enrich.WithProperty("Aplicacao", "PontoBarber")

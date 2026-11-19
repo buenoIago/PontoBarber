@@ -3,7 +3,7 @@ using Serilog.Core;
 using Serilog.Events;
 using Serilog.Parsing;
 
-namespace PontoBarber.Api.Compartilhado.Observabilidade;
+namespace PontoBarber.Api.Compartilhado.Logging;
 
 /// <summary>
 /// Aplica redação ao LogEvent antes de encaminhá-lo a qualquer destino,

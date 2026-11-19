@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Claims;
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
-using PontoBarber.Api.Compartilhado.Observabilidade;
+using PontoBarber.Api.Compartilhado.Http;
+using PontoBarber.Api.Compartilhado.Logging;
 using PontoBarber.Api.Compartilhado.Tenant;
 using Serilog;
 using Serilog.Core;
@@ -34,17 +34,14 @@ public class TestesObservabilidade : IDisposable
             [new Claim(ClaimTypes.NameIdentifier, "usuario-123")], "Teste"));
         contexto.Items[ChavesContextoTenant.TenantId] = _tenantValidado;
 
-        var (logger, saida) = CriarLogger(contexto);
+        var (logger, eventos) = CriarLogger(contexto);
         logger.Information("requisição processada");
 
-        using var json = JsonDocument.Parse(saida.ToString());
-        var raiz = json.RootElement;
-
-        Assert.AreEqual("trace-observabilidade-123", raiz.GetProperty("TraceId").GetString());
-        Assert.AreEqual("trace-observabilidade-123", raiz.GetProperty("RequestId").GetString());
-        Assert.IsTrue(raiz.TryGetProperty("UserId", out var usuario));
-        Assert.AreNotEqual(string.Empty, usuario.GetString());
-        Assert.AreEqual(_tenantValidado.ToString(), raiz.GetProperty("TenantId").GetString());
+        var evento = eventos.Single();
+        Assert.AreEqual("trace-observabilidade-123", ObterTexto(evento, "TraceId"));
+        Assert.AreEqual("trace-observabilidade-123", ObterTexto(evento, "RequestId"));
+        Assert.AreEqual(32, ObterTexto(evento, "UserId")?.Length);
+        Assert.AreEqual(_tenantValidado.ToString(), ObterTexto(evento, "TenantId"));
     }
 
     [TestMethod]
@@ -52,24 +49,22 @@ public class TestesObservabilidade : IDisposable
     {
         var contexto = new DefaultHttpContext();
         contexto.TraceIdentifier = "trace-publica-456";
-        contexto.Request.RouteValues["barbershopId"] = Guid.NewGuid().ToString();
+        contexto.Request.RouteValues[TenantResolutionMiddleware.NomeParametroRota] = Guid.NewGuid().ToString();
         contexto.Request.Body = new MemoryStream();
 
-        var (logger, saida) = CriarLogger(contexto);
+        var (logger, eventos) = CriarLogger(contexto);
         logger.Information("rota pública processada");
 
-        using var json = JsonDocument.Parse(saida.ToString());
-        var raiz = json.RootElement;
-
-        Assert.AreEqual("trace-publica-456", raiz.GetProperty("TraceId").GetString());
-        Assert.IsFalse(raiz.TryGetProperty("UserId", out _));
-        Assert.IsFalse(raiz.TryGetProperty("TenantId", out _));
+        var evento = eventos.Single();
+        Assert.AreEqual("trace-publica-456", ObterTexto(evento, "TraceId"));
+        Assert.IsNull(ObterTexto(evento, "UserId"));
+        Assert.IsNull(ObterTexto(evento, "TenantId"));
     }
 
     [TestMethod]
     public void Redacao_ObjetoComDadosSensiveis_MascaraPropriedades()
     {
-        var (logger, saida) = CriarLogger(null);
+        var (logger, eventos) = CriarLogger(null);
         var registro = new RegistroSensivel
         {
             Nome = "João",
@@ -80,7 +75,7 @@ public class TestesObservabilidade : IDisposable
 
         logger.Information("dados {@Registro}", registro);
 
-        var texto = saida.ToString();
+        var texto = RenderizarEvento(eventos.Single());
         Assert.IsTrue(texto.Contains("João", StringComparison.Ordinal));
         Assert.IsFalse(texto.Contains("senhaSuperSecreta", StringComparison.Ordinal));
         Assert.IsFalse(texto.Contains("joao.silva@exemplo.com", StringComparison.Ordinal));
@@ -90,7 +85,7 @@ public class TestesObservabilidade : IDisposable
     [TestMethod]
     public void Redacao_PropriedadesEscalaresSensiveis_SaoMascaradas()
     {
-        var (logger, saida) = CriarLogger(null);
+        var (logger, eventos) = CriarLogger(null);
 
         logger.Information(
             "tentativa {Password} {Token} {Cookie}",
@@ -98,7 +93,7 @@ public class TestesObservabilidade : IDisposable
             "tokenNaoLogar",
             "cookieNaoLogar");
 
-        var texto = saida.ToString();
+        var texto = RenderizarEvento(eventos.Single());
         Assert.IsFalse(texto.Contains("senhaNaoLogar", StringComparison.Ordinal));
         Assert.IsFalse(texto.Contains("tokenNaoLogar", StringComparison.Ordinal));
         Assert.IsFalse(texto.Contains("cookieNaoLogar", StringComparison.Ordinal));
@@ -107,11 +102,11 @@ public class TestesObservabilidade : IDisposable
     [TestMethod]
     public void Redacao_MensagemComEmailETelefone_SaoMascarados()
     {
-        var (logger, saida) = CriarLogger(null);
+        var (logger, eventos) = CriarLogger(null);
 
         logger.Information("contato maria@empresa.com 21999887766");
 
-        var texto = saida.ToString();
+        var texto = RenderizarEvento(eventos.Single());
         Assert.IsFalse(texto.Contains("maria@empresa.com", StringComparison.Ordinal));
         Assert.IsFalse(texto.Contains("21999887766", StringComparison.Ordinal));
     }
@@ -173,20 +168,27 @@ public class TestesObservabilidade : IDisposable
         Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
     }
 
-    private static (Logger Logger, StringWriter Saida) CriarLogger(HttpContext? contexto)
+    private static (Logger Logger, List<LogEvent> Eventos) CriarLogger(HttpContext? contexto)
     {
         var accessor = new HttpContextAccessor { HttpContext = contexto };
-        var saida = new StringWriter();
+        var captura = new SinkCaptura();
 
         var logger = new LoggerConfiguration()
             .MinimumLevel.Verbose()
             .Enrich.With(new CorrelacaoLogEnricher(accessor))
             .Destructure.With<PoliticaRedacaoSensiveis>()
-            .WriteTo.Sink(new RedacaoLogEventSink(new SinkConsoleSeguro(saida)))
+            .WriteTo.Sink(new RedacaoLogEventSink(captura))
             .CreateLogger();
 
-        return (logger, saida);
+        return (logger, captura.Eventos);
     }
+
+    private static string? ObterTexto(LogEvent evento, string nome) =>
+        evento.Properties.TryGetValue(nome, out var valor)
+            ? valor is ScalarValue { Value: not null } escalar
+                ? escalar.Value.ToString()
+                : valor.ToString()
+            : null;
 
     private static string RenderizarEvento(LogEvent evento)
     {

@@ -4,7 +4,7 @@ using PontoBarber.Api.Compartilhado.Tenant;
 using Serilog.Core;
 using Serilog.Events;
 
-namespace PontoBarber.Api.Compartilhado.Observabilidade;
+namespace PontoBarber.Api.Compartilhado.Logging;
 
 /// <summary>
 /// Adiciona os dados de correlação da requisição e mascara propriedades
