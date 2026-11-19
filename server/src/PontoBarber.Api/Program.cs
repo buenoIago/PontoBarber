@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.FileProviders;
+using PontoBarber.Api.Compartilhado.Health;
 using PontoBarber.Api.Compartilhado.Http;
 using PontoBarber.Api.Compartilhado.Logging;
 using PontoBarber.Api.Compartilhado.Tenant;
-using PontoBarber.Api.Health;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -50,6 +50,8 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
+string? arquivoIndex = null;
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -60,6 +62,29 @@ if (app.Environment.IsDevelopment())
         opcoes.RoutePrefix = "swagger";
         opcoes.SwaggerEndpoint("/openapi/v1.json", "PontoBarber API v1");
     });
+
+    // Em Development a raiz é apenas a API; a SPA é servida pelo dev server do Angular.
+    app.MapGet("/", () => Results.Json(new
+    {
+        aplicacao = "PontoBarber API",
+        ambiente = "Development"
+    }));
+}
+else
+{
+    // ADR-033: assets da SPA no mesmo host e porta da API, sem CORS e sem Nginx.
+    var webRoot = new[] { app.Environment.WebRootPath, Path.Combine(AppContext.BaseDirectory, "wwwroot") }
+        .FirstOrDefault(caminho => !string.IsNullOrEmpty(caminho) && File.Exists(Path.Combine(caminho, "index.html")))
+        ?? Path.Combine(AppContext.BaseDirectory, "wwwroot");
+    arquivoIndex = Path.Combine(webRoot, "index.html");
+
+    if (Directory.Exists(webRoot))
+    {
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(webRoot),
+        });
+    }
 }
 
 app.UseHttpsRedirection();
@@ -70,20 +95,6 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
-
-// ADR-033: assets da SPA no mesmo host e porta da API, sem CORS e sem Nginx.
-var webRoot = new[] { app.Environment.WebRootPath, Path.Combine(AppContext.BaseDirectory, "wwwroot") }
-    .FirstOrDefault(caminho => !string.IsNullOrEmpty(caminho) && File.Exists(Path.Combine(caminho, "index.html")))
-    ?? Path.Combine(AppContext.BaseDirectory, "wwwroot");
-var arquivoIndex = Path.Combine(webRoot, "index.html");
-
-if (Directory.Exists(webRoot))
-{
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        FileProvider = new PhysicalFileProvider(webRoot),
-    });
-}
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
@@ -97,11 +108,17 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 app.MapControllers();
 
-// Somente rotas da SPA recebem index.html; /api e /health mantêm seus erros HTTP.
+// Somente rotas da SPA recebem index.html; rotas de API, health, OpenAPI e Swagger não são capturadas.
 app.MapFallback(async contexto =>
 {
     var caminho = contexto.Request.Path;
-    if (caminho.StartsWithSegments("/api") || caminho.StartsWithSegments("/health") || !File.Exists(arquivoIndex))
+    var rotaReservada =
+        caminho.StartsWithSegments("/api") ||
+        caminho.StartsWithSegments("/health") ||
+        caminho.StartsWithSegments("/openapi") ||
+        caminho.StartsWithSegments("/swagger");
+
+    if (rotaReservada || arquivoIndex is null || !File.Exists(arquivoIndex))
     {
         contexto.Response.StatusCode = StatusCodes.Status404NotFound;
         return;
