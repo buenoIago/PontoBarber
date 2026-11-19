@@ -20,6 +20,9 @@ npm start               # servidor de desenvolvimento em http://localhost:4200
 ```powershell
 npm run build
 npm run medir-bundle
+npm test
+npm run test:coverage
+npm run e2e
 ```
 
 `medir-bundle` usa `zlib` nativo do Node (sem dependências extras) e contabiliza todos os recursos iniciais efetivamente transferidos, referenciados por `index.html` e pelo CSS inicial: HTML, JS, CSS, favicon e as fontes `.woff2` do Bootstrap Icons. JS, CSS e HTML são medidos após gzip (nível 9); `.woff2` e demais recursos já comprimidos entram pelo tamanho original, pois gzip neles não reflete a transferência. Fontes legadas declaradas apenas como fallback (`.woff`, `.ttf`, `.eot`, `.otf`) não são baixadas pelos navegadores alvo e ficam de fora da medição.
@@ -38,4 +41,10 @@ Os budgets nativos do `angular.json` (`initial`: aviso 400 kB, erro 450 kB) são
 
 Avisos de depreciação do Sass `@import` são esperados com Bootstrap 5.3 (documentado pelo próprio Bootstrap) e não impedem a compilação.
 
-Testes de componente com Vitest e auditoria axe serão instalados e configurados na tarefa 2.4; nesta etapa não há arquivos `.spec.ts` junto aos componentes.
+## Testes
+
+- `npm test` — testes de componente e do cliente HTTP com Vitest + TestBed (cobertura mínima de 70%).
+- `npm run test:coverage` — os mesmos testes com relatório de cobertura.
+- `npm run e2e` — auditoria axe com Playwright; uma violação crítica reprova a execução.
+
+Os testes de componente ficam ao lado de cada componente em `src/app/shared/ui/**/*.spec.ts` e usam `axe-core` diretamente, sem wrapper. Em jsdom a regra de contraste é desabilitada (sem layout); a auditoria axe completa, com contraste, ocorre no E2E em navegador real.

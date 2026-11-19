@@ -97,6 +97,19 @@
             }
           },
           "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "tsconfig.spec.json",
+            "setupFiles": ["src/test-setup.ts"],
+            "coverageThresholds": {
+              "statements": 70,
+              "branches": 70,
+              "functions": 70,
+              "lines": 70
+            }
+          }
         }
       }
     }

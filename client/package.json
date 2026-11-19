@@ -6,6 +6,9 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
+    "test": "ng test --no-watch --no-progress",
+    "test:coverage": "ng test --no-watch --no-progress --coverage",
+    "e2e": "playwright test",
     "medir-bundle": "node scripts/medir-bundle.mjs",
     "format:check": "prettier --check \"src/**/*.{ts,scss,html}\" \"scripts/*.mjs\" angular.json package.json README.md"
   },
@@ -30,8 +33,13 @@
     "@angular/build": "^22.2.8",
     "@angular/cli": "^22.2.8",
     "@angular/compiler-cli": "^22.3.0",
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
+    "@vitest/coverage-v8": "^5.1.1",
+    "jsdom": "^31.0.1",
     "prettier": "^3.8.1",
     "sass": "^1.108.2",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^5.1.1"
   }
 }

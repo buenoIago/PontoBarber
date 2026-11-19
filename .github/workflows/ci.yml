@@ -63,3 +63,41 @@ jobs:
           name: cobertura-backend
           path: TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
+
+  frontend:
+    name: Frontend - build, testes e acessibilidade
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: client/.nvmrc
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Formatação
+        run: npm run format:check
+
+      - name: Testes de componente com cobertura
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Medição do bundle
+        run: npm run medir-bundle
+
+      - name: Instalar navegador do Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Testes E2E e auditoria axe
+        run: npm run e2e
