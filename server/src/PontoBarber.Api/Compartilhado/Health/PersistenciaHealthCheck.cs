@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PontoBarber.Infra.Compartilhado.Orm;
 
-namespace PontoBarber.Api.Health;
+namespace PontoBarber.Api.Compartilhado.Health;
 
 /// <summary>
 /// Verifica se a persistência relacional responde, resolvendo o contexto em
