@@ -28,8 +28,8 @@ public class TestesFiltroGlobalTenant : IDisposable
         SemTenantAtivo();
 
         _context.Set<RegistroTenant>().AddRange(
-            new RegistroTenant { Id = Guid.NewGuid(), TenantId = _tenantA, Name = "Corte" },
-            new RegistroTenant { Id = Guid.NewGuid(), TenantId = _tenantB, Name = "Corte" });
+            new RegistroTenant { Id = Guid.NewGuid(), BarbeariaId = _tenantA, Name = "Corte" },
+            new RegistroTenant { Id = Guid.NewGuid(), BarbeariaId = _tenantB, Name = "Corte" });
         _context.Set<RegistroGlobal>().Add(
             new RegistroGlobal { Id = Guid.NewGuid(), Name = "CatalogoModelo" });
         _context.SaveChanges();
@@ -45,7 +45,7 @@ public class TestesFiltroGlobalTenant : IDisposable
 
         Assert.AreEqual(1, registros.Count);
         foreach (var registro in registros)
-            Assert.AreEqual(_tenantA, registro.TenantId);
+            Assert.AreEqual(_tenantA, registro.BarbeariaId);
     }
 
     [TestMethod]
@@ -57,7 +57,7 @@ public class TestesFiltroGlobalTenant : IDisposable
 
         Assert.AreEqual(1, registros.Count);
         foreach (var registro in registros)
-            Assert.AreEqual(_tenantB, registro.TenantId);
+            Assert.AreEqual(_tenantB, registro.BarbeariaId);
     }
 
     [TestMethod]
@@ -86,7 +86,7 @@ public class TestesFiltroGlobalTenant : IDisposable
         var registro = ObterUnico(_context.Set<RegistroTenant>().ToList());
         var idRegistroA = registro.Id;
 
-        registro.TenantId = _tenantB;
+        registro.BarbeariaId = _tenantB;
 
         // O registro de A continua invisível para B, mesmo com o valor alterado em memória.
         ComTenantBAtivo();
@@ -98,17 +98,17 @@ public class TestesFiltroGlobalTenant : IDisposable
         _context.ChangeTracker.Clear();
         ComTenantAAtivo();
         var persistido = ObterUnico(_context.Set<RegistroTenant>().Where(item => item.Id == idRegistroA).ToList());
-        Assert.AreEqual(_tenantA, persistido.TenantId);
+        Assert.AreEqual(_tenantA, persistido.BarbeariaId);
     }
 
     [TestMethod]
     public void FiltroGlobal_MesmaInstanciaComContextoTrocado_ReavaliaOTenant()
     {
         ComTenantAAtivo();
-        Assert.AreEqual(_tenantA, ObterUnico(_context.Set<RegistroTenant>().ToList()).TenantId);
+        Assert.AreEqual(_tenantA, ObterUnico(_context.Set<RegistroTenant>().ToList()).BarbeariaId);
 
         ComTenantBAtivo();
-        Assert.AreEqual(_tenantB, ObterUnico(_context.Set<RegistroTenant>().ToList()).TenantId);
+        Assert.AreEqual(_tenantB, ObterUnico(_context.Set<RegistroTenant>().ToList()).BarbeariaId);
 
         SemTenantAtivo();
         Assert.AreEqual(0, _context.Set<RegistroTenant>().ToList().Count);
@@ -141,7 +141,7 @@ public class TestesFiltroGlobalTenant : IDisposable
     public sealed class RegistroTenant : IPertencenteTenant
     {
         public Guid Id { get; set; }
-        public Guid TenantId { get; set; }
+        public Guid BarbeariaId { get; set; }
         public string Name { get; set; } = string.Empty;
     }
 

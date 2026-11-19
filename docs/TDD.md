@@ -3,7 +3,7 @@
 > **Documento:** Technical Design Document
 > **Projeto:** PontoBarber
 > **Versão:** 1.0
-> **Status:** Aprovado
+> **Situacao:** Aprovado
 > **Data:** 16/11/2026
 > **Responsável:** Equipe PontoBarber
 > **PRD/SPEC de referência:** `docs/PRD.md` versão 1.0
@@ -20,7 +20,7 @@
 
 O PontoBarber será implementado como uma aplicação web com frontend Angular 22 e backend .NET 10, organizados em um único repositório. O backend segue Clean Architecture com modelagem tática de DDD, expõe uma API REST versionada em `/api/v1`, usa ASP.NET Core Identity com autenticação por cookie e persiste em SQL Server por meio do EF Core 10. O frontend é uma SPA standalone, zoneless, baseada em signals, com Bootstrap 5 + SCSS + Bootstrap Icons e design system próprio em `shared/ui`.
 
-O isolamento entre barbearias é feito em banco único compartilhado, com `TenantId` obrigatório em todas as entidades de negócio, filtros globais no EF Core e validação de tenant na camada de aplicação. A reserva de horários é o ponto de maior risco técnico: a confirmação ocorre em transação com `sp_getapplock` por profissional e data, seguida de verificação de sobreposição e índice único para impedir duplicidade exata. Processos periódicos, como a expiração da sugestão de horário, são abstraídos na aplicação e executados por um adaptador de scheduler cuja escolha permanece pendente (ADR-027); cada processo é implementado como operação idempotente.
+O isolamento entre barbearias é feito em banco único compartilhado, com `BarbeariaId` obrigatório em todas as entidades de negócio, filtros globais no EF Core e validação de tenant na camada de aplicação. A reserva de horários é o ponto de maior risco técnico: a confirmação ocorre em transação com `sp_getapplock` por profissional e data, seguida de verificação de sobreposição e índice único para impedir duplicidade exata. Processos periódicos, como a expiração da sugestão de horário, são abstraídos na aplicação e executados por um adaptador de scheduler cuja escolha permanece pendente (ADR-027); cada processo é implementado como operação idempotente.
 
 A aplicação é empacotada em containers Linux sobre SQL Server 2022. O serviço de banco gerenciado, o provedor de nuvem e o ambiente de execução não estão definidos e permanecem em aberto (ADR-028, ABT-003, ABT-014). As decisões ainda não confirmadas permanecem marcadas como `Proposto` na seção 19 e na seção 21.
 
@@ -33,11 +33,11 @@ A aplicação é empacotada em containers Linux sobre SQL Server 2022. O serviç
 | Arquitetura | Clean Architecture com DDD tático e monólito modular | ADR-003 |
 | Banco de dados | SQL Server 2022+ com EF Core 10 e migrations versionadas | ADR-004 |
 | Autenticação | ASP.NET Core Identity com cookie httpOnly | ADR-005 |
-| Multi-tenancy | Banco único com `TenantId`, filtros globais e validação na aplicação | ADR-006 |
+| Multi-tenancy | Banco único com `BarbeariaId`, filtros globais e validação na aplicação | ADR-006 |
 | API | REST com controllers, versionamento por URL e ProblemDetails | ADR-007, ADR-017 |
 | Concorrência | Transação + `sp_getapplock` por profissional/data + índice único | ADR-010 |
 | Jobs | Execução de processos periódicos abstraída; adaptador de scheduler pendente | ADR-027 |
-| Datas e horários | UTC no banco, `TimeZoneId` IANA por barbearia | ADR-011 |
+| Datas e horários | UTC no banco, `FusoHorarioId` IANA por barbearia | ADR-011 |
 | Testes | MSTest, WebApplicationFactory, Testcontainers e Playwright | ADR-012 |
 | Infraestrutura | Containers Linux e GitHub Actions; hospedagem e provedor de nuvem pendentes | ADR-025, ADR-028 |
 | Observabilidade | Serilog estruturado + health checks; instrumentação/exportação adiada | ADR-014, ADR-037 |
@@ -131,18 +131,18 @@ Premissa de volumetria para a V1.0: até 500 barbearias, até 5.000 profissionai
 
 | ID | Requisito | Módulo/componente | Impacto arquitetural |
 | --- | --- | --- | --- |
-| RF-AUTH-001 a RF-AUTH-010 | Cadastro, login, criação de barbearia e código de convite | `Auth`, `Tenants`, `Professionals` | Identity, cookie, policies e transação de criação de tenant |
-| RF-EMP-001 a RF-EMP-003 | Consulta e edição da barbearia | `Tenants` | Autorização por papel e isolamento por tenant |
-| RF-SERV-001 a RF-SERV-008 | Catálogo de serviços e snapshot | `Services`, `Appointments` | Desativação lógica e cópia de dados no agendamento |
-| RF-HOR-001 a RF-HOR-007 | Funcionamento, disponibilidade e bloqueios | `Scheduling`, `Professionals` | Motor de disponibilidade e conversão de fuso |
-| RF-AGD-001 a RF-AGD-018 | Agenda, criação manual, cancelamento, remarcação e sugestão | `Appointments`, `Scheduling` | Transação de reserva, histórico e job de expiração |
-| RF-ATD-001 a RF-ATD-009 | Atendimento e pagamento | `Appointments`, `Payments` | Máquina de estados e separação de situações |
-| RF-CLI-001 a RF-CLI-006 | Consulta de clientes e edição dos próprios dados | `Customers`, `Appointments` | Consulta derivada de agendamentos e autorização por titular |
-| RF-PROF-001 a RF-PROF-008 | Gestão de vínculos e código de convite | `Professionals` | Vínculo como entidade própria e histórico preservado |
+| RF-AUTH-001 a RF-AUTH-010 | Cadastro, login, criação de barbearia e código de convite | `Auth`, `Barbearia`, `Profissionais` | Identity, cookie, policies e transação de criação de tenant |
+| RF-EMP-001 a RF-EMP-003 | Consulta e edição da barbearia | `Barbearia` | Autorização por papel e isolamento por tenant |
+| RF-SERV-001 a RF-SERV-008 | Catálogo de serviços e snapshot | `Serviços`, `Agendamentos` | Desativação lógica e cópia de dados no agendamento |
+| RF-HOR-001 a RF-HOR-007 | Funcionamento, disponibilidade e bloqueios | `Disponibilidade`, `Profissionais` | Motor de disponibilidade e conversão de fuso |
+| RF-AGD-001 a RF-AGD-018 | Agenda, criação manual, cancelamento, remarcação e sugestão | `Agendamentos`, `Disponibilidade` | Transação de reserva, histórico e job de expiração |
+| RF-ATD-001 a RF-ATD-009 | Atendimento e pagamento | `Agendamentos`, `Financeiro` | Máquina de estados e separação de situações |
+| RF-CLI-001 a RF-CLI-006 | Consulta de clientes e edição dos próprios dados | `Clientes`, `Agendamentos` | Consulta derivada de agendamentos e autorização por titular |
+| RF-PROF-001 a RF-PROF-008 | Gestão de vínculos e código de convite | `Profissionais` | Vínculo como entidade própria e histórico preservado |
 | RF-DASH-001 a RF-DASH-005 | Indicadores e próximos agendamentos | `Dashboard` | Consultas agregadas por período e tenant |
 | RF-PUB-001 a RF-PUB-006 | Página pública e agendamento | `PublicBooking` | Endpoints anônimos de leitura e confirmação autenticada |
-| RF-CONF-001 a RF-CONF-008 | Configurações gerais e individuais | `Settings` | Autorização diferenciada por papel |
-| RF-NOTIF-001 | Notificações internas | `Notifications` | Persistência, polling e geração por eventos de domínio |
+| RF-CONF-001 a RF-CONF-008 | Configurações gerais e individuais | `Configurações` | Autorização diferenciada por papel |
+| RF-NOTIF-001 | Notificações internas | `Notificações` | Persistência, polling e geração por eventos de domínio |
 
 ## 4.2. Requisitos não funcionais
 
@@ -247,16 +247,16 @@ Módulos de domínio mapeados a partir do PRD:
 
 | Módulo | Bounded contexto lógico | Agregados principais |
 | --- | --- | --- |
-| `Auth` | Identidade e acesso | `User`, `CustomerProfile`, `ProfessionalProfile` |
-| `Tenants` | Barbearia | `Barbershop`, `BusinessHour` |
-| `Professionals` | Vínculos profissionais | `ProfessionalTenantLink`, `WeeklyAvailability`, `ScheduleBlock` |
-| `Services` | Catálogo | `Service` |
-| `Scheduling` | Disponibilidade e reserva | `AvailabilitySlot` (read model), `BookingPolicy` |
-| `Appointments` | Agenda | `Appointment`, `AppointmentHistory`, `TimeSlotSuggestion` |
-| `Payments` | Financeiro operacional | `Payment` |
+| `Auth` | Identidade e acesso | `User`, `PerfilCliente`, `PerfilProfissional` |
+| `Barbearia` | Barbearia | `Barbearia`, `HorarioFuncionamento` |
+| `Profissionais` | Vínculos profissionais | `VinculoProfissional`, `DisponibilidadeSemanal`, `BloqueioAgenda` |
+| `Serviços` | Catálogo | `Servico` |
+| `Disponibilidade` | Disponibilidade e reserva | `SlotDisponibilidade` (read model), `PoliticaReserva` |
+| `Agendamentos` | Agenda | `Agendamento`, `HistoricoAgendamento`, `SugestaoHorario` |
+| `Financeiro` | Financeiro operacional | `Pagamento` |
 | `Dashboard` | Leitura agregada | Projeções de consulta |
-| `Notifications` | Comunicação interna | `Notification` |
-| `Settings` | Configurações | Visões sobre `Barbershop` e `ProfessionalTenantLink` |
+| `Notificações` | Comunicação interna | `Notificacao` |
+| `Configurações` | Configurações | Visões sobre `Barbearia` e `VinculoProfissional` |
 
 ## 5.4. Fronteiras e regras de dependência
 
@@ -275,19 +275,19 @@ Módulos de domínio mapeados a partir do PRD:
 ### 5.5.1. Confirmação de agendamento (público e manual)
 
 **Atores:** Cliente autenticado, barbeiro ou proprietário.
-**Entradas:** `tenantId` derivado da rota ou do contexto, `professionalId`, `serviceId`, `start` em UTC, `notes`, `origin`, chave de idempotência.
-**Transações:** uma transação `READ COMMITTED` com `sp_getapplock` exclusivo por `tenantId:professionalId:yyyy-MM-dd`.
+**Entradas:** `tenantId` derivado da rota ou do contexto, `profissionalId`, `servicoId`, `start` em UTC, `notes`, `origin`, chave de idempotência.
+**Transações:** uma transação `READ COMMITTED` com `sp_getapplock` exclusivo por `tenantId:profissionalId:yyyy-MM-dd`.
 
 1. Validar autenticação, tenant, serviço ativo, profissional ativo e vinculado.
 2. Carregar duração do serviço e calcular `end = start + duration` no fuso da barbearia.
 3. Adquirir `sp_getapplock` com timeout de 5 segundos.
 4. Validar funcionamento da barbearia, disponibilidade semanal, bloqueios e conflitos de agendamento.
-5. Criar `Appointment` com snapshot de nome, duração e preço do serviço.
+5. Criar `Agendamento` com snapshot de nome, duração e preço do serviço.
 6. Persistir, registrar histórico inicial e notificações, e confirmar a transação.
 7. Liberar o lock; em caso de falha, retornar `409` com código `schedule.slot_unavailable`.
 
 **Falhas e compensações:** conflito retorna 409 sem persistência; timeout de lock retorna 503 com `Retry-After: 1`; falha após persistência é resolvida pela transação atômica.
-**Idempotência:** cabeçalho `Idempotency-Key`; a chave é armazenada por 24 horas e devolve a mesma resposta para requisições repetidas.
+**Idempotência:** cabeçalho `Idempotency-Chave`; a chave é armazenada por 24 horas e devolve a mesma resposta para requisições repetidas.
 
 ### 5.5.2. Cancelamento com sugestão de horário
 
@@ -297,13 +297,13 @@ Módulos de domínio mapeados a partir do PRD:
 1. Validar que o agendamento está confirmado e não iniciou.
 2. Exigir motivo e novo horário quando a origem for barbeiro.
 3. Cancelar o agendamento com autor e data, preservando o histórico.
-4. Criar `TimeSlotSuggestion` com `ExpiresAtUtc = now + 24h` e reservar o horário sugerido.
+4. Criar `SugestaoHorario` com `ExpiraEmUtc = now + 24h` e reservar o horário sugerido.
 5. Notificar o cliente.
 6. Cliente aceita: transferir o agendamento para o novo horário e manter o histórico.
 7. Cliente rejeita ou job expira: liberar o horário e manter o agendamento original cancelado.
 
-**Falhas e compensações:** se o horário sugerido ficar indisponível antes da criação, retornar 409; se o job falhar, a próxima execução reprocessa por `ExpiresAtUtc` vencido.
-**Idempotência:** aceite e rejeição são idempotentes por `suggestionId` e estado atual.
+**Falhas e compensações:** se o horário sugerido ficar indisponível antes da criação, retornar 409; se o job falhar, a próxima execução reprocessa por `ExpiraEmUtc` vencido.
+**Idempotência:** aceite e rejeição são idempotentes por `sugestaoId` e estado atual.
 
 ### 5.5.3. Atendimento e pagamento
 
@@ -311,8 +311,8 @@ Módulos de domínio mapeados a partir do PRD:
 **Transações:** transições de estado com verificação de concorrência otimista por `RowVersion`.
 
 1. Iniciar atendimento apenas em agendamento confirmado e no dia do agendamento.
-2. Registrar `ActualStartUtc` com `IRelogio` e mudar status para `InProgress`.
-3. Finalizar apenas atendimento em andamento; registrar `ActualEndUtc`.
+2. Registrar `InicioRealUtc` com `IRelogio` e mudar status para `InProgress`.
+3. Finalizar apenas atendimento em andamento; registrar `FimRealUtc`.
 4. Registrar pagamento com valor não negativo e forma permitida, independente do estado do atendimento.
 5. Atualizar indicadores por consulta agregada, sem tabela de saldo.
 
@@ -460,24 +460,24 @@ PontoBarber/
 │   │   ├── PontoBarber.Dominio/
 │   │   │   ├── Compartilhado/
 │   │   │   ├── Identity/
-│   │   │   ├── Tenants/
-│   │   │   ├── Professionals/
-│   │   │   ├── Services/
-│   │   │   ├── Scheduling/
-│   │   │   ├── Appointments/
-│   │   │   ├── Payments/
-│   │   │   └── Notifications/
+│   │   │   ├── Barbearia/
+│   │   │   ├── Profissionais/
+│   │   │   ├── Serviços/
+│   │   │   ├── Disponibilidade/
+│   │   │   ├── Agendamentos/
+│   │   │   ├── Financeiro/
+│   │   │   └── Notificações/
 │   │   ├── PontoBarber.Aplicacao/
 │   │   │   ├── Compartilhado/
 │   │   │   ├── Auth/
-│   │   │   ├── Tenants/
-│   │   │   ├── Professionals/
-│   │   │   ├── Services/
-│   │   │   ├── Scheduling/
-│   │   │   ├── Appointments/
-│   │   │   ├── Payments/
+│   │   │   ├── Barbearia/
+│   │   │   ├── Profissionais/
+│   │   │   ├── Serviços/
+│   │   │   ├── Disponibilidade/
+│   │   │   ├── Agendamentos/
+│   │   │   ├── Financeiro/
 │   │   │   ├── Dashboard/
-│   │   │   └── Notifications/
+│   │   │   └── Notificações/
 │   │   ├── PontoBarber.Infra/
 │   │   │   ├── Compartilhado/Orm/
 │   │   │   │   ├── Configurations/
@@ -539,10 +539,10 @@ PontoBarber/
 ## 7.1. Convenções
 
 - Projetos, namespaces e tipos em PascalCase; variáveis e parâmetros em camelCase; campos privados com `_camelCase`.
-- Rotas da API em kebab-case e plural: `/api/v1/barbershops/{barbershopId}/appointments`.
+- Rotas da API em kebab-case e plural: `/api/v1/barbearias/{barbeariaId}/agendamentos`.
 - Componentes Angular em arquivos `.ts` com template `.html`, sem sufixo `.component`; serviços `.service.ts`, guards `.guard.ts` e modelos `.models.ts`. Cada componente compartilhado fica em uma pasta com seus arquivos `.ts` e `.html`, conforme o projeto de referência.
 - Testes nomeados `Metodo_Cenario_Resultado` no backend e `should comportamento when cenario` no frontend.
-- Um caso de uso por classe em `Aplicacao`, com sufixo `Handler` ou `Service` e método único `HandleAsync`.
+- Um caso de uso por classe em `Aplicacao`, com sufixo `Handler` ou `Servico` e método único `HandleAsync`.
 - DTOs de entrada terminam em `Request`; de saída, em `Response`.
 - Enums de domínio persistidos como `int` e serializados como `string` na API.
 - Nenhum `SELECT *`; consultas sempre projetadas.
@@ -554,17 +554,17 @@ PontoBarber/
 | Caminho | Módulo | Responsabilidade |
 | --- | --- | --- |
 | `Dominio/Identity` | AUTH | Usuários, perfis e regras de vínculo de conta |
-| `Dominio/Tenants` | EMP, CONF | Barbearia, horários de funcionamento e configurações |
-| `Dominio/Professionals` | PROF, HOR | Vínculo, disponibilidade semanal e bloqueios |
-| `Dominio/Services` | SERV | Catálogo e regras de preço e duração |
-| `Dominio/Appointments` | AGD, PUB, ATD | Agendamento, histórico, sugestão e atendimento |
-| `Dominio/Payments` | ATD, DASH | Pagamento presencial |
-| `Dominio/Notifications` | NOTIF | Notificação interna |
+| `Dominio/Barbearia` | EMP, CONF | Barbearia, horários de funcionamento e configurações |
+| `Dominio/Profissionais` | PROF, HOR | Vínculo, disponibilidade semanal e bloqueios |
+| `Dominio/Serviços` | SERV | Catálogo e regras de preço e duração |
+| `Dominio/Agendamentos` | AGD, PUB, ATD | Agendamento, histórico, sugestão e atendimento |
+| `Dominio/Financeiro` | ATD, DASH | Pagamento presencial |
+| `Dominio/Notificações` | NOTIF | Notificação interna |
 | `Aplicacao/Dashboard` | DASH | Projeções e consultas agregadas |
-| `Api/Controllers` | Todos | Contratos HTTP versionados |
-| `client/src/app/features/public-booking` | PUB | Página pública e wizard de agendamento |
-| `client/src/app/features/schedule` | AGD, ATD | Agenda diária, semanal e mensal |
-| `client/src/app/features/settings` | CONF, HOR | Configurações e disponibilidade |
+| `Api/Modulos` | Todos | Contratos HTTP versionados |
+| `client/src/app/features/agendamento-publico` | PUB | Página pública e wizard de agendamento |
+| `client/src/app/features/agenda` | AGD, ATD | Agenda diária, semanal e mensal |
+| `client/src/app/features/configuracoes` | CONF, HOR | Configurações e disponibilidade |
 | `client/src/app/features/dashboard` | DASH | Indicadores e próximos agendamentos |
 
 ---
@@ -573,35 +573,35 @@ PontoBarber/
 
 ## 8.1. Entidades
 
-Todas as tabelas de negócio possuem `Id uniqueidentifier`, `TenantId uniqueidentifier` (exceto `Users` e catálogo global), `CreatedAtUtc`, `UpdatedAtUtc` e `RowVersion rowversion`. Chaves primárias são `uniqueidentifier` geradas na aplicação com `Guid.CreateVersion7()`.
+Todas as tabelas de negócio possuem `Id uniqueidentifier`, `BarbeariaId uniqueidentifier` (exceto `Users` e catálogo global), `CriadoEmUtc`, `AtualizadoEmUtc` e `RowVersion rowversion`. Chaves primárias são `uniqueidentifier` geradas na aplicação com `Guid.CreateVersion7()`.
 
 | Entidade | Tabela | Descrição | Campos principais | Chave primária |
 | --- | --- | --- | --- | --- |
-| `User` | `AspNetUsers` | Conta de acesso | `Id`, `UserName`, `NormalizedEmail`, `Email`, `PhoneNumber`, `PasswordHash`, `SecurityStamp`, `LockoutEnd`, `AccessFailedCount`, `FullName`, `UserType` | `Id` |
-| `CustomerProfile` | `Customers` | Dados do cliente | `Id`, `UserId`, `FullName`, `Email`, `PhoneNumber`, `IsActive` | `Id` |
-| `ProfessionalProfile` | `Professionals` | Dados do barbeiro | `Id`, `UserId`, `FullName`, `PhoneNumber`, `IsActive` | `Id` |
-| `Barbershop` | `Barbershops` | Barbearia (tenant) | `Id`, `Name`, `CommercialPhone`, `CommercialEmail`, `City`, `Address`, `Instagram`, `InviteCode`, `TimeZoneId`, `OwnerProfessionalId`, `IsActive` | `Id` |
-| `ProfessionalTenantLink` | `ProfessionalTenantLinks` | Vínculo profissional-barbearia | `Id`, `TenantId`, `ProfessionalId`, `Role`, `Status`, `JoinedAtUtc`, `RemovedAtUtc` | `Id` |
-| `Service` | `Services` | Serviço do catálogo | `Id`, `TenantId`, `Name`, `DurationMinutes`, `Price`, `IsActive`, `IsTemplate` | `Id` |
-| `BusinessHour` | `BusinessHours` | Funcionamento por dia | `Id`, `TenantId`, `DayOfWeek`, `OpensAt`, `ClosesAt`, `IsClosed` | `Id` |
-| `WeeklyAvailability` | `WeeklyAvailabilities` | Disponibilidade recorrente | `Id`, `TenantId`, `ProfessionalId`, `DayOfWeek`, `StartsAt`, `EndsAt` | `Id` |
-| `ScheduleBlock` | `ScheduleBlocks` | Bloqueio pontual | `Id`, `TenantId`, `ProfessionalId`, `StartsAtUtc`, `EndsAtUtc`, `Reason` | `Id` |
-| `Appointment` | `Appointments` | Agendamento | `Id`, `TenantId`, `CustomerId`, `ProfessionalId`, `ServiceId`, `StartsAtUtc`, `EndsAtUtc`, `ServiceNameSnapshot`, `DurationMinutesSnapshot`, `PriceSnapshot`, `Notes`, `Origin`, `Status`, `CancelledAtUtc`, `CancelledByUserId`, `CancellationReason`, `ActualStartUtc`, `ActualEndUtc`, `RowVersion` | `Id` |
-| `AppointmentHistory` | `AppointmentHistories` | Eventos do agendamento | `Id`, `TenantId`, `AppointmentId`, `EventType`, `ActorUserId`, `OccurredAtUtc`, `PreviousStartsAtUtc`, `NewStartsAtUtc`, `Details` | `Id` |
-| `TimeSlotSuggestion` | `TimeSlotSuggestions` | Sugestão de novo horário | `Id`, `TenantId`, `AppointmentId`, `ProfessionalId`, `SuggestedStartUtc`, `SuggestedEndUtc`, `Reason`, `Status`, `ExpiresAtUtc`, `RespondedAtUtc` | `Id` |
-| `Payment` | `Payments` | Pagamento do atendimento | `Id`, `TenantId`, `AppointmentId`, `Amount`, `Method`, `RegisteredAtUtc`, `RegisteredByUserId` | `Id` |
-| `Notification` | `Notifications` | Notificação interna | `Id`, `TenantId`, `RecipientUserId`, `Type`, `AppointmentId`, `Message`, `CreatedAtUtc`, `ReadAtUtc` | `Id` |
-| `IdempotencyRecord` | `IdempotencyRecords` | Controle de requisições repetidas | `Id`, `UserId`, `Key`, `RequestHash`, `ResponseJson`, `StatusCode`, `CreatedAtUtc`, `ExpiresAtUtc` | `Id` |
-| `JobRun` | `JobRuns` | Registro de execução de processos periódicos (estrutura definida junto da decisão de scheduler, ADR-027) | `Id`, `JobName`, `StartedAtUtc`, `FinishedAtUtc`, `Outcome` | `Id` |
+| `User` | `AspNetUsers` | Conta de acesso | `Id`, `NomeUsuario`, `EmailNormalizado`, `Email`, `PhoneNumber`, `HashSenha`, `SeloSeguranca`, `BloqueioAte`, `ContagemFalhas`, `FullName`, `UserType` | `Id` |
+| `PerfilCliente` | `Clientes` | Dados do cliente | `Id`, `UsuarioId`, `NomeCompleto`, `Email`, `Telefone`, `Ativo` | `Id` |
+| `PerfilProfissional` | `Profissionais` | Dados do barbeiro | `Id`, `UsuarioId`, `NomeCompleto`, `Telefone`, `Ativo` | `Id` |
+| `Barbearia` | `Barbearias` | Barbearia (tenant) | `Id`, `Nome`, `TelefoneComercial`, `EmailComercial`, `Cidade`, `Endereco`, `Instagram`, `CodigoConvite`, `FusoHorarioId`, `IdProfissionalProprietario`, `Ativo` | `Id` |
+| `VinculoProfissional` | `VinculosProfissionais` | Vínculo profissional-barbearia | `Id`, `BarbeariaId`, `ProfissionalId`, `Cargo`, `Situacao`, `VinculadoEmUtc`, `RemovidoEmUtc` | `Id` |
+| `Servico` | `Serviços` | Serviço do catálogo | `Id`, `BarbeariaId`, `Nome`, `DuracaoMinutos`, `Preco`, `Ativo`, `EhModelo` | `Id` |
+| `HorarioFuncionamento` | `HorariosFuncionamento` | Funcionamento por dia | `Id`, `BarbeariaId`, `DiaSemana`, `AbreAs`, `FechaAs`, `Fechado` | `Id` |
+| `DisponibilidadeSemanal` | `DisponibilidadesSemanais` | Disponibilidade recorrente | `Id`, `BarbeariaId`, `ProfissionalId`, `DiaSemana`, `IniciaEm`, `TerminaEm` | `Id` |
+| `BloqueioAgenda` | `BloqueiosAgenda` | Bloqueio pontual | `Id`, `BarbeariaId`, `ProfissionalId`, `IniciaEmUtc`, `TerminaEmUtc`, `Motivo` | `Id` |
+| `Agendamento` | `Agendamentos` | Agendamento | `Id`, `BarbeariaId`, `ClienteId`, `ProfissionalId`, `ServicoId`, `IniciaEmUtc`, `TerminaEmUtc`, `NomeServicoSnapshot`, `DuracaoSnapshot`, `PrecoSnapshot`, `Observacoes`, `Origem`, `Situacao`, `CanceladoEmUtc`, `CanceladoPorUsuarioId`, `MotivoCancelamento`, `InicioRealUtc`, `FimRealUtc`, `RowVersion` | `Id` |
+| `HistoricoAgendamento` | `HistoricosAgendamento` | Eventos do agendamento | `Id`, `BarbeariaId`, `AgendamentoId`, `TipoEvento`, `AtorUsuarioId`, `OcorridoEmUtc`, `InicioAnteriorUtc`, `NovoInicioUtc`, `Detalhes` | `Id` |
+| `SugestaoHorario` | `SugestoesHorario` | Sugestão de novo horário | `Id`, `BarbeariaId`, `AgendamentoId`, `ProfissionalId`, `InicioSugeridoUtc`, `FimSugeridoUtc`, `Motivo`, `Situacao`, `ExpiraEmUtc`, `RespondidoEmUtc` | `Id` |
+| `Pagamento` | `Financeiro` | Pagamento do atendimento | `Id`, `BarbeariaId`, `AgendamentoId`, `Valor`, `Metodo`, `RegistradoEmUtc`, `RegistradoPorUsuarioId` | `Id` |
+| `Notificacao` | `Notificações` | Notificação interna | `Id`, `BarbeariaId`, `DestinatarioUsuarioId`, `Tipo`, `AgendamentoId`, `Mensagem`, `CriadoEmUtc`, `LidoEmUtc` | `Id` |
+| `RegistroIdempotencia` | `RegistrosIdempotencia` | Controle de requisições repetidas | `Id`, `UsuarioId`, `Chave`, `HashRequisicao`, `JsonResposta`, `CodigoStatus`, `CriadoEmUtc`, `ExpiraEmUtc` | `Id` |
+| `ExecucaoJob` | `ExecucoesJob` | Registro de execução de processos periódicos (estrutura definida junto da decisão de scheduler, ADR-027) | `Id`, `NomeJob`, `IniciadoEmUtc`, `FinalizadoEmUtc`, `Resultado` | `Id` |
 
 Value objects mapeados como tipos complexos:
 
 | Value object | Campos | Usado em |
 | --- | --- | --- |
-| `Money` | `Amount decimal(18,2)`, `Currency char(3)` | `Service.Price`, `Payment.Amount`, snapshots |
-| `PhoneNumber` | `CountryCode`, `AreaCode`, `Number` | `CustomerProfile`, `ProfessionalProfile`, `Barbershop` |
-| `TimeRange` | `StartsAt TimeOnly`, `EndsAt TimeOnly` | `BusinessHour`, `WeeklyAvailability` |
-| `InviteCode` | `Value char(8)` | `Barbershop` |
+| `Money` | `Valor decimal(18,2)`, `Currency char(3)` | `Servico.Preco`, `Pagamento.Valor`, snapshots |
+| `Telefone` | `CountryCode`, `AreaCode`, `Number` | `PerfilCliente`, `PerfilProfissional`, `Barbearia` |
+| `TimeRange` | `IniciaEm TimeOnly`, `TerminaEm TimeOnly` | `HorarioFuncionamento`, `DisponibilidadeSemanal` |
+| `CodigoConvite` | `Value char(8)` | `Barbearia` |
 
 Enums:
 
@@ -620,50 +620,50 @@ Enums:
 
 | Origem | Relação | Destino | Cardinalidade | Regra |
 | --- | --- | --- | --- | --- |
-| `User` | possui | `CustomerProfile` | 1:0..1 | Apenas usuários do tipo `Customer` |
-| `User` | possui | `ProfessionalProfile` | 1:0..1 | Apenas usuários do tipo `Professional` |
-| `ProfessionalProfile` | possui | `ProfessionalTenantLink` | 1:N | Um vínculo por barbearia; remoção é lógica |
-| `Barbershop` | possui | `ProfessionalTenantLink` | 1:N | Inclui o proprietário como vínculo `Owner` |
-| `Barbershop` | possui | `Service` | 1:N | Serviços são exclusivos do tenant |
-| `Barbershop` | possui | `BusinessHour` | 1:7 | Um registro por dia da semana |
-| `ProfessionalTenantLink` | possui | `WeeklyAvailability` | 1:N | Disponibilidade por dia da semana |
-| `ProfessionalTenantLink` | possui | `ScheduleBlock` | 1:N | Bloqueios pontuais |
-| `Barbershop` | possui | `Appointment` | 1:N | Todo agendamento pertence a um tenant |
-| `CustomerProfile` | realiza | `Appointment` | 1:N | Cliente precisa de conta |
-| `ProfessionalProfile` | atende | `Appointment` | 1:N | Profissional ativo e vinculado |
-| `Service` | origina | `Appointment` | 1:N | Serviço pode estar inativo após o agendamento |
-| `Appointment` | possui | `AppointmentHistory` | 1:N | Histórico imutável |
-| `Appointment` | possui | `TimeSlotSuggestion` | 1:0..1 | Apenas uma sugestão pendente por agendamento |
-| `Appointment` | possui | `Payment` | 1:0..1 | Um pagamento por atendimento na V1.0 |
-| `User` | recebe | `Notification` | 1:N | Notificação por destinatário |
+| `User` | possui | `PerfilCliente` | 1:0..1 | Apenas usuários do tipo `Customer` |
+| `User` | possui | `PerfilProfissional` | 1:0..1 | Apenas usuários do tipo `Professional` |
+| `PerfilProfissional` | possui | `VinculoProfissional` | 1:N | Um vínculo por barbearia; remoção é lógica |
+| `Barbearia` | possui | `VinculoProfissional` | 1:N | Inclui o proprietário como vínculo `Owner` |
+| `Barbearia` | possui | `Servico` | 1:N | Serviços são exclusivos do tenant |
+| `Barbearia` | possui | `HorarioFuncionamento` | 1:7 | Um registro por dia da semana |
+| `VinculoProfissional` | possui | `DisponibilidadeSemanal` | 1:N | Disponibilidade por dia da semana |
+| `VinculoProfissional` | possui | `BloqueioAgenda` | 1:N | Bloqueios pontuais |
+| `Barbearia` | possui | `Agendamento` | 1:N | Todo agendamento pertence a um tenant |
+| `PerfilCliente` | realiza | `Agendamento` | 1:N | Cliente precisa de conta |
+| `PerfilProfissional` | atende | `Agendamento` | 1:N | Profissional ativo e vinculado |
+| `Servico` | origina | `Agendamento` | 1:N | Serviço pode estar inativo após o agendamento |
+| `Agendamento` | possui | `HistoricoAgendamento` | 1:N | Histórico imutável |
+| `Agendamento` | possui | `SugestaoHorario` | 1:0..1 | Apenas uma sugestão pendente por agendamento |
+| `Agendamento` | possui | `Pagamento` | 1:0..1 | Um pagamento por atendimento na V1.0 |
+| `User` | recebe | `Notificacao` | 1:N | Notificação por destinatário |
 
 ## 8.3. Índices e restrições
 
 | Tabela | Índice/Restrição | Colunas | Objetivo |
 | --- | --- | --- | --- |
-| `AspNetUsers` | `UX_Users_NormalizedEmail` UNIQUE | `NormalizedEmail` | Impedir e-mail duplicado |
-| `Customers` | `UX_Customers_UserId` UNIQUE | `UserId` | Um perfil por usuário |
-| `Professionals` | `UX_Professionals_UserId` UNIQUE | `UserId` | Um perfil por usuário |
-| `Barbershops` | `UX_Barbershops_InviteCode` UNIQUE | `InviteCode` | Código de convite único global |
-| `ProfessionalTenantLinks` | `UX_Links_Tenant_Professional` UNIQUE | `TenantId`, `ProfessionalId` | Um vínculo por par |
-| `ProfessionalTenantLinks` | `IX_Links_Tenant_Status` | `TenantId`, `Status` | Listagem de profissionais |
-| `Services` | `IX_Services_Tenant_Active` | `TenantId`, `IsActive` | Catálogo ativo |
-| `BusinessHours` | `UX_BusinessHours_Tenant_Day` UNIQUE | `TenantId`, `DayOfWeek` | Um horário por dia |
-| `WeeklyAvailabilities` | `IX_Availability_Tenant_Pro_Day` | `TenantId`, `ProfessionalId`, `DayOfWeek` | Motor de disponibilidade |
-| `ScheduleBlocks` | `IX_Blocks_Tenant_Pro_Start` | `TenantId`, `ProfessionalId`, `StartsAtUtc` | Detecção de bloqueios |
-| `Appointments` | `IX_Appointments_Tenant_Pro_Start` | `TenantId`, `ProfessionalId`, `StartsAtUtc` | Agenda e conflitos |
-| `Appointments` | `IX_Appointments_Tenant_Start` | `TenantId`, `StartsAtUtc` | Dashboard e listagens |
-| `Appointments` | `UX_Appointments_Pro_Start_Active` UNIQUE FILTERED | `TenantId`, `ProfessionalId`, `StartsAtUtc` WHERE `Status IN (0,1,2)` | Impedir duplicidade exata de início |
-| `Appointments` | `IX_Appointments_Customer_Start` | `CustomerId`, `StartsAtUtc` | Agendamentos do cliente |
-| `Appointments` | `IX_Appointments_Tenant_Status_Start` | `TenantId`, `Status`, `StartsAtUtc` | Indicadores |
-| `AppointmentHistories` | `IX_History_Appointment_Occurred` | `AppointmentId`, `OccurredAtUtc` | Consulta de histórico |
-| `TimeSlotSuggestions` | `UX_Suggestions_Appointment_Pending` UNIQUE FILTERED | `AppointmentId` WHERE `Status = 0` | Uma sugestão pendente |
-| `TimeSlotSuggestions` | `IX_Suggestions_Status_Expires` | `Status`, `ExpiresAtUtc` | Job de expiração |
-| `Payments` | `UX_Payments_Appointment` UNIQUE | `AppointmentId` | Um pagamento por atendimento |
-| `Notifications` | `IX_Notifications_Recipient_Created` | `RecipientUserId`, `CreatedAtUtc` | Polling e listagem |
-| `Notifications` | `IX_Notifications_Recipient_Unread` | `RecipientUserId`, `ReadAtUtc` | Contador de não lidas |
-| `IdempotencyRecords` | `UX_Idempotency_User_Key` UNIQUE | `UserId`, `Key` | Garantia de idempotência |
-| `IdempotencyRecords` | `IX_Idempotency_Expires` | `ExpiresAtUtc` | Limpeza periódica |
+| `AspNetUsers` | `UX_Users_NormalizedEmail` UNIQUE | `EmailNormalizado` | Impedir e-mail duplicado |
+| `Clientes` | `UX_Customers_UserId` UNIQUE | `UsuarioId` | Um perfil por usuário |
+| `Profissionais` | `UX_Profissionais_UsuarioId` UNIQUE | `UsuarioId` | Um perfil por usuário |
+| `Barbearias` | `UX_Barbearias_CodigoConvite` UNIQUE | `CodigoConvite` | Código de convite único global |
+| `VinculosProfissionais` | `UX_Vinculos_Barbearia_Profissional` UNIQUE | `BarbeariaId`, `ProfissionalId` | Um vínculo por par |
+| `VinculosProfissionais` | `IX_Links_Tenant_Status` | `BarbeariaId`, `Situacao` | Listagem de profissionais |
+| `Serviços` | `IX_Services_Tenant_Active` | `BarbeariaId`, `Ativo` | Catálogo ativo |
+| `HorariosFuncionamento` | `UX_BusinessHours_Tenant_Day` UNIQUE | `BarbeariaId`, `DiaSemana` | Um horário por dia |
+| `DisponibilidadesSemanais` | `IX_Availability_Tenant_Pro_Day` | `BarbeariaId`, `ProfissionalId`, `DiaSemana` | Motor de disponibilidade |
+| `BloqueiosAgenda` | `IX_Blocks_Tenant_Pro_Start` | `BarbeariaId`, `ProfissionalId`, `IniciaEmUtc` | Detecção de bloqueios |
+| `Agendamentos` | `IX_Appointments_Tenant_Pro_Start` | `BarbeariaId`, `ProfissionalId`, `IniciaEmUtc` | Agenda e conflitos |
+| `Agendamentos` | `IX_Appointments_Tenant_Start` | `BarbeariaId`, `IniciaEmUtc` | Dashboard e listagens |
+| `Agendamentos` | `UX_Appointments_Pro_Start_Active` UNIQUE FILTERED | `BarbeariaId`, `ProfissionalId`, `IniciaEmUtc` WHERE `Situacao IN (0,1,2)` | Impedir duplicidade exata de início |
+| `Agendamentos` | `IX_Appointments_Customer_Start` | `ClienteId`, `IniciaEmUtc` | Agendamentos do cliente |
+| `Agendamentos` | `IX_Appointments_Tenant_Status_Start` | `BarbeariaId`, `Situacao`, `IniciaEmUtc` | Indicadores |
+| `HistoricosAgendamento` | `IX_History_Appointment_Occurred` | `AgendamentoId`, `OcorridoEmUtc` | Consulta de histórico |
+| `SugestoesHorario` | `UX_Suggestions_Appointment_Pending` UNIQUE FILTERED | `AgendamentoId` WHERE `Situacao = 0` | Uma sugestão pendente |
+| `SugestoesHorario` | `IX_Suggestions_Status_Expires` | `Situacao`, `ExpiraEmUtc` | Job de expiração |
+| `Financeiro` | `UX_Payments_Appointment` UNIQUE | `AgendamentoId` | Um pagamento por atendimento |
+| `Notificações` | `IX_Notifications_Recipient_Created` | `DestinatarioUsuarioId`, `CriadoEmUtc` | Polling e listagem |
+| `Notificações` | `IX_Notifications_Recipient_Unread` | `DestinatarioUsuarioId`, `LidoEmUtc` | Contador de não lidas |
+| `RegistrosIdempotencia` | `UX_Idempotency_User_Key` UNIQUE | `UsuarioId`, `Chave` | Garantia de idempotência |
+| `RegistrosIdempotencia` | `IX_Idempotency_Expires` | `ExpiraEmUtc` | Limpeza periódica |
 
 A restrição de sobreposição não pode ser expressa por índice único no SQL Server. Por isso, a garantia é composta por `sp_getapplock` por `tenant:professional:date` e verificação `starts < @end AND ends > @start` dentro da mesma transação.
 
@@ -678,13 +678,13 @@ A restrição de sobreposição não pode ser expressa por índice único no SQL
 - Rollback preferencial por correção forward; migrations destrutivas exigem aprovação e backup verificado.
 - O pipeline falha se houver modelo pendente (`dotnet ef migrations has-pending-model-changes`).
 - Scripts SQL de emergência ficam em `deploy/sql` e não substituem migrations.
-- `rowversion` e `CreatedAtUtc` não podem ser alterados manualmente.
+- `rowversion` e `CriadoEmUtc` não podem ser alterados manualmente.
 
 ## 8.5. Histórico, retenção e privacidade
 
-- `AppointmentHistory` é append-only: sem update nem delete pela aplicação.
+- `HistoricoAgendamento` é append-only: sem update nem delete pela aplicação.
 - Serviços e vínculos são desativados, nunca excluídos fisicamente quando referenciados.
-- Snapshots de serviço (`ServiceNameSnapshot`, `DurationMinutesSnapshot`, `PriceSnapshot`) preservam o contrato comercial.
+- Snapshots de serviço (`NomeServicoSnapshot`, `DuracaoSnapshot`, `PrecoSnapshot`) preservam o contrato comercial.
 - Pagamentos permanecem vinculados ao agendamento e nunca são recalculados.
 - Exclusão de conta de cliente: anonimização de nome, e-mail e telefone após 5 anos da última atividade, mantendo o histórico financeiro agregado e o identificador.
 - Logs de aplicação retidos por 90 dias; traces por 30 dias; auditoria por 5 anos.
@@ -697,21 +697,21 @@ A restrição de sobreposição não pode ser expressa por índice único no SQL
 
 | Aspecto | Decisão |
 | --- | --- |
-| Modelo | Banco único compartilhado com `TenantId` |
-| Identificação | `TenantId` na rota (`/api/v1/barbershops/{barbershopId}`), validado contra o vínculo ativo do usuário |
+| Modelo | Banco único compartilhado com `BarbeariaId` |
+| Identificação | `BarbeariaId` na rota (`/api/v1/barbearias/{barbeariaId}`), validado contra o vínculo ativo do usuário |
 | Isolamento de consultas | Filtro global do EF Core por `IContextoTenant.TenantId` e `IgnoreQueryFilters` proibido fora de jobs internos |
 | Autorização | Policy `TenantMember`, `TenantOwner` e `AppointmentOwner`; resource handlers validam o recurso antes da ação |
 | Migrações | Uma única migration aplicada a todos os tenants |
-| Dados compartilhados | `AspNetUsers`, `Customers`, `Professionals` e o catálogo modelo (`Services.IsTemplate = true`) |
+| Dados compartilhados | `AspNetUsers`, `Clientes`, `Profissionais` e o catálogo modelo (`Serviços.EhModelo = true`) |
 | Tenant em jobs | Jobs percorrem tenants ativos em lotes e definem o contexto por execução |
-| Tenant em notificações | `TenantId` obrigatório na notificação, exceto avisos globais de conta |
+| Tenant em notificações | `BarbeariaId` obrigatório na notificação, exceto avisos globais de conta |
 
 Regras adicionais:
 
-- O `TenantId` nunca é aceito do corpo da requisição; é derivado da rota e do vínculo autenticado.
+- O `BarbeariaId` nunca é aceito do corpo da requisição; é derivado da rota e do vínculo autenticado.
 - Um usuário pode ter vínculo com mais de uma barbearia. O frontend mantém o tenant ativo em memória e o envia na rota.
-- `CustomerProfile` não pertence a um tenant; o relacionamento com a barbearia é derivado dos agendamentos.
-- Consultas de dashboard e de clientes sempre filtram por `TenantId` e período.
+- `PerfilCliente` não pertence a um tenant; o relacionamento com a barbearia é derivado dos agendamentos.
+- Consultas de dashboard e de clientes sempre filtram por `BarbeariaId` e período.
 - O filtro global é aplicado por convenção em todas as entidades que implementam `IPertencenteTenant`.
 - Testes de isolamento criam dois tenants com dados homônimos e verificam que nenhum endpoint retorna dados cruzados.
 
@@ -737,7 +737,7 @@ Regras adicionais:
 | Filtros | Query string tipada e validada; intervalos com `from` e `to` em UTC |
 | Ordenação | `sort` com campos permitidos por endpoint |
 | Limites | Rate limit de 100 req/min por usuário e 20 req/min por IP em endpoints públicos |
-| Idempotência | `Idempotency-Key` obrigatório em `POST` de agendamento e de pagamento |
+| Idempotência | `Idempotency-Chave` obrigatório em `POST` de agendamento e de pagamento |
 | CSRF | Token antiforgery obrigatório em `POST`, `PUT`, `PATCH` e `DELETE` autenticados |
 | Erros | RFC 7807 com `Microsoft.AspNetCore.Mvc.ProblemDetails` nativo e `Extensions` para `code`, `traceId` e `errors`; formato JSON inalterado (ADR-035) |
 | Concorrência | `If-Match` com `rowVersion` em atualizações de agendamento |
@@ -785,72 +785,72 @@ Códigos de erro estáveis:
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `POST` | `/api/v1/barbershops` | Criar barbearia e proprietário | Barbeiro | RF-AUTH-005, RF-AUTH-006, RF-AUTH-010 |
-| `GET` | `/api/v1/barbershops/{barbershopId}` | Consultar dados da barbearia | Proprietário, Barbeiro | RF-EMP-001 |
-| `PUT` | `/api/v1/barbershops/{barbershopId}` | Editar dados da barbearia | Proprietário | RF-EMP-002, RF-EMP-003 |
-| `GET` | `/api/v1/barbershops/{barbershopId}/invite-code` | Consultar código de convite | Proprietário | RF-AUTH-008, RF-PROF-008 |
-| `POST` | `/api/v1/barbershops/join` | Entrar por código de convite | Barbeiro | RF-AUTH-009 |
-| `GET` | `/api/v1/barbershops/{barbershopId}/professionals` | Listar profissionais | Proprietário, Barbeiro | RF-PROF-001, RF-PROF-002, RF-PROF-003 |
-| `GET` | `/api/v1/barbershops/{barbershopId}/professionals/{id}` | Consultar profissional | Proprietário, o próprio | RF-PROF-004 |
-| `PUT` | `/api/v1/barbershops/{barbershopId}/professionals/{id}` | Editar dados profissionais | Proprietário, o próprio | RF-PROF-005 |
-| `PATCH` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/status` | Ativar ou desativar | Proprietário | RF-PROF-006 |
-| `DELETE` | `/api/v1/barbershops/{barbershopId}/professionals/{id}` | Remover vínculo | Proprietário | RF-PROF-007 |
+| `POST` | `/api/v1/barbearias` | Criar barbearia e proprietário | Barbeiro | RF-AUTH-005, RF-AUTH-006, RF-AUTH-010 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}` | Consultar dados da barbearia | Proprietário, Barbeiro | RF-EMP-001 |
+| `PUT` | `/api/v1/barbearias/{barbeariaId}` | Editar dados da barbearia | Proprietário | RF-EMP-002, RF-EMP-003 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/codigo-convite` | Consultar código de convite | Proprietário | RF-AUTH-008, RF-PROF-008 |
+| `POST` | `/api/v1/barbearias/entrar` | Entrar por código de convite | Barbeiro | RF-AUTH-009 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/profissionais` | Listar profissionais | Proprietário, Barbeiro | RF-PROF-001, RF-PROF-002, RF-PROF-003 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}` | Consultar profissional | Proprietário, o próprio | RF-PROF-004 |
+| `PUT` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}` | Editar dados profissionais | Proprietário, o próprio | RF-PROF-005 |
+| `PATCH` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}/status` | Ativar ou desativar | Proprietário | RF-PROF-006 |
+| `DELETE` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}` | Remover vínculo | Proprietário | RF-PROF-007 |
 
 ### Serviços
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/barbershops/{barbershopId}/services` | Listar serviços | Proprietário, Barbeiro, Cliente autenticado | RF-SERV-007, RF-SERV-008 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/services` | Criar serviço | Proprietário | RF-SERV-002, RF-SERV-005, RF-SERV-006 |
-| `PUT` | `/api/v1/barbershops/{barbershopId}/services/{id}` | Editar serviço | Proprietário | RF-SERV-003, RF-SERV-005, RF-SERV-006 |
-| `DELETE` | `/api/v1/barbershops/{barbershopId}/services/{id}` | Desativar serviço | Proprietário | RF-SERV-004 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/servicos` | Listar serviços | Proprietário, Barbeiro, Cliente autenticado | RF-SERV-007, RF-SERV-008 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/servicos` | Criar serviço | Proprietário | RF-SERV-002, RF-SERV-005, RF-SERV-006 |
+| `PUT` | `/api/v1/barbearias/{barbeariaId}/servicos/{id}` | Editar serviço | Proprietário | RF-SERV-003, RF-SERV-005, RF-SERV-006 |
+| `DELETE` | `/api/v1/barbearias/{barbeariaId}/servicos/{id}` | Desativar serviço | Proprietário | RF-SERV-004 |
 | `GET` | `/api/v1/service-templates` | Catálogo modelo | Autenticado | RF-SERV-001 |
 
 ### Horários, disponibilidade e bloqueios
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/barbershops/{barbershopId}/business-hours` | Consultar funcionamento | Proprietário, Barbeiro | RF-HOR-001 |
-| `PUT` | `/api/v1/barbershops/{barbershopId}/business-hours` | Salvar funcionamento semanal | Proprietário | RF-HOR-001, RF-HOR-002, RF-HOR-003, RF-CONF-002, RF-CONF-003, RF-CONF-004 |
-| `GET` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/availability` | Consultar disponibilidade | Proprietário, o próprio | RF-HOR-004, RF-CONF-007 |
-| `PUT` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/availability` | Salvar disponibilidade semanal | Proprietário, o próprio | RF-HOR-004, RF-CONF-007 |
-| `GET` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/blocks` | Listar bloqueios | Proprietário, o próprio | RF-HOR-005, RF-HOR-006 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/blocks` | Criar bloqueio | Proprietário, o próprio | RF-HOR-006, RF-HOR-007, RF-CONF-008 |
-| `DELETE` | `/api/v1/barbershops/{barbershopId}/professionals/{id}/blocks/{blockId}` | Remover bloqueio | Proprietário, o próprio | RF-HOR-006 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/horarios-funcionamento` | Consultar funcionamento | Proprietário, Barbeiro | RF-HOR-001 |
+| `PUT` | `/api/v1/barbearias/{barbeariaId}/horarios-funcionamento` | Salvar funcionamento semanal | Proprietário | RF-HOR-001, RF-HOR-002, RF-HOR-003, RF-CONF-002, RF-CONF-003, RF-CONF-004 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}/disponibilidade` | Consultar disponibilidade | Proprietário, o próprio | RF-HOR-004, RF-CONF-007 |
+| `PUT` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}/disponibilidade` | Salvar disponibilidade semanal | Proprietário, o próprio | RF-HOR-004, RF-CONF-007 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}/blocks` | Listar bloqueios | Proprietário, o próprio | RF-HOR-005, RF-HOR-006 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}/blocks` | Criar bloqueio | Proprietário, o próprio | RF-HOR-006, RF-HOR-007, RF-CONF-008 |
+| `DELETE` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}/blocks/{blockId}` | Remover bloqueio | Proprietário, o próprio | RF-HOR-006 |
 
 ### Disponibilidade e agendamentos
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/barbershops/{barbershopId}/availability` | Horários livres por serviço, profissional e data | Autenticado e anônimo (público) | RF-PUB-004, RF-HOR-004, RF-AGD-007 |
-| `GET` | `/api/v1/barbershops/{barbershopId}/appointments` | Agenda por período e filtros | Proprietário, Barbeiro | RF-AGD-001, RF-AGD-002, RF-AGD-003, RF-AGD-004 |
-| `GET` | `/api/v1/barbershops/{barbershopId}/appointments/{id}` | Detalhar agendamento | Proprietário, Barbeiro do agendamento, Cliente titular | RF-AGD-009 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments` | Criar agendamento manual | Proprietário, Barbeiro | RF-AGD-005, RF-AGD-006, RF-AGD-007, RF-AGD-008 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/public` | Confirmar agendamento público | Cliente | RF-PUB-003, RF-PUB-005, RF-PUB-006 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/cancel` | Cancelar | Proprietário, Barbeiro do agendamento, Cliente titular | RF-AGD-011, RF-AGD-013, RF-AGD-014, RF-AGD-017 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/reschedule` | Remarcar | Cliente titular, Proprietário, Barbeiro | RF-AGD-012 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/suggestions` | Sugerir novo horário | Barbeiro do agendamento | RF-AGD-015 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/suggestions/{suggestionId}/accept` | Aceitar sugestão | Cliente titular | RF-AGD-016 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/suggestions/{suggestionId}/reject` | Rejeitar sugestão | Cliente titular | RF-AGD-016 |
-| `GET` | `/api/v1/me/appointments` | Agendamentos do cliente | Cliente | RF-AGD-010 |
-| `GET` | `/api/v1/me/appointments/{id}` | Detalhe do próprio agendamento | Cliente titular | RF-AGD-009, RF-AGD-010 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/disponibilidade` | Horários livres por serviço, profissional e data | Autenticado e anônimo (público) | RF-PUB-004, RF-HOR-004, RF-AGD-007 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/agendamentos` | Agenda por período e filtros | Proprietário, Barbeiro | RF-AGD-001, RF-AGD-002, RF-AGD-003, RF-AGD-004 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}` | Detalhar agendamento | Proprietário, Barbeiro do agendamento, Cliente titular | RF-AGD-009 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos` | Criar agendamento manual | Proprietário, Barbeiro | RF-AGD-005, RF-AGD-006, RF-AGD-007, RF-AGD-008 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/public` | Confirmar agendamento público | Cliente | RF-PUB-003, RF-PUB-005, RF-PUB-006 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/cancelar` | Cancelar | Proprietário, Barbeiro do agendamento, Cliente titular | RF-AGD-011, RF-AGD-013, RF-AGD-014, RF-AGD-017 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/remarcar` | Remarcar | Cliente titular, Proprietário, Barbeiro | RF-AGD-012 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/sugestoes` | Sugerir novo horário | Barbeiro do agendamento | RF-AGD-015 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/sugestoes/{sugestaoId}/aceitar` | Aceitar sugestão | Cliente titular | RF-AGD-016 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/sugestoes/{sugestaoId}/rejeitar` | Rejeitar sugestão | Cliente titular | RF-AGD-016 |
+| `GET` | `/api/v1/me/agendamentos` | Agendamentos do cliente | Cliente | RF-AGD-010 |
+| `GET` | `/api/v1/me/agendamentos/{id}` | Detalhe do próprio agendamento | Cliente titular | RF-AGD-009, RF-AGD-010 |
 
 ### Atendimento e pagamento
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/start` | Iniciar atendimento | Barbeiro do agendamento | RF-ATD-002, RF-ATD-003 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/complete` | Finalizar atendimento | Barbeiro do agendamento | RF-ATD-004, RF-ATD-005 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/no-show` | Marcar não comparecimento | Barbeiro do agendamento | RF-ATD-008 |
-| `POST` | `/api/v1/barbershops/{barbershopId}/appointments/{id}/payment` | Registrar pagamento | Barbeiro do agendamento | RF-ATD-006, RF-ATD-007 |
-| `GET` | `/api/v1/barbershops/{barbershopId}/payments` | Listar pagamentos por período | Proprietário | RF-ATD-006, RF-DASH-002 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/iniciar` | Iniciar atendimento | Barbeiro do agendamento | RF-ATD-002, RF-ATD-003 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/concluir` | Finalizar atendimento | Barbeiro do agendamento | RF-ATD-004, RF-ATD-005 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/ausencia` | Marcar não comparecimento | Barbeiro do agendamento | RF-ATD-008 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/pagamento` | Registrar pagamento | Barbeiro do agendamento | RF-ATD-006, RF-ATD-007 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/pagamentos` | Listar pagamentos por período | Proprietário | RF-ATD-006, RF-DASH-002 |
 
 ### Clientes
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/barbershops/{barbershopId}/customers` | Listar e pesquisar clientes com agendamentos | Proprietário | RF-CLI-001, RF-CLI-002, RF-CLI-003 |
-| `GET` | `/api/v1/barbershops/{barbershopId}/customers/{id}` | Consultar cliente relacionado | Proprietário | RF-CLI-002 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/customers` | Listar e pesquisar clientes com agendamentos | Proprietário | RF-CLI-001, RF-CLI-002, RF-CLI-003 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/customers/{id}` | Consultar cliente relacionado | Proprietário | RF-CLI-002 |
 | `GET` | `/api/v1/me/customer-profile` | Consultar próprios dados | Cliente | RF-CLI-004 |
 | `PUT` | `/api/v1/me/customer-profile` | Editar próprios dados | Cliente | RF-CLI-005, RF-CLI-006 |
 
@@ -858,41 +858,41 @@ Códigos de erro estáveis:
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/barbershops/{barbershopId}/dashboard` | Indicadores e próximos agendamentos | Proprietário | RF-DASH-001 a RF-DASH-005 |
-| `GET` | `/api/v1/notifications` | Listar notificações e não lidas | Autenticado | RF-NOTIF-001 |
-| `POST` | `/api/v1/notifications/{id}/read` | Marcar como lida | Destinatário | RF-NOTIF-001 |
-| `POST` | `/api/v1/notifications/read-all` | Marcar todas como lidas | Autenticado | RF-NOTIF-001 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/dashboard` | Indicadores e próximos agendamentos | Proprietário | RF-DASH-001 a RF-DASH-005 |
+| `GET` | `/api/v1/notificacoes` | Listar notificações e não lidas | Autenticado | RF-NOTIF-001 |
+| `POST` | `/api/v1/notificacoes/{id}/ler` | Marcar como lida | Destinatário | RF-NOTIF-001 |
+| `POST` | `/api/v1/notificacoes/ler-todas` | Marcar todas como lidas | Autenticado | RF-NOTIF-001 |
 
 ### Página pública
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/public/barbershops/{slug}` | Dados públicos da barbearia | Anônimo | RF-PUB-001, RF-PUB-002 |
-| `GET` | `/api/v1/public/barbershops/{slug}/services` | Serviços ativos | Anônimo | RF-PUB-002 |
-| `GET` | `/api/v1/public/barbershops/{slug}/professionals` | Profissionais ativos | Anônimo | RF-PUB-004 |
-| `GET` | `/api/v1/public/barbershops/{slug}/availability` | Horários livres | Anônimo | RF-PUB-004 |
+| `GET` | `/api/v1/publico/barbearias/{slug}` | Dados públicos da barbearia | Anônimo | RF-PUB-001, RF-PUB-002 |
+| `GET` | `/api/v1/publico/barbearias/{slug}/servicos` | Serviços ativos | Anônimo | RF-PUB-002 |
+| `GET` | `/api/v1/publico/barbearias/{slug}/profissionais` | Profissionais ativos | Anônimo | RF-PUB-004 |
+| `GET` | `/api/v1/publico/barbearias/{slug}/disponibilidade` | Horários livres | Anônimo | RF-PUB-004 |
 
 ### Operação
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
 | `GET` | `/health/live` | Liveness | Anônimo interno | RNF-DISPONIBILIDADE-001 |
-| `GET` | `/health/ready` | Readiness com banco e jobs | Anônimo interno | RNF-DISPONIBILIDADE-001 |
+| `GET` | `/health/lery` | Readiness com banco e jobs | Anônimo interno | RNF-DISPONIBILIDADE-001 |
 | `GET` | `/api/v1/meta/version` | Versão da API e build | Autenticado | Rastreabilidade |
 
 ## 10.3. Contratos
 
 ### Criar agendamento público
 
-**Entrada:** `POST /api/v1/barbershops/{barbershopId}/appointments/public`
+**Entrada:** `POST /api/v1/barbearias/{barbeariaId}/agendamentos/public`
 
 | Campo | Tipo | Obrigatório | Validação |
 | --- | --- | --- | --- |
-| `serviceId` | `guid` | Sim | Serviço ativo do tenant |
-| `professionalId` | `guid` | Sim | Profissional ativo e vinculado |
+| `servicoId` | `guid` | Sim | Serviço ativo do tenant |
+| `profissionalId` | `guid` | Sim | Profissional ativo e vinculado |
 | `startsAtUtc` | `datetime` | Sim | UTC, múltiplo de 5 minutos, futuro |
 | `notes` | `string` | Não | Máximo 500 caracteres |
-| `Idempotency-Key` | header `string` | Sim | UUID v4 ou v7, válido por 24 h |
+| `Idempotency-Chave` | header `string` | Sim | UUID v4 ou v7, válido por 24 h |
 
 **Saída:** `201 Created` com `Location`.
 
@@ -920,12 +920,12 @@ Códigos de erro estáveis:
 
 ### Consultar disponibilidade
 
-**Entrada:** `GET /api/v1/public/barbershops/{slug}/availability?serviceId=&professionalId=&date=2026-11-20`
+**Entrada:** `GET /api/v1/publico/barbearias/{slug}/disponibilidade?servicoId=&profissionalId=&date=2026-11-20`
 
 | Campo | Tipo | Obrigatório | Validação |
 | --- | --- | --- | --- |
-| `serviceId` | `guid` | Sim | Serviço ativo |
-| `professionalId` | `guid` | Não | Se ausente, retorna todos |
+| `servicoId` | `guid` | Sim | Serviço ativo |
+| `profissionalId` | `guid` | Não | Se ausente, retorna todos |
 | `date` | `date` | Sim | Data local da barbearia, até 90 dias à frente |
 
 **Saída:** `200 OK`.
@@ -933,8 +933,8 @@ Códigos de erro estáveis:
 | Campo | Tipo | Descrição |
 | --- | --- | --- |
 | `date` | `date` | Data consultada |
-| `timeZoneId` | `string` | Fuso IANA da barbearia |
-| `slots` | `array` | Lista de `{ professionalId, startsAtUtc, endsAtUtc, startsAtLocal }` |
+| `fusoHorarioId` | `string` | Fuso IANA da barbearia |
+| `slots` | `array` | Lista de `{ profissionalId, startsAtUtc, endsAtUtc, startsAtLocal }` |
 | `hasAvailability` | `boolean` | Indica se há ao menos um horário |
 
 **Erros:**
@@ -946,7 +946,7 @@ Códigos de erro estáveis:
 
 ### Cancelar agendamento
 
-**Entrada:** `POST /api/v1/barbershops/{barbershopId}/appointments/{id}/cancel`
+**Entrada:** `POST /api/v1/barbearias/{barbeariaId}/agendamentos/{id}/cancelar`
 
 | Campo | Tipo | Obrigatório | Validação |
 | --- | --- | --- | --- |
@@ -966,13 +966,13 @@ Códigos de erro estáveis:
 
 ### Registrar pagamento
 
-**Entrada:** `POST /api/v1/barbershops/{barbershopId}/appointments/{id}/payment`
+**Entrada:** `POST /api/v1/barbearias/{barbeariaId}/agendamentos/{id}/pagamento`
 
 | Campo | Tipo | Obrigatório | Validação |
 | --- | --- | --- | --- |
 | `amount` | `decimal` | Sim | Maior ou igual a zero, duas casas |
 | `method` | `string` | Sim | `Cash`, `Pix`, `DebitCard`, `CreditCard` |
-| `Idempotency-Key` | header `string` | Sim | Válido por 24 h |
+| `Idempotency-Chave` | header `string` | Sim | Válido por 24 h |
 
 **Saída:** `201 Created` com `paymentId`, `amount`, `method`, `registeredAtUtc` e `appointmentPaymentStatus`.
 
@@ -986,7 +986,7 @@ Códigos de erro estáveis:
 
 ### Criar barbearia
 
-**Entrada:** `POST /api/v1/barbershops`
+**Entrada:** `POST /api/v1/barbearias`
 
 | Campo | Tipo | Obrigatório | Validação |
 | --- | --- | --- | --- |
@@ -996,9 +996,9 @@ Códigos de erro estáveis:
 | `city` | `string` | Sim | 2 a 100 caracteres |
 | `address` | `string` | Sim | 5 a 200 caracteres |
 | `instagram` | `string` | Não | Máximo 60 caracteres |
-| `timeZoneId` | `string` | Sim | IANA válido |
+| `fusoHorarioId` | `string` | Sim | IANA válido |
 
-**Saída:** `201 Created` com `barbershopId`, `slug`, `inviteCode`, `ownerProfessionalId` e `role`.
+**Saída:** `201 Created` com `barbeariaId`, `slug`, `codigoConvite`, `idProfissionalProprietario` e `role`.
 
 **Erros:**
 
@@ -1014,16 +1014,16 @@ Não há broker externo na V1.0. Eventos de domínio são processados em process
 
 | Evento | Produtor | Consumidor | Payload | Garantia |
 | --- | --- | --- | --- | --- |
-| `AppointmentCreated` | `Appointments` | `Notifications` | `appointmentId`, `tenantId`, `customerId`, `professionalId`, `startsAtUtc` | Após commit, pelo menos uma vez |
-| `AppointmentCancelled` | `Appointments` | `Notifications` | `appointmentId`, `tenantId`, `actorUserId`, `reason` | Após commit |
-| `TimeSlotSuggested` | `Appointments` | `Notifications` | `appointmentId`, `suggestionId`, `expiresAtUtc` | Após commit |
-| `TimeSlotSuggestionAccepted` | `Appointments` | `Notifications`, `Appointments` | `appointmentId`, `suggestionId`, `newStartUtc` | Após commit |
-| `TimeSlotSuggestionExpired` | `Jobs` | `Notifications` | `appointmentId`, `suggestionId` | Após commit |
-| `ServiceStarted` | `Appointments` | `Notifications` | `appointmentId`, `actualStartUtc` | Após commit |
-| `ServiceCompleted` | `Appointments` | `Notifications` | `appointmentId`, `actualEndUtc` | Após commit |
-| `PaymentRegistered` | `Payments` | `Notifications` | `appointmentId`, `paymentId`, `amount` | Após commit |
+| `AppointmentCreated` | `Agendamentos` | `Notificações` | `appointmentId`, `tenantId`, `customerId`, `profissionalId`, `startsAtUtc` | Após commit, pelo menos uma vez |
+| `AppointmentCancelled` | `Agendamentos` | `Notificações` | `appointmentId`, `tenantId`, `actorUserId`, `reason` | Após commit |
+| `TimeSlotSuggested` | `Agendamentos` | `Notificações` | `appointmentId`, `sugestaoId`, `expiresAtUtc` | Após commit |
+| `TimeSlotSuggestionAccepted` | `Agendamentos` | `Notificações`, `Agendamentos` | `appointmentId`, `sugestaoId`, `newStartUtc` | Após commit |
+| `TimeSlotSuggestionExpired` | `Jobs` | `Notificações` | `appointmentId`, `sugestaoId` | Após commit |
+| `ServiceStarted` | `Agendamentos` | `Notificações` | `appointmentId`, `actualStartUtc` | Após commit |
+| `ServiceCompleted` | `Agendamentos` | `Notificações` | `appointmentId`, `actualEndUtc` | Após commit |
+| `PaymentRegistered` | `Financeiro` | `Notificações` | `appointmentId`, `paymentId`, `amount` | Após commit |
 
-Implementação: eventos de domínio coletados no `DbContext` e despachados por um `SaveChangesInterceptor` após o commit, com gravação de notificações na mesma transação por meio de um outbox leve (`Notifications` como destino idempotente por `EventId`). Consumidores são idempotentes por `EventId`; falhas são registradas e reprocessadas pelo job de reconciliação.
+Implementação: eventos de domínio coletados no `DbContext` e despachados por um `SaveChangesInterceptor` após o commit, com gravação de notificações na mesma transação por meio de um outbox leve (`Notificações` como destino idempotente por `EventId`). Consumidores são idempotentes por `EventId`; falhas são registradas e reprocessadas pelo job de reconciliação.
 
 ---
 
@@ -1038,7 +1038,7 @@ Implementação: eventos de domínio coletados no `DbContext` e despachados por 
 | Sessão | Cookie persistente `__Host-pb.auth` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`) |
 | Expiração | Cliente: 60 dias de inatividade; barbeiro e proprietário: 30 dias de inatividade. Deslizante: cada acesso válido renova o prazo do perfil |
 | Limite absoluto | Nenhum — a sessão termina por inatividade ou logout |
-| Renovação | Renovação no servidor a cada requisição autenticada; `SecurityStamp` validado a cada 30 minutos |
+| Renovação | Renovação no servidor a cada requisição autenticada; `SeloSeguranca` validado a cada 30 minutos |
 | Recuperação de acesso | Fora do escopo da V1.0; procedimento administrativo documentado |
 | MFA | Não na V1.0; previsto para perfis proprietários em versão futura |
 | Bloqueio | 5 tentativas inválidas → 5 minutos; 10 tentativas → 30 minutos |
@@ -1052,13 +1052,13 @@ Implementação: eventos de domínio coletados no `DbContext` e despachados por 
 Regras complementares:
 
 - Cookies de autenticação nunca são acessíveis por JavaScript.
-- `SecurityStamp` é renovado em troca de senha e em logout global.
+- `SeloSeguranca` é renovado em troca de senha e em logout global.
 - Login, logout, troca de senha e registro são auditados sem registrar senha.
 - O logout encerra a sessão imediatamente; a política de 60 dias é exclusiva de clientes e a de 30 dias é compartilhada por barbeiros e proprietários.
 - A resposta de login é sempre genérica para credenciais inválidas; a solicitação e a validação do OTP não revelam se o e-mail já possui conta.
 - Código OTP expirado, já utilizado ou inválido recebe a mesma resposta genérica; novos códigos invalidem os anteriores.
 - O telefone do cliente não é exigido para autenticação.
-- Sessões de usuários desativados são invalidadas na próxima validação de `SecurityStamp`.
+- Sessões de usuários desativados são invalidadas na próxima validação de `SeloSeguranca`.
 - O identificador do tenant ativo não é confiado ao cookie; vem da rota e é validado por vínculo.
 
 ## 11.2. Autorização
@@ -1088,7 +1088,7 @@ Regras complementares:
 
 | Ameaça | Vetor | Impacto | Mitigação |
 | --- | --- | --- | --- |
-| Acesso entre tenants | Manipulação de `barbershopId` na URL | Alto | Vínculo validado por handler, filtro global e testes por endpoint |
+| Acesso entre tenants | Manipulação de `barbeariaId` na URL | Alto | Vínculo validado por handler, filtro global e testes por endpoint |
 | Sequestro de sessão | XSS ou cookie exposto | Alto | Cookie `HttpOnly` e `Secure`, CSP restritiva, sanitização e sem `innerHTML` |
 | CSRF | Requisição forjada em sessão válida | Alto | Antiforgery token, `SameSite=Lax` e verificação de origem |
 | Força bruta | Tentativas repetidas de login | Médio | Lockout do Identity, rate limit por IP e por conta |
@@ -1111,7 +1111,7 @@ Regras complementares:
 - **LGPD:** base legal de execução de contrato; acesso por titular e por permissão; anonimização após retenção; registro de operações sensíveis.
 - **Auditoria:** histórico de agendamento e logs estruturados de login, criação, cancelamento, atendimento e pagamento.
 - **Logs sensíveis:** e-mail mascarado (`a***@dominio`), telefone mascarado, sem corpo de requisição de login ou senha.
-- **Headers:** CSP, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` restritiva.
+- **Headers:** CSP, `X-Content-Tipo-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` restritiva.
 
 ---
 
@@ -1125,14 +1125,14 @@ Regras complementares:
 | Remarcação | Conflito com novo horário | Mesmo mecanismo da confirmação | Lock de 5 s | ADR-010 |
 | Aceite de sugestão | Horário já ocupado | Lock no profissional e revalidação | Lock de 5 s | ADR-010 |
 | Início/fim de atendimento | Transição concorrente | `rowversion` + verificação de estado | `If-Match` | ADR-021 |
-| Registro de pagamento | Duplicidade | `Idempotency-Key` + índice único por agendamento | 24 h de retenção | ADR-021 |
-| Criação de vínculo | Vínculo duplicado | Índice único `TenantId, ProfessionalId` | — | ADR-006 |
-| Expiração de sugestão | Dupla liberação | Job idempotente com `UPDATE ... WHERE Status = Pending` | Batch de 500 | ADR-027 |
+| Registro de pagamento | Duplicidade | `Idempotency-Chave` + índice único por agendamento | 24 h de retenção | ADR-021 |
+| Criação de vínculo | Vínculo duplicado | Índice único `BarbeariaId, ProfissionalId` | — | ADR-006 |
+| Expiração de sugestão | Dupla liberação | Job idempotente com `UPDATE ... WHERE Situacao = Pending` | Batch de 500 | ADR-027 |
 
 ## 12.2. Transações e idempotência
 
 - **Fronteira transacional:** um caso de uso por transação; agendamento, histórico e notificação são persistidos juntos.
-- **Idempotência:** `IdempotencyRecords` com `UserId`, `Key`, `RequestHash`, `ResponseJson` e `ExpiresAtUtc`; requisição repetida com mesmo hash devolve a resposta original; hash divergente retorna 409.
+- **Idempotência:** `RegistrosIdempotencia` com `UsuarioId`, `Chave`, `HashRequisicao`, `JsonResposta` e `ExpiraEmUtc`; requisição repetida com mesmo hash devolve a resposta original; hash divergente retorna 409.
 - **Retries:** até 3 tentativas para deadlock (erro 1205) e timeout de lock, com backoff exponencial de 50, 150 e 400 ms e jitter.
 - **Conflitos:** `DbUpdateConcurrencyException` é convertido em `409 concurrency.conflito` com o estado atual.
 - **Consistência eventual:** notificações e projeções de dashboard são atualizadas após commit; não há consistência eventual em dados financeiros.
@@ -1151,15 +1151,15 @@ EXEC @result = sp_getapplock
 IF @result < 0 THROW 51000, 'schedule.lock_timeout', 1;
 ```
 
-O recurso é `pb:schedule:{tenantId}:{professionalId}:{yyyyMMdd}` no fuso da barbearia. O lock é liberado no commit ou rollback.
+O recurso é `pb:schedule:{tenantId}:{profissionalId}:{yyyyMMdd}` no fuso da barbearia. O lock é liberado no commit ou rollback.
 
 ## 12.3. Jobs e agendamentos
 
 | Job | Gatilho | Frequência | Idempotência | Falha/retry | Alerta |
 | --- | --- | --- | --- | --- | --- |
-| `ExpireTimeSlotSuggestionsJob` | Cron | A cada 5 minutos | `UPDATE` condicional por `Status = Pending AND ExpiresAtUtc <= now` | 3 retries com backoff | Falha ou atraso > 10 min |
+| `ExpireTimeSlotSuggestionsJob` | Cron | A cada 5 minutos | `UPDATE` condicional por `Situacao = Pending AND ExpiraEmUtc <= now` | 3 retries com backoff | Falha ou atraso > 10 min |
 | `CloseOverdueAppointmentsJob` | Cron | A cada 15 minutos | Marca `NoShow` apenas para confirmados com início há mais de 2 h | 3 retries | Atraso > 30 min |
-| `PurgeIdempotencyRecordsJob` | Cron | Diário às 03:00 UTC | Exclusão por `ExpiresAtUtc` | 3 retries | Falha consecutiva 3× |
+| `PurgeIdempotencyRecordsJob` | Cron | Diário às 03:00 UTC | Exclusão por `ExpiraEmUtc` | 3 retries | Falha consecutiva 3× |
 | `ReconcileNotificationsJob` | Cron | A cada 10 minutos | Reprocessa eventos sem notificação por `EventId` | 3 retries | Atraso > 20 min |
 | `WarmDashboardJob` | Cron | A cada 30 minutos | Recalcula projeções do dia | 2 retries | Falha consecutiva 3× |
 | `HealthCheckJob` | Cron | A cada minuto | Verifica banco e jobs | — | Indisponibilidade |
@@ -1175,7 +1175,7 @@ Regras:
 ## 12.4. Fuso horário e calendário
 
 - **Armazenamento:** todos os instantes em UTC (`datetime2(3)`), com sufixo `Utc` no nome.
-- **Configuração:** `Barbershop.TimeZoneId` em formato IANA (ex.: `America/Sao_Paulo`), validado na criação.
+- **Configuração:** `Barbearia.FusoHorarioId` em formato IANA (ex.: `America/Sao_Paulo`), validado na criação.
 - **Conversão:** feita no backend com `TimeZoneInfo.FindSystemTimeZoneById`; no frontend, com `Intl.DateTimeFormat` e `Date` nativos, usando o fuso IANA (ADR-034).
 - **Horários de funcionamento e disponibilidade:** armazenados como `TimeOnly` local da barbearia, sem offset.
 - **Bloqueios e agendamentos:** armazenados em UTC, convertidos para o fuso apenas na exibição.
@@ -1229,8 +1229,8 @@ Eventos obrigatórios:
 | --- | --- | --- |
 | `UserLoggedIn` | Information | `usuarioId`, `userType`, `tenantId` |
 | `UserLoginFailed` | Warning | `emailHash`, `reason`, `ipHash` |
-| `AppointmentCreated` | Information | `appointmentId`, `tenantId`, `professionalId`, `origin` |
-| `AppointmentConflictRejected` | Warning | `tenantId`, `professionalId`, `startsAtUtc` |
+| `AppointmentCreated` | Information | `appointmentId`, `tenantId`, `profissionalId`, `origin` |
+| `AppointmentConflictRejected` | Warning | `tenantId`, `profissionalId`, `startsAtUtc` |
 | `AppointmentCancelled` | Information | `appointmentId`, `actorUserId`, `reasonCode` |
 | `PaymentRegistered` | Information | `paymentId`, `appointmentId`, `method` |
 | `TenantIsolationViolation` | Error | `usuarioId`, `requestedTenantId`, `path` |
@@ -1243,7 +1243,7 @@ Eventos obrigatórios:
 | --- | --- | --- |
 | Latência | p50, p95 e p99 por endpoint | p95 > 2 s por 5 min |
 | Erros | Taxa de 5xx e 4xx por endpoint | 5xx > 1% por 5 min |
-| Disponibilidade | Health check `/health/ready` | 2 falhas consecutivas |
+| Disponibilidade | Health check `/health/lery` | 2 falhas consecutivas |
 | Banco | CPU, DTU/vCore, deadlocks, duração de query | CPU > 80% por 10 min; deadlock > 1/min |
 | Jobs | Execuções, duração, atraso e falhas | Atraso > 10 min ou 2 falhas consecutivas |
 | Concorrência | Timeouts de `sp_getapplock` | > 5 por minuto |
@@ -1302,7 +1302,7 @@ A instalação e a configuração do Vitest para testes de componente, bem como 
 | Cancelamento após início | RN-AGD-019, CA-AGD-016 | Integração | 409 `appointment.already_started` |
 | Sugestão aceita | RF-AGD-016, CA-AGD-012 | Integração | Horário transferido e histórico preservado |
 | Sugestão expirada | RF-AGD-016, CA-AGD-013 | Integração + job | Horário liberado e notificação criada |
-| Atendimento finalizado sem pagamento | RF-ATD-009, CA-ATD-006 | Integração | Status `Completed` e pagamento `Pending` |
+| Atendimento finalizado sem pagamento | RF-ATD-009, CA-ATD-006 | Integração | Situacao `Completed` e pagamento `Pending` |
 | Pagamento duplicado | RF-ATD-006 | Integração | 409 `payment.already_registered` |
 | Não comparecimento bloqueia atendimento | RN-ATD-010, CA-ATD-008 | Unitário + integração | Transição rejeitada |
 | Isolamento entre tenants | RNF-SEGURANCA-002 | Integração | Nenhum dado cruzado em 100% dos endpoints |
@@ -1474,7 +1474,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 | Trade-off | Benefício | Custo | Reversibilidade |
 | --- | --- | --- | --- |
 | Monólito modular em vez de microsserviços | Simplicidade operacional e transações locais | Escala acoplada e extração futura | Média |
-| Banco único com `TenantId` | Custo e operação menores | Isolamento lógico, não físico | Média |
+| Banco único com `BarbeariaId` | Custo e operação menores | Isolamento lógico, não físico | Média |
 | Cookie em vez de JWT | Proteção contra XSS e sessão revogável | Requer CSRF e same-origin | Alta |
 | Polling em vez de SignalR | Menos complexidade na V1.0 | Latência de até 60 s | Alta |
 | Sem MediatR/AutoMapper | Menos indireção e dependências | Mais código explícito | Alta |
@@ -1488,14 +1488,14 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 
 ## 19.1. Índice
 
-| ID | Título | Status | Data | Substitui |
+| ID | Título | Situacao | Data | Substitui |
 | --- | --- | --- | --- | --- |
 | ADR-001 | Angular 22 standalone, zoneless e baseado em signals | Aceito | 16/11/2026 | Nenhum |
 | ADR-002 | .NET 10 com solução no formato `.slnx` | Aceito | 16/11/2026 | Nenhum |
 | ADR-003 | Clean Architecture com DDD tático e monólito modular | Aceito | 16/11/2026 | Nenhum |
 | ADR-004 | SQL Server com EF Core 10 e migrations versionadas | Aceito | 16/11/2026 | Nenhum |
 | ADR-005 | ASP.NET Core Identity com autenticação por cookie | Aceito | 16/11/2026 | Nenhum |
-| ADR-006 | Banco único com `TenantId` e filtros globais | Aceito | 16/11/2026 | Nenhum |
+| ADR-006 | Banco único com `BarbeariaId` e filtros globais | Aceito | 16/11/2026 | Nenhum |
 | ADR-007 | API REST com controllers e versionamento por URL | Aceito | 16/11/2026 | Nenhum |
 | ADR-008 | Angular Material + CDK como biblioteca de UI | Rejeitado | 16/11/2026 | Substituído por ADR-026 |
 | ADR-009 | Quartz.NET com store no SQL Server | Rejeitado | 16/11/2026 | Substituído por ADR-027 |
@@ -1534,7 +1534,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 
 ### ADR-001 — Angular 22 standalone, zoneless e baseado em signals
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DESEMPENHO-001, RNF-USABILIDADE-001, RNF-ACESSIBILIDADE-001
@@ -1561,7 +1561,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 
 ### ADR-002 — .NET 10 com solução no formato `.slnx`
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** Todos os RFs de backend
@@ -1588,7 +1588,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 
 ### ADR-003 — Clean Architecture com DDD tático e monólito modular
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RN-AGD-001 a RN-AGD-021, RN-ATD-001 a RN-ATD-011
@@ -1616,7 +1616,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 
 ### ADR-004 — SQL Server com EF Core 10 e migrations versionadas
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-RETENCAO-001, RNF-CONCORRENCIA-001, RNF-AUDITORIA-001
@@ -1643,7 +1643,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 
 ### ADR-005 — ASP.NET Core Identity com autenticação por cookie
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RF-AUTH-001 a RF-AUTH-010, RNF-SEGURANCA-001, RNF-SEGURANCA-002
@@ -1651,7 +1651,7 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 
 **Contexto:** o produto tem cadastros separados, perfis com fluxos de autenticação distintos e não possui integração com provedor de identidade externo.
 
-**Decisão:** ASP.NET Core Identity com `UserManager`, `SignInManager`, hash PBKDF2 e cookie `__Host-pb.auth`. Perfis de negócio (`CustomerProfile`, `ProfessionalProfile`) são entidades separadas ligadas ao usuário.
+**Decisão:** ASP.NET Core Identity com `UserManager`, `SignInManager`, hash PBKDF2 e cookie `__Host-pb.auth`. Perfis de negócio (`PerfilCliente`, `PerfilProfissional`) são entidades separadas ligadas ao usuário.
 
 **Alternativas consideradas:**
 
@@ -1667,20 +1667,20 @@ Custos dependem da decisão de hospedagem e do serviço de banco (ADR-028, ABT-0
 - Negativas: necessidade de antiforgery e same-origin.
 - Custos e riscos: recuperação de senha depende de e-mail futuro.
 
-**Critérios de verificação:** cookie com flags corretas; lockout ativo; `SecurityStamp` validado; testes de login e logout.
+**Critérios de verificação:** cookie com flags corretas; lockout ativo; `SeloSeguranca` validado; testes de login e logout.
 
-### ADR-006 — Banco único com `TenantId` e filtros globais
+### ADR-006 — Banco único com `BarbeariaId` e filtros globais
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RN-EMP-001, RN-DASH-009, RNF-SEGURANCA-002, RNF-PRIVACIDADE-001
 
 **Contexto:** a escala inicial é de até 500 barbearias, com necessidade de custo baixo e migrations simples. O isolamento físico por banco ou schema aumentaria a complexidade operacional.
 
-**Decisão:** utilizar banco único compartilhado, com `TenantId` nas entidades de negócio pertencentes a uma barbearia. O isolamento será realizado por filtros globais do EF Core, utilizando a interface `IPertencenteTenant`, e validação de vínculo na aplicação.
+**Decisão:** utilizar banco único compartilhado, com `BarbeariaId` nas entidades de negócio pertencentes a uma barbearia. O isolamento será realizado por filtros globais do EF Core, utilizando a interface `IPertencenteTenant`, e validação de vínculo na aplicação.
 
-O `TenantId` representa o identificador da barbearia, mantendo a nomenclatura técnica já adotada no TDD. Ele nunca será recebido diretamente do corpo da requisição.
+O `BarbeariaId` representa o identificador da barbearia e substitui a nomenclatura anterior `TenantId` nas entidades de negócio, conforme decisão aprovada na padronização de nomenclatura. O nome `TenantId` permanece apenas na infraestrutura técnica de resolução do tenant ativo (`IContextoTenant`, `ChavesContextoTenant` e correlação de logs), sem alterar o isolamento. Ele nunca será recebido diretamente do corpo da requisição.
 
 Entidades globais, que não pertencem a uma barbearia específica, não precisarão implementar `IPertencenteTenant`.
 
@@ -1706,7 +1706,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-007 — API REST com controllers e versionamento por URL
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** Todos os RFs expostos por API
@@ -1734,7 +1734,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-008 — Angular Material + CDK como biblioteca de UI
 
-- **Status:** Rejeitado
+- **Situacao:** Rejeitado
 - **Data:** 16/11/2026
 - **Substituído por:** ADR-026
 - **Decisores:** Equipe PontoBarber
@@ -1762,7 +1762,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-009 — Quartz.NET com store no SQL Server
 
-- **Status:** Rejeitado
+- **Situacao:** Rejeitado
 - **Data:** 16/11/2026
 - **Substituído por:** ADR-027 (pendente)
 - **Decisores:** Equipe PontoBarber
@@ -1790,14 +1790,14 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-010 — Concorrência de agenda com `sp_getapplock` e índice único
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-CONCORRENCIA-001, RN-AGD-007, RN-PUB-007, RN-PUB-008
 
 **Contexto:** duas confirmações simultâneas não podem ocupar o mesmo horário. O SQL Server não oferece constraint de exclusão para intervalos.
 
-**Decisão:** transação única com `sp_getapplock` exclusivo por `tenant:professional:date`, consulta de sobreposição (`starts < @end AND ends > @start`) e índice único filtrado em `(TenantId, ProfessionalId, StartsAtUtc)` para o mesmo início. Timeout de 5 segundos e retorno 409 ou 503.
+**Decisão:** transação única com `sp_getapplock` exclusivo por `tenant:professional:date`, consulta de sobreposição (`starts < @end AND ends > @start`) e índice único filtrado em `(BarbeariaId, ProfissionalId, IniciaEmUtc)` para o mesmo início. Timeout de 5 segundos e retorno 409 ou 503.
 
 **Alternativas consideradas:**
 
@@ -1817,15 +1817,15 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-011 — UTC no banco com fuso IANA por barbearia
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RN-DASH-002 a RN-DASH-005, RNF-AUDITORIA-001
-- **Substituição parcial:** ADR-034 substitui apenas a biblioteca de datas do frontend; UTC no banco, `TimeZoneId` IANA e conversão no backend permanecem vigentes.
+- **Substituição parcial:** ADR-034 substitui apenas a biblioteca de datas do frontend; UTC no banco, `FusoHorarioId` IANA e conversão no backend permanecem vigentes.
 
 **Contexto:** cada barbearia opera em um único fuso e os indicadores dependem do calendário local. Comparar horários locais sem fuso gera erros em viradas de dia e horário de verão.
 
-**Decisão:** instantes em UTC (`datetime2(3)`), `TimeZoneId` IANA na barbearia, `TimeOnly` para janelas semanais e conversão na borda. `IRelogio` injetado e proibição de `DateTime.Now`.
+**Decisão:** instantes em UTC (`datetime2(3)`), `FusoHorarioId` IANA na barbearia, `TimeOnly` para janelas semanais e conversão na borda. `IRelogio` injetado e proibição de `DateTime.Now`.
 
 **Alternativas consideradas:**
 
@@ -1845,7 +1845,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-012 — Testes com MSTest, Testcontainers e Playwright
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-CONCORRENCIA-001, RNF-SEGURANCA-002, RNF-RETENCAO-001
@@ -1873,7 +1873,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-013 — Containers Linux e Azure SQL na V1.0
 
-- **Status:** Proposto
+- **Situacao:** Proposto
 - **Data:** 16/11/2026
 - **Substituído por:** ADR-028 (pendente)
 - **Substituição parcial:** ADR-033 substitui a imagem web separada pela hospedagem da SPA no ASP.NET Core; a decisão de hospedagem/provedor permanece em ADR-028.
@@ -1882,13 +1882,13 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Contexto:** o produto precisa de deploy reproduzível, HTTPS, backup gerenciado e baixa operação. Não há restrição de nuvem definida.
 
-**Decisão:** imagens Linux para API e web, Azure Container Apps, Azure SQL, Key Vault e Application Insights. Ambientes local, staging e produção.
+**Decisão:** imagens Linux para API e web, Azure Container Apps, Azure SQL, Chave Vault e Application Insights. Ambientes local, staging e produção.
 
 **Alternativas consideradas:**
 
 | Alternativa | Prós | Contras | Motivo da rejeição |
 | --- | --- | --- | --- |
-| App Service | Menos configuração | Menos controle de containers e escala | Container Apps é mais flexível |
+| App Servico | Menos configuração | Menos controle de containers e escala | Container Apps é mais flexível |
 | VPS + Docker | Custo baixo | Operação, backup e TLS manuais | Custo operacional alto |
 | AWS/GCP | Equivalentes | Sem vantagem para a stack Microsoft | Integração Azure é melhor |
 
@@ -1902,7 +1902,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-014 — Observabilidade com Serilog e OpenTelemetry
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DISPONIBILIDADE-001, RNF-AUDITORIA-001
@@ -1910,7 +1910,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Contexto:** falhas de agenda, jobs e isolamento precisam ser diagnosticadas rapidamente, com correlação entre requisição, banco e job.
 
-**Decisão:** Serilog estruturado com enriquecimento de `TraceId` e `TenantId` para logs, OpenTelemetry para traces e métricas e health checks `/health/live` e `/health/ready`. O provider/exporter e o destino concreto da telemetria permanecem pendentes, condicionados à decisão de hospedagem e infraestrutura do ADR-028. Application Insights é mantido apenas como alternativa possível, não como destino escolhido ou aprovado.
+**Decisão:** Serilog estruturado com enriquecimento de `TraceId` e `TenantId` para logs, OpenTelemetry para traces e métricas e health checks `/health/live` e `/health/lery`. O provider/exporter e o destino concreto da telemetria permanecem pendentes, condicionados à decisão de hospedagem e infraestrutura do ADR-028. Application Insights é mantido apenas como alternativa possível, não como destino escolhido ou aprovado.
 
 **Escopo da decisão x destino concreto:** Serilog e OpenTelemetry são decisões aprovadas e permanecem vigentes. O provider/exporter e o destino concreto da telemetria, inclusive eventual Application Insights, permanecem condicionados à decisão de hospedagem e infraestrutura registrada no ADR-028. Nenhum destino proprietário é escolhido nesta correção documental.
 
@@ -1928,11 +1928,11 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 - Negativas: custo de ingestão e necessidade de redação de PII.
 - Custos e riscos: volume de logs deve ser monitorado.
 
-**Critérios de verificação:** trace completo de uma requisição; logs com `TenantId`; alertas configurados.
+**Critérios de verificação:** trace completo de uma requisição; logs com `BarbeariaId`; alertas configurados.
 
 ### ADR-015 — Casos de uso explícitos sem MediatR e sem AutoMapper
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DESEMPENHO-003, manutenibilidade
@@ -1960,7 +1960,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-016 — Notificações internas por polling na V1.0
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RF-NOTIF-001, RN-NOTIF-001
@@ -1987,7 +1987,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-017 — Erros padronizados com ProblemDetails e códigos estáveis
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-USABILIDADE-001, RNF-SEGURANCA-002
@@ -2015,7 +2015,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-018 — Estado do frontend com signals e serviços, sem NgRx
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DESEMPENHO-001, RNF-USABILIDADE-001
@@ -2042,7 +2042,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-019 — Acesso a dados com DbContext e query services
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DESEMPENHO-001, RNF-DESEMPENHO-002
@@ -2069,7 +2069,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-020 — Endurecimento de sessão, CSRF e rate limiting
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-SEGURANCA-002, RNF-SEGURANCA-003
@@ -2096,14 +2096,14 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-021 — Concorrência otimista com `rowversion` e idempotência
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RN-ATD-001 a RN-ATD-011, RNF-AUDITORIA-001
 
 **Contexto:** duas abas ou profissionais podem tentar alterar o mesmo agendamento simultaneamente; redes instáveis podem repetir pagamentos.
 
-**Decisão:** `rowversion` em `Appointment` com `If-Match`, exceção convertida em 409, e `Idempotency-Key` obrigatório em criação de agendamento e pagamento, com registro por 24 horas.
+**Decisão:** `rowversion` em `Agendamento` com `If-Match`, exceção convertida em 409, e `Idempotency-Chave` obrigatório em criação de agendamento e pagamento, com registro por 24 horas.
 
 **Alternativas consideradas:**
 
@@ -2123,7 +2123,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-022 — Migrations com estratégia expandir/contrair
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DISPONIBILIDADE-001
@@ -2150,14 +2150,14 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-023 — Desativação lógica, snapshots e retenção de histórico
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RN-SERV-008, RN-SERV-009, RN-PROF-004, RN-PROF-005, RN-CLI-007, RNF-RETENCAO-001
 
 **Contexto:** o PRD exige preservar histórico após alterações cadastrais, remoção de serviços e de vínculos.
 
-**Decisão:** entidades referenciadas usam desativação lógica (`IsActive`, `Status`), agendamentos guardam snapshots de serviço e histórico append-only; exclusão física apenas para dados operacionais expirados.
+**Decisão:** entidades referenciadas usam desativação lógica (`Ativo`, `Situacao`), agendamentos guardam snapshots de serviço e histórico append-only; exclusão física apenas para dados operacionais expirados.
 
 **Alternativas consideradas:**
 
@@ -2177,7 +2177,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-024 — Integrações externas por portas e adaptadores
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RF-NOTIF-001, evolução futura
@@ -2204,7 +2204,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-025 — CI/CD com GitHub Actions e Azure Container Apps
 
-- **Status:** Proposto
+- **Situacao:** Proposto
 - **Data:** 16/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DISPONIBILIDADE-001
@@ -2233,7 +2233,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-026 — Bootstrap 5 + SCSS + Bootstrap Icons como design system
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 17/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-ACESSIBILIDADE-001, RNF-COMPATIBILIDADE-001, RNF-USABILIDADE-001, RNF-DESEMPENHO-001
@@ -2260,7 +2260,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-027 — Estratégia de execução de processos periódicos
 
-- **Status:** Pendente
+- **Situacao:** Pendente
 - **Data:** 17/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RF-AGD-015, RF-AGD-016, RF-AGD-017, RN-AGD-015 a RN-AGD-017
@@ -2271,7 +2271,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 - A aplicação define abstrações próprias para execução de processos; `Dominio` e `Aplicacao` não referenciam biblioteca de agendamento.
 - A escolha do adaptador é feita em `Infra` e registrada em ADR próprio no momento da decisão.
-- Todo processo é implementado como operação idempotente, segura sob execução repetida ou concorrente, com registro de execução em `JobRuns`.
+- Todo processo é implementado como operação idempotente, segura sob execução repetida ou concorrente, com registro de execução em `ExecucoesJob`.
 - A garantia de execução durável e coordenada entre instâncias não pode ser afirmada enquanto a estratégia não for aprovada.
 - Os processos existentes têm rastreabilidade na SPEC/TDD; nenhum processo novo é introduzido por esta decisão.
 
@@ -2293,7 +2293,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-028 — Hospedagem, provedor de nuvem e serviços gerenciados
 
-- **Status:** Pendente
+- **Situacao:** Pendente
 - **Data:** 17/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Requisitos relacionados:** RNF-DISPONIBILIDADE-001, RNF-SEGURANCA-001, RNF-PRIVACIDADE-001
@@ -2327,7 +2327,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-029 — Validação de entrada com DataAnnotations
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 18/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Substitui:** ADR-015 (parcial — apenas a biblioteca de validação)
@@ -2353,7 +2353,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-030 — Versionamento nativo por rotas `/api/v1`
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 18/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Substitui:** ADR-007 (parcial — apenas o mecanismo de versionamento)
@@ -2377,7 +2377,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-031 — Testes arquiteturais próprios com MSTest
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 18/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Substitui:** ADR-003 (parcial — apenas a verificação arquitetural)
@@ -2397,11 +2397,11 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Consequências:** ausência de dependência extra e regras legíveis; mudanças de convenção exigem atualização manual dos testes.
 
-**Critérios de verificação:** suíte arquitetural verde; `Dominio` sem referências a EF Core, ASP.NET Core, Identity ou agendamento; convenções de `TenantId` e UTC verificadas.
+**Critérios de verificação:** suíte arquitetural verde; `Dominio` sem referências a EF Core, ASP.NET Core, Identity ou agendamento; convenções de `BarbeariaId` e UTC verificadas.
 
 ### ADR-032 — Isolamento de banco de testes por recriação controlada
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 18/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Substitui:** ADR-012 (parcial — apenas a limpeza de banco)
@@ -2425,7 +2425,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-033 — Hospedagem da SPA pelo ASP.NET Core
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 18/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Substitui:** TDD §5.2, §7 e §16.2; ADR-013 (parcial — imagem web separada)
@@ -2435,7 +2435,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Decisão:** o próprio ASP.NET Core serve os arquivos estáticos do build Angular e aplica fallback para `index.html` nas rotas da SPA; a API permanece sob `/api/v1` no mesmo host e porta. Não há Nginx, contêiner web separado nem CORS. TLS/HSTS continuam sob responsabilidade da infraestrutura a definir em ADR-028. A integração dos assets será implementada quando o projeto Angular existir; nenhum scaffold é criado nesta etapa.
 
-**Escopo do fallback:** o fallback para `index.html` atende somente às rotas da aplicação frontend. Rotas inexistentes sob `/api/v1` não podem retornar `index.html`: devem preservar o comportamento HTTP de erro da API. Os endpoints `/health/live` e `/health/ready` também devem preservar seus próprios comportamentos e nunca ser capturados pelo fallback da SPA.
+**Escopo do fallback:** o fallback para `index.html` atende somente às rotas da aplicação frontend. Rotas inexistentes sob `/api/v1` não podem retornar `index.html`: devem preservar o comportamento HTTP de erro da API. Os endpoints `/health/live` e `/health/lery` também devem preservar seus próprios comportamentos e nunca ser capturados pelo fallback da SPA.
 
 **Alternativas consideradas:**
 
@@ -2447,11 +2447,11 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Consequências:** uma única imagem para API e SPA; escala conjunta; health checks permanecem na API; o build frontend precisa produzir assets estáticos quando for implementado.
 
-**Critérios de verificação:** nenhuma configuração Nginx versionada; somente rotas da SPA retornam `index.html`; rota inexistente sob `/api/v1` mantém o erro HTTP da API; `/health/live` e `/health/ready` preservam seus comportamentos e não são capturados pelo fallback; nenhuma política CORS adicionada.
+**Critérios de verificação:** nenhuma configuração Nginx versionada; somente rotas da SPA retornam `index.html`; rota inexistente sob `/api/v1` mantém o erro HTTP da API; `/health/live` e `/health/lery` preservam seus comportamentos e não são capturados pelo fallback; nenhuma política CORS adicionada.
 
 ### ADR-034 — Datas e fusos no frontend com `Date` e `Intl` nativos
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 18/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Substitui:** TDD §6.3 e §12.4 (parcial — biblioteca de datas do frontend); ADR-011 (parcial)
@@ -2471,11 +2471,11 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Consequências:** nenhuma dependência de datas no frontend; formatação sujeita à implementação de `Intl` do navegador; horários inexistentes em horário de verão exigem tratamento explícito.
 
-**Critérios de verificação:** nenhum pacote `date-fns` ou Moment.js; instante trafegado em UTC; exibição no `TimeZoneId` da barbearia; testes com `America/Sao_Paulo`, `America/Manaus` e fuso com horário de verão.
+**Critérios de verificação:** nenhum pacote `date-fns` ou Moment.js; instante trafegado em UTC; exibição no `FusoHorarioId` da barbearia; testes com `America/Sao_Paulo`, `America/Manaus` e fuso com horário de verão.
 
 ### ADR-035 — `ProblemDetails` nativo com `Extensions` preservando o contrato
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 18/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Substitui:** ADR-017 (parcial — apenas o mecanismo de serialização)
@@ -2501,7 +2501,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-036 — Assertivas nativas do MSTest, sem FluentAssertions
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 18/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Substitui:** lista oficial de tecnologias (sem ADR anterior)
@@ -2524,7 +2524,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 ### ADR-037 — Adiamento da instrumentação e exportação OpenTelemetry
 
-- **Status:** Aceito
+- **Situacao:** Aceito
 - **Data:** 18/11/2026
 - **Decisores:** Equipe PontoBarber
 - **Substitui:** ADR-014 (parcial — apenas instrumentação/exportação OpenTelemetry)
@@ -2532,7 +2532,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 **Contexto:** o ADR-014 aprovou Serilog para logs estruturados e OpenTelemetry para traces e métricas. A decisão de hospedagem e infraestrutura (ADR-028) continua pendente, portanto não há coletor, exporter nem destino concreto de telemetria. Na fundação da V1, a aplicação opera apenas com logs no console. Manter pacotes e configuração de exportação antecipada adiciona complexidade sem benefício operacional concreto.
 
-**Decisão:** manter o Serilog como solução de logging da aplicação, com saída estruturada em JSON no console, enriquecimento de correlação (`TraceId`/`RequestId`, `UserId` em hash e `TenantId`) e redação de dados sensíveis aplicada antes de qualquer sink. A instrumentação e a exportação OpenTelemetry — incluindo traces, métricas e o sink OTLP de logs — ficam **adiadas** até que exista destino definido na decisão de hospedagem (ADR-028) e necessidade operacional demonstrada. Nenhum fornecedor de APM, coletor ou destino de telemetria é escolhido nesta decisão. Os health checks `/health/live` e `/health/ready` permanecem vigentes.
+**Decisão:** manter o Serilog como solução de logging da aplicação, com saída estruturada em JSON no console, enriquecimento de correlação (`TraceId`/`RequestId`, `UserId` em hash e `TenantId`) e redação de dados sensíveis aplicada antes de qualquer sink. A instrumentação e a exportação OpenTelemetry — incluindo traces, métricas e o sink OTLP de logs — ficam **adiadas** até que exista destino definido na decisão de hospedagem (ADR-028) e necessidade operacional demonstrada. Nenhum fornecedor de APM, coletor ou destino de telemetria é escolhido nesta decisão. Os health checks `/health/live` e `/health/lery` permanecem vigentes.
 
 **Alternativas consideradas:**
 
@@ -2558,7 +2558,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 
 | Fase | Entrega | Dependências | Critério de conclusão |
 | --- | --- | --- | --- |
-| F0 — Fundação | Solução `.slnx`, projetos, CI, Docker, banco local, health checks e observabilidade | Nenhuma | Build e pipeline verdes; API responde `/health/ready` |
+| F0 — Fundação | Solução `.slnx`, projetos, CI, Docker, banco local, health checks e observabilidade | Nenhuma | Build e pipeline verdes; API responde `/health/lery` |
 | F1 — Identidade e tenants | Cadastro, login, cookie, perfis, criação de barbearia e código de convite | F0 | Fluxos de AUTH cobertos por integração e E2E |
 | F2 — Catálogo e configurações | Serviços, catálogo modelo, funcionamento, disponibilidade e bloqueios | F1 | RF-SERV, RF-HOR e RF-CONF implementados |
 | F3 — Agenda e agendamento | Disponibilidade, criação manual, agendamento público, cancelamento, remarcação | F2 | Reserva concorrente segura e agenda diária/semanal/mensal |
@@ -2624,7 +2624,7 @@ Entidades globais, que não pertencem a uma barbearia específica, não precisar
 | ABT-013 | Premissa | Notificações por polling de 60 segundos atendem à V1.0 | Experiência e infraestrutura | Produto e Tecnologia | Antes da F5 |
 | ABT-014 | Premissa | Hospedagem em containers Linux e serviço de banco SQL Server a definir (ADR-028) | Infraestrutura e custo | Tecnologia | Antes da F7 |
 | ABT-015 | Premissa | Bootstrap 5 + SCSS + Bootstrap Icons como design system (ADR-026) | UI e acessibilidade | Produto e Design | Resolvido em ADR-026 |
-| ABT-016 | Premissa | Banco único com `TenantId` é suficiente para a escala e o isolamento | Segurança e operação | Tecnologia | Antes da F1 |
+| ABT-016 | Premissa | Banco único com `BarbeariaId` é suficiente para a escala e o isolamento | Segurança e operação | Tecnologia | Antes da F1 |
 | ABT-017 | Premissa | Estratégia de execução de processos periódicos permanece pendente (ADR-027) | Jobs e disponibilidade | Tecnologia | Antes da conclusão da F3 |
 | ABT-018 | Questão | Qual provedor de e-mail será usado para o código OTP de clientes (e eventual recuperação futura de senha)? | Autenticação de clientes na V1.0 | Produto e Tecnologia | Antes da F1 — provedor ainda não escolhido |
 | ABT-019 | Questão | Qual o SLA de suporte e janela de manutenção? | Operação e alertas | Produto | Antes do go-live |
@@ -2660,31 +2660,31 @@ Decisões pendentes que dependem de confirmação: ADR-013/ADR-028 (hospedagem e
 | Requisito | Componente | ADR | Teste/verificação |
 | --- | --- | --- | --- |
 | RF-AUTH-001 a RF-AUTH-004 | `Api/Auth`, `Infra/Identity`, feature `auth` | ADR-005, ADR-020 | Integração de registro, login e logout; E2E |
-| RF-AUTH-005 a RF-AUTH-010 | `Aplicacao/Tenants`, `Aplicacao/Professionals` | ADR-005, ADR-006 | Integração de criação de barbearia, convite e vínculo |
-| RF-EMP-001 a RF-EMP-003 | `Aplicacao/Tenants` | ADR-006, ADR-017 | Integração e teste de autorização |
-| RF-SERV-001 a RF-SERV-008 | `Dominio/Services`, `Aplicacao/Services` | ADR-004, ADR-023 | Unitário de catálogo e snapshot; integração |
-| RF-HOR-001 a RF-HOR-007 | `Dominio/Professionals`, `Aplicacao/Scheduling` | ADR-011 | Unitário de janelas e integração de bloqueios |
-| RF-AGD-001 a RF-AGD-004 | `Aplicacao/Appointments`, feature `schedule` | ADR-007, ADR-019 | Integração de agenda e E2E de navegação |
-| RF-AGD-005 a RF-AGD-008 | `Aplicacao/Appointments`, `Dominio/Scheduling` | ADR-010, ADR-021 | Concorrência e cálculo de término/valor |
-| RF-AGD-009 a RF-AGD-014 | `Aplicacao/Appointments` | ADR-021, ADR-023 | Integração de detalhe, cancelamento e remarcação |
-| RF-AGD-015 a RF-AGD-017 | `Aplicacao/Appointments`, processos periódicos | ADR-027, ADR-023 | Integração de sugestão, expiração e histórico |
+| RF-AUTH-005 a RF-AUTH-010 | `Aplicacao/Barbearia`, `Aplicacao/Profissionais` | ADR-005, ADR-006 | Integração de criação de barbearia, convite e vínculo |
+| RF-EMP-001 a RF-EMP-003 | `Aplicacao/Barbearia` | ADR-006, ADR-017 | Integração e teste de autorização |
+| RF-SERV-001 a RF-SERV-008 | `Dominio/Serviços`, `Aplicacao/Serviços` | ADR-004, ADR-023 | Unitário de catálogo e snapshot; integração |
+| RF-HOR-001 a RF-HOR-007 | `Dominio/Profissionais`, `Aplicacao/Disponibilidade` | ADR-011 | Unitário de janelas e integração de bloqueios |
+| RF-AGD-001 a RF-AGD-004 | `Aplicacao/Agendamentos`, feature `schedule` | ADR-007, ADR-019 | Integração de agenda e E2E de navegação |
+| RF-AGD-005 a RF-AGD-008 | `Aplicacao/Agendamentos`, `Dominio/Disponibilidade` | ADR-010, ADR-021 | Concorrência e cálculo de término/valor |
+| RF-AGD-009 a RF-AGD-014 | `Aplicacao/Agendamentos` | ADR-021, ADR-023 | Integração de detalhe, cancelamento e remarcação |
+| RF-AGD-015 a RF-AGD-017 | `Aplicacao/Agendamentos`, processos periódicos | ADR-027, ADR-023 | Integração de sugestão, expiração e histórico |
 | RF-AGD-018 | feature `schedule` | ADR-026 | E2E visual e teste de componente |
-| RF-ATD-001 a RF-ATD-009 | `Dominio/Appointments`, `Aplicacao/Payments` | ADR-021, ADR-023 | Unitário de estados e integração de pagamento |
-| RF-CLI-001 a RF-CLI-006 | `Aplicacao/Customers` | ADR-006, ADR-020 | Integração de listagem, busca e autoatendimento |
-| RF-PROF-001 a RF-PROF-008 | `Aplicacao/Professionals` | ADR-006, ADR-023 | Integração de vínculo, status e convite |
+| RF-ATD-001 a RF-ATD-009 | `Dominio/Agendamentos`, `Aplicacao/Financeiro` | ADR-021, ADR-023 | Unitário de estados e integração de pagamento |
+| RF-CLI-001 a RF-CLI-006 | `Aplicacao/Clientes` | ADR-006, ADR-020 | Integração de listagem, busca e autoatendimento |
+| RF-PROF-001 a RF-PROF-008 | `Aplicacao/Profissionais` | ADR-006, ADR-023 | Integração de vínculo, status e convite |
 | RF-DASH-001 a RF-DASH-005 | `Aplicacao/Dashboard`, feature `dashboard` | ADR-011, ADR-019 | Integração de indicadores e E2E |
-| RF-PUB-001 a RF-PUB-006 | `Aplicacao/PublicBooking`, feature `public-booking` | ADR-007, ADR-010 | E2E do fluxo público e teste de concorrência |
-| RF-CONF-001 a RF-CONF-008 | `Aplicacao/Settings`, feature `settings` | ADR-006, ADR-020 | Integração por perfil |
-| RF-NOTIF-001 | `Dominio/Notifications`, feature `notifications` | ADR-016 | Integração de eventos e polling |
+| RF-PUB-001 a RF-PUB-006 | `Aplicacao/PublicBooking`, feature `agendamento-publico` | ADR-007, ADR-010 | E2E do fluxo público e teste de concorrência |
+| RF-CONF-001 a RF-CONF-008 | `Aplicacao/Configurações`, feature `configuracoes` | ADR-006, ADR-020 | Integração por perfil |
+| RF-NOTIF-001 | `Dominio/Notificações`, feature `notificacoes` | ADR-016 | Integração de eventos e polling |
 | RNF-DESEMPENHO-001 a 003 | API, banco e frontend | ADR-001, ADR-019 | k6 e métricas de p95 |
 | RNF-SEGURANCA-001 a 003 | Identity, API e banco | ADR-005, ADR-020 | Revisão e testes de segurança |
-| RNF-CONCORRENCIA-001 | `Aplicacao/Appointments` | ADR-010, ADR-021 | Teste com 10 requisições simultâneas |
+| RNF-CONCORRENCIA-001 | `Aplicacao/Agendamentos` | ADR-010, ADR-021 | Teste com 10 requisições simultâneas |
 | RNF-DISPONIBILIDADE-001 | Infraestrutura e health checks | ADR-013, ADR-014, ADR-025, ADR-033 | Monitoramento e teste de rollback |
 | RNF-PRIVACIDADE-001 | API, logs e banco | ADR-014, ADR-023 | Revisão de PII e testes de acesso |
-| RNF-AUDITORIA-001 | `AppointmentHistory` | ADR-023 | Teste de histórico e autor |
+| RNF-AUDITORIA-001 | `HistoricoAgendamento` | ADR-023 | Teste de histórico e autor |
 | RNF-ACESSIBILIDADE-001 | Frontend | ADR-026 | axe e revisão manual |
 | RNF-COMPATIBILIDADE-001 | Frontend | ADR-001, ADR-034 | Playwright em Chromium, Firefox e WebKit |
-| RNF-USABILIDADE-001 | Feature `public-booking` | ADR-026 | Teste de usabilidade e E2E |
+| RNF-USABILIDADE-001 | Feature `agendamento-publico` | ADR-026 | Teste de usabilidade e E2E |
 | RNF-RETENCAO-001 | Banco e domínio | ADR-004, ADR-023 | Teste de snapshots e desativação |
 
 # Apêndice C — Referências

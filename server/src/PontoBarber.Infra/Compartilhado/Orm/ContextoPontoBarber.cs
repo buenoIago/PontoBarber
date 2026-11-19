@@ -73,7 +73,7 @@ public class ContextoPontoBarber(
     private void ConfigurarFiltroTenant<TEntidade>(EntityTypeBuilder<TEntidade> builder)
         where TEntidade : class, IPertencenteTenant
     {
-        builder.HasQueryFilter(entidade => entidade.TenantId == _contextoTenant.TenantId);
+        builder.HasQueryFilter(entidade => entidade.BarbeariaId == _contextoTenant.TenantId);
     }
 
     private void GarantirTenantIdImutavel()
@@ -81,10 +81,10 @@ public class ContextoPontoBarber(
         foreach (var entry in ChangeTracker.Entries<IPertencenteTenant>())
         {
             if (entry.State == EntityState.Modified &&
-                entry.Property(nameof(IPertencenteTenant.TenantId)).IsModified)
+                entry.Property(nameof(IPertencenteTenant.BarbeariaId)).IsModified)
             {
                 throw new InvalidOperationException(
-                    "O TenantId de uma entidade não pode ser alterado após a criação.");
+                    "O BarbeariaId de uma entidade não pode ser alterado após a criação.");
             }
         }
     }

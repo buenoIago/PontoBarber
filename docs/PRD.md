@@ -3,7 +3,7 @@
 > **Documento:** Product Requirements Document
 > **Projeto:** PontoBarber
 > **Versão:** 1.0
-> **Status:** Consolidado para desenvolvimento
+> **Situacao:** Consolidado para desenvolvimento
 > **Data:** 16/11/2026
 > **Responsável:** Equipe PontoBarber
 
@@ -895,7 +895,7 @@ Apresenta ao proprietário uma visão consolidada dos agendamentos e dos recebim
 | Horário | Hora | Sim | Exibido nos próximos agendamentos |
 | Cliente | Referência | Sim | Exibido nos próximos agendamentos |
 | Profissional | Referência | Sim | Exibido nos próximos agendamentos |
-| Status | Enumeração | Sim | Situação do agendamento |
+| Situacao | Enumeração | Sim | Situação do agendamento |
 
 ### Restrições e validações
 
@@ -1315,7 +1315,7 @@ Os alvos numéricos abaixo são premissas de qualidade propostas para a V1.0 e d
 | Alteração de disponibilidade afetar agendamentos existentes | Alto | Baixa | Não recalcular nem modificar agendamentos já criados |
 | Remoção de serviço ou vínculo apagar histórico | Alto | Baixa | Desativação lógica e preservação de snapshots e registros históricos |
 | Pagamento registrado incorretamente impactar o dashboard | Médio | Média | Validar valor e forma; permitir conferência por atendimento |
-| Não comparecimento confundido com cancelamento | Médio | Média | Status distinto e bloqueio de atendimento para não comparecentes |
+| Não comparecimento confundido com cancelamento | Médio | Média | Situacao distinto e bloqueio de atendimento para não comparecentes |
 | Acesso indevido a dados de outra barbearia | Alto | Baixa | Isolar consultas por barbearia e validar permissões no servidor |
 | Dados pessoais sem política de retenção definida | Alto | Média | Definir política de privacidade e retenção conforme a LGPD |
 | Ausência de metas para os indicadores | Baixo | Alta | Validar metas com o negócio antes da operação |

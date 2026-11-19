@@ -17,6 +17,6 @@ public abstract class ConfiguracaoEntidade<TEntidade> : IEntityTypeConfiguration
         builder.Property(entidade => entidade.Id).ValueGeneratedNever();
 
         if (typeof(IPertencenteTenant).IsAssignableFrom(typeof(TEntidade)))
-            builder.Property(nameof(IPertencenteTenant.TenantId)).IsRequired();
+            builder.Property(nameof(IPertencenteTenant.BarbeariaId)).IsRequired();
     }
 }

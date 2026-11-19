@@ -4,7 +4,7 @@
 
 - [x] 1.1 Criar `PontoBarber.slnx` com projetos `Dominio`, `Aplicacao`, `Infra`, `WebApp` e testes correspondentes; verificar `dotnet build` verde e que `Dominio` não referencia EF Core, ASP.NET Core, Identity ou biblioteca de agendamento
 - [x] 1.2 Configurar `Directory.Build.props`, nullable, analisadores, tratamento de warnings como erro e convenções de nomenclatura; verificar build sem warnings
-- [x] 1.3 Configurar `DbContext`, convenções de `TenantId`, UTC em `datetime2(3)` e configurações por `IEntityTypeConfiguration`; verificar teste que rejeita entidade de negócio sem `TenantId`
+- [x] 1.3 Configurar `DbContext`, convenções de `BarbeariaId`, UTC em `datetime2(3)` e configurações por `IEntityTypeConfiguration`; verificar teste que rejeita entidade de negócio sem `BarbeariaId`
 - [x] 1.4 Implementar resolução de tenant ativo pela rota e validação contra vínculo do usuário; verificar testes negativos de rota com barbearia sem vínculo
 - [x] 1.5 Implementar filtro global por tenant e testes que comprovem isolamento entre duas barbearias com dados homônimos
 - [x] 1.6 Implementar contrato de erro `application/problem+json` com código estável, `traceId` e erros por campo; verificar testes de conflito e de validação
@@ -45,13 +45,15 @@
   - Nota de validação anterior (mantida): os testes de `/me` autenticado, logout e alteração de senha dependiam de SQL Server via Testcontainers e não puderam ser executados (Docker indisponível). O teste de `/me` sem autenticação passou.
 - [ ] 3.5 Aplicar antiforgery em métodos que alteram estado e autorização por perfil e recurso; verificar testes de requisição sem token e de acesso cruzado entre perfis
   - Critérios revisados: a autenticação do cliente é global e não concede, por si só, acesso a recursos de uma barbearia; autorização por vínculo (`TenantMember`, `TenantOwner`) permanece separada e dependente das Tasks de vínculo.
-  - Nota de validação anterior (mantida): cookie `__Host-pb.csrf`, header `X-CSRF-TOKEN`, validação em métodos que alteram estado e policies `Cliente`/`Profissional`/`TenantMember`/`TenantOwner` estavam implementados; testes locais de emissão do cookie, rejeição sem token e policies passaram. Pendentes: testes de ponta a ponta com sessão autenticada dependem de banco (Docker indisponível); a autorização por recurso/tenant ainda não tem emissores de claim porque as entidades de vínculo e as rotas com `barbershopId` pertencem a Tasks posteriores.
+  - Nota de validação anterior (mantida): cookie `__Host-pb.csrf`, header `X-CSRF-TOKEN`, validação em métodos que alteram estado e policies `Cliente`/`Profissional`/`TenantMember`/`TenantOwner` estavam implementados; testes locais de emissão do cookie, rejeição sem token e policies passaram. Pendentes: testes de ponta a ponta com sessão autenticada dependem de banco (Docker indisponível); a autorização por recurso/tenant ainda não tem emissores de claim porque as entidades de vínculo e as rotas com `barbeariaId` pertencem a Tasks posteriores.
 - [x] 3.6 Implementar telas de escolha de perfil, cadastro, login e dados da conta; verificar E2E dos três fluxos e axe sem violação crítica
   - Nota (19/11/2026): telas em `client/src/app/auth/`, integradas aos endpoints de autenticação, ao `ErroApi`/interceptor e ao fluxo XSRF do Angular. 35 testes de componente/serviço e 5 testes E2E (três fluxos + axe) passaram. Os E2E executaram sobre o servidor de desenvolvimento do Angular, sem backend autenticado: validaram as interações das telas e a exibição legível de erros, mas não a autenticação ponta a ponta com cookie real; essa validação depende das Tasks 3.4/3.5 com banco disponível.
 
 ## 4. Barbearia e profissionais
 
 - [ ] 4.1 Implementar criação de barbearia com validação, fuso IANA e geração de código de convite; verificar testes de criação válida, campo inválido e código único
+  - Implementação realizada: rota `POST /api/v1/barbearias` restrita a profissionais; validação de campos, e-mail, telefone e fuso IANA; código de convite de 8 caracteres com verificação de unicidade e índice único; persistência da barbearia, do perfil do proprietário e do vínculo `Owner` na mesma transação.
+  - Testes unitários executados e aprovados (criação válida, campos inválidos, fuso inválido, colisão de código, esgotamento de tentativas e perfil cliente). Os testes de integração com banco real (Testcontainers) foram criados, mas não puderam ser executados neste ambiente (Docker indisponível); por isso a Task permanece pendente.
 - [ ] 4.2 Implementar consulta e edição dos dados da barbearia restritas ao proprietário; verificar testes de edição válida, tentativa de barbeiro e preservação de agendamentos históricos
 - [ ] 4.3 Implementar entrada por código de convite com rejeição de código inválido e de vínculo duplicado; verificar testes dos três cenários
 - [ ] 4.4 Implementar gestão de vínculos: ativar, desativar, editar dados profissionais e remover, preservando conta e histórico; verificar testes de cada operação e de tentativa sobre vínculo de outro profissional
@@ -94,7 +96,7 @@
 
 ## 9. Processos periódicos
 
-- [ ] 9.1 Definir o contrato de execução de processos na `Aplicacao` e o registro em `JobRuns` com início, fim, resultado e quantidade; verificar teste de registro em execução bem-sucedida e em falha
+- [ ] 9.1 Definir o contrato de execução de processos na `Aplicacao` e o registro em `ExecucoesJob` com início, fim, resultado e quantidade; verificar teste de registro em execução bem-sucedida e em falha
 - [ ] 9.2 Implementar adaptador de disparo provisório apenas em `Infra`, sem escolher biblioteca definitiva, e documentar a pendência do ADR-027; verificar que `Dominio` e `Aplicacao` não referenciam biblioteca de agendamento
 - [ ] 9.3 Implementar expiração de sugestões com `UPDATE` condicional e notificação aos envolvidos; verificar teste de expiração e de execução repetida sem liberação ou notificação duplicada
 - [ ] 9.4 Implementar fechamento de agendamentos vencidos como não comparecimento; verificar teste de agendamento vencido e de reprocessamento sem alteração de status

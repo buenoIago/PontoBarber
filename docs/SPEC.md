@@ -531,7 +531,7 @@ O telefone do cliente é obrigatório no cadastro e sua finalidade é permitir q
   - Horário.
   - Cliente.
   - Profissional.
-  - Status.
+  - Situacao.
 - O sistema deve apresentar os indicadores mesmo quando não houver movimentações.
 
 ### Regras de Negócio
@@ -557,7 +557,7 @@ O telefone do cliente é obrigatório no cadastro e sua finalidade é permitir q
 - Horário.
 - Cliente.
 - Profissional.
-- Status.
+- Situacao.
 
 ### Restrições e validações
 

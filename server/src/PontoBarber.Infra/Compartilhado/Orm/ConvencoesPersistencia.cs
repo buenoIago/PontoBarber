@@ -43,16 +43,16 @@ public static class ConvencoesPersistencia
         if (!typeof(IPertencenteTenant).IsAssignableFrom(tipoEntidade.ClrType))
             return;
 
-        var tenantId = tipoEntidade.FindProperty(nameof(IPertencenteTenant.TenantId));
+        var tenantId = tipoEntidade.FindProperty(nameof(IPertencenteTenant.BarbeariaId));
 
         if (tenantId is null)
         {
             throw new InvalidOperationException(
-                $"A entidade '{tipoEntidade.ClrType.FullName}' implementa IPertencenteTenant mas não possui a propriedade TenantId.");
+                $"A entidade '{tipoEntidade.ClrType.FullName}' implementa IPertencenteTenant mas não possui a propriedade BarbeariaId.");
         }
 
         tenantId.IsNullable = false;
-        tenantId.SetColumnName(nameof(IPertencenteTenant.TenantId));
+        tenantId.SetColumnName(nameof(IPertencenteTenant.BarbeariaId));
     }
 
     private static void AplicarConvencaoDataHora(Microsoft.EntityFrameworkCore.Metadata.IMutableEntityType tipoEntidade)

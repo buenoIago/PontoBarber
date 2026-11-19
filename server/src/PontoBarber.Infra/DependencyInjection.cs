@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PontoBarber.Aplicacao.Auth;
+using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Infra.Compartilhado.Identity;
 using PontoBarber.Infra.Compartilhado.Orm;
 using PontoBarber.Infra.Identity;
+using PontoBarber.Infra.Modulos.Barbearia;
 
 namespace PontoBarber.Infra;
 
@@ -26,6 +28,7 @@ public static class DependencyInjection
 
         services.AddIdentityPontoBarber();
         services.AddScoped<IIdentidade, AdaptadorIdentidade>();
+        services.AddScoped<IBarbeariaRepositorio, RepositorioBarbeariaEmOrm>();
 
         return services;
     }

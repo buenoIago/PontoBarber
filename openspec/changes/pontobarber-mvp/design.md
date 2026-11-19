@@ -8,7 +8,7 @@ Ver `proposal.md` para a motivação. O projeto é greenfield: não existe `src/
 - UI: Bootstrap 5 + SCSS + Bootstrap Icons (ADR-026); ADR-008 rejeitado.
 - Scheduler: pendente (ADR-027); ADR-009 rejeitado.
 - Hospedagem, provedor, banco gerenciado, segredos e destino de telemetria: pendentes (ADR-028); ADR-013/025 seguem propostos com escopo reduzido.
-- Multi-tenancy por banco único com `TenantId` e filtros globais (ADR-006, aceito).
+- Multi-tenancy por banco único com `BarbeariaId` e filtros globais (ADR-006, aceito).
 
 O design abaixo cobre apenas o "como" que não está fixado nos documentos e que precisa de decisão antes da implementação.
 
@@ -41,14 +41,14 @@ Solução única `server/PontoBarber.slnx` com `Dominio`, `Aplicacao`, `Infra`, 
 
 ### 2. Isolamento multi-tenant em três camadas
 
-1. `TenantId` obrigatório nas entidades de negócio.
+1. `BarbeariaId` obrigatório nas entidades de negócio.
 2. Filtro global no `DbContext` alimentado pelo tenant ativo da requisição.
-3. Validação explícita na camada de aplicação: o `TenantId` vem da rota e é confrontado com o vínculo ativo do usuário.
+3. Validação explícita na camada de aplicação: o `BarbeariaId` vem da rota e é confrontado com o vínculo ativo do usuário.
 
-Consultas de dashboard e de clientes filtram por `TenantId` e período mesmo com filtro global.
+Consultas de dashboard e de clientes filtram por `BarbeariaId` e período mesmo com filtro global.
 
 - **Por quê:** defesa em profundidade (ADR-006). O filtro global sozinho é insuficiente se o tenant ativo for resolvido de forma incorreta; a validação por vínculo cobre isso.
-- **Alternativa descartada:** aceitar `TenantId` do corpo da requisição — permite escalada de privilégio.
+- **Alternativa descartada:** aceitar `BarbeariaId` do corpo da requisição — permite escalada de privilégio.
 
 ### 3. Identidade com cookie e proteção CSRF
 
@@ -59,14 +59,14 @@ ASP.NET Core Identity com cookie persistente `HttpOnly`, `Secure`, `SameSite=Lax
 
 ### 4. Reserva de horário com lock por profissional/data e índice único
 
-Confirmação em transação: lock de aplicação `pb:schedule:{tenantId}:{professionalId}:{yyyyMMdd}` no fuso da barbearia, revalidação de disponibilidade, verificação de sobreposição e índice único para duplicidade exata. O mesmo caminho serve ao agendamento público, ao manual e à remarcação.
+Confirmação em transação: lock de aplicação `pb:schedule:{tenantId}:{profissionalId}:{yyyyMMdd}` no fuso da barbearia, revalidação de disponibilidade, verificação de sobreposição e índice único para duplicidade exata. O mesmo caminho serve ao agendamento público, ao manual e à remarcação.
 
 - **Por quê:** o risco principal do produto é double booking sob concorrência (ADR-010). O índice único é a última barreira; o lock reduz conflito e melhora a mensagem de erro.
 - **Alternativa descartada:** apenas verificação em leitura antes do insert — janela de corrida entre leitura e commit.
 
 ### 5. Processos periódicos por abstração + idempotência
 
-`Aplicacao` define o contrato de execução (nome do processo, execução assíncrona, resultado com quantidade processada e erros) e cada processo é um caso de uso idempotente. `Infra` contém somente o adaptador que dispara esses casos de uso; a escolha do adaptador permanece pendente (ADR-027). Cada execução grava registro em `JobRuns` com início, fim, resultado e quantidade. Os processos deste MVP são os rastreáveis no TDD §12.3: expiração de sugestão, fechamento de agendamentos vencidos, expurgo de idempotência e reconciliação de notificações.
+`Aplicacao` define o contrato de execução (nome do processo, execução assíncrona, resultado com quantidade processada e erros) e cada processo é um caso de uso idempotente. `Infra` contém somente o adaptador que dispara esses casos de uso; a escolha do adaptador permanece pendente (ADR-027). Cada execução grava registro em `ExecucoesJob` com início, fim, resultado e quantidade. Os processos deste MVP são os rastreáveis no TDD §12.3: expiração de sugestão, fechamento de agendamentos vencidos, expurgo de idempotência e reconciliação de notificações.
 
 - **Por quê:** satisfaz RN-AGD-015 a RN-AGD-017 sem compromisso prematuro de biblioteca, e mantém o domínio livre de dependência de agendamento.
 - **Consequência explícita:** a garantia de execução durável e coordenada entre instâncias não pode ser afirmada até a decisão. O código não deve depender dela: cada processo precisa ser correto mesmo sob execução repetida ou simultânea.

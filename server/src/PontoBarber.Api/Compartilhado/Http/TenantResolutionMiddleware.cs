@@ -11,7 +11,7 @@ namespace PontoBarber.Api.Compartilhado.Http;
 /// </summary>
 public sealed class TenantResolutionMiddleware(RequestDelegate next)
 {
-    public const string NomeParametroRota = "barbershopId";
+    public const string NomeParametroRota = "barbeariaId";
 
     public async Task InvokeAsync(HttpContext contexto, IResolutorVinculoTenant resolutorVinculo)
     {

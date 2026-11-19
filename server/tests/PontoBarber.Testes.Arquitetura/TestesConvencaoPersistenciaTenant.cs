@@ -9,13 +9,13 @@ namespace PontoBarber.Testes.Arquitetura;
 public class TestesConvencaoPersistenciaTenant
 {
     // Exceções registradas no TDD §8.1 e §11: identidades e perfis globais,
-    // a raiz do tenant (cujo Id é o TenantId) e registros operacionais.
+    // a raiz do tenant (cujo Id é o BarbeariaId) e registros operacionais.
     private static readonly HashSet<string> _entidadesGlobais = new(StringComparer.Ordinal)
     {
         "User",
         "CustomerProfile",
-        "ProfessionalProfile",
-        "Barbershop",
+        "PerfilProfissional",
+        "Barbearia",
         "IdempotencyRecord",
         "JobRun"
     };
@@ -38,7 +38,7 @@ public class TestesConvencaoPersistenciaTenant
 
         Assert.IsTrue(
             semTenant.Count == 0,
-            $"Entidades de negócio sem IPertencenteTenant/TenantId: {string.Join(", ", semTenant)}");
+            $"Entidades de negócio sem IPertencenteTenant/BarbeariaId: {string.Join(", ", semTenant)}");
     }
 
     [TestMethod]
@@ -47,12 +47,12 @@ public class TestesConvencaoPersistenciaTenant
         using var contexto = new ContextoTeste();
 
         var tipoEntidade = contexto.Model.FindEntityType(typeof(EntidadeTenantTeste))!;
-        var tenantId = tipoEntidade.FindProperty(nameof(IPertencenteTenant.TenantId))!;
+        var tenantId = tipoEntidade.FindProperty(nameof(IPertencenteTenant.BarbeariaId))!;
         var criadoEmUtc = tipoEntidade.FindProperty(nameof(EntidadeTenantTeste.CreatedAtUtc))!;
         var opcionalUtc = tipoEntidade.FindProperty(nameof(EntidadeTenantTeste.OptionalAtUtc))!;
 
         Assert.IsFalse(tenantId.IsNullable);
-        Assert.AreEqual("TenantId", tenantId.GetColumnName());
+        Assert.AreEqual("BarbeariaId", tenantId.GetColumnName());
         Assert.AreEqual("datetime2(3)", criadoEmUtc.GetColumnType());
         Assert.AreEqual("datetime2(3)", opcionalUtc.GetColumnType());
     }
@@ -99,7 +99,7 @@ public class TestesConvencaoPersistenciaTenant
     public sealed class EntidadeTenantTeste : IPertencenteTenant
     {
         public Guid Id { get; set; }
-        public Guid TenantId { get; set; }
+        public Guid BarbeariaId { get; set; }
         public DateTime CreatedAtUtc { get; set; }
         public DateTime? OptionalAtUtc { get; set; }
     }

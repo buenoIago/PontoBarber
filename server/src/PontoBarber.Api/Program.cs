@@ -8,6 +8,7 @@ using PontoBarber.Api.Compartilhado.Tenant;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
+using PontoBarber.Aplicacao.Modulos.Barbearia;
 using PontoBarber.Infra;
 using Serilog;
 using Serilog.Events;
@@ -22,6 +23,7 @@ builder.Services.AdicionarAuthApi();
 builder.Services.AddScoped<IContextoTenant, ContextoTenantHttp>();
 builder.Services.AddScoped<IResolutorVinculoTenant, ResolutorVinculoTenantNegaTodos>();
 builder.Services.AddScoped<ServicoConta>();
+builder.Services.AddScoped<ServicoBarbearia>();
 
 var loggerConsole = new LoggerConfiguration()
     .WriteTo.Sink(new SinkConsoleSeguro())

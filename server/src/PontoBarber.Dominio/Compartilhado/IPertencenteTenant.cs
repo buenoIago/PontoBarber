@@ -6,5 +6,9 @@ namespace PontoBarber.Dominio.Compartilhado;
 /// </summary>
 public interface IPertencenteTenant : IEntidade
 {
-    Guid TenantId { get; }
+    /// <summary>
+    /// Identificador da barbearia (tenant) a que a entidade pertence.
+    /// O nome da propriedade adotado nas entidades é <c>BarbeariaId</c>.
+    /// </summary>
+    Guid BarbeariaId { get; }
 }

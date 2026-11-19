@@ -26,17 +26,17 @@ Esta change estabelece o MVP completo do PontoBarber como base implementável: f
 
 ### New Capabilities
 
-- `platform-foundation`: estrutura da solução, isolamento multi-tenant, convenções de persistência e API, design system Bootstrap, observabilidade, health checks, pipeline independente de hospedagem e artefatos de container.
+- `fundacao-plataforma`: estrutura da solução, isolamento multi-tenant, convenções de persistência e API, design system Bootstrap, observabilidade, health checks, pipeline independente de hospedagem e artefatos de container.
 - `identity-and-access`: cadastro separado de cliente e barbeiro, autenticação por OTP de e-mail para clientes e por senha para barbeiros/proprietários, sessão por cookie persistente com expiração deslizante por perfil (60 dias para clientes; 30 dias para barbeiros e proprietários) e sem limite absoluto, CSRF, limites de tentativas, autorização por perfil e por recurso.
-- `barbershop-and-professionals`: criação e edição da barbearia, código de convite, entrada de profissional, gestão de vínculos e dados da empresa.
-- `service-catalog`: catálogo modelo, cadastro, edição e desativação lógica de serviços, com preço e duração preservados em agendamentos.
-- `availability-and-hours`: horários gerais de funcionamento, disponibilidade semanal, bloqueios pontuais e cálculo de horários disponíveis.
-- `booking-and-agenda`: agendamento público e manual com confirmação automática, reserva sem conflito, agenda por dia/semana/mês e consulta de agendamentos.
-- `appointment-lifecycle`: cancelamento com autor e data, remarcação com histórico, sugestão de novo horário com reserva de 24 horas e expiração.
-- `service-delivery-and-payments`: início e fim do atendimento com horários reais, não comparecimento e registro de pagamento presencial.
-- `customer-relationships`: consulta de clientes vinculados à barbearia por agendamentos e edição dos próprios dados pelo cliente.
-- `operational-dashboard`: indicadores de hoje, semana, cancelamentos e recebidos no mês, além de próximos agendamentos, isolados por barbearia.
-- `internal-notifications`: notificações internas por evento de agendamento, consulta por polling e processos periódicos idempotentes com rastreabilidade no TDD.
+- `barbearia-e-profissionais`: criação e edição da barbearia, código de convite, entrada de profissional, gestão de vínculos e dados da empresa.
+- `catalogo-servicos`: catálogo modelo, cadastro, edição e desativação lógica de serviços, com preço e duração preservados em agendamentos.
+- `disponibilidade-e-horarios`: horários gerais de funcionamento, disponibilidade semanal, bloqueios pontuais e cálculo de horários disponíveis.
+- `agendamentos`: agendamento público e manual com confirmação automática, reserva sem conflito, agenda por dia/semana/mês e consulta de agendamentos.
+- `ciclo-agendamento`: cancelamento com autor e data, remarcação com histórico, sugestão de novo horário com reserva de 24 horas e expiração.
+- `atendimento-e-financeiro`: início e fim do atendimento com horários reais, não comparecimento e registro de pagamento presencial.
+- `relacionamento-clientes`: consulta de clientes vinculados à barbearia por agendamentos e edição dos próprios dados pelo cliente.
+- `dashboard`: indicadores de hoje, semana, cancelamentos e recebidos no mês, além de próximos agendamentos, isolados por barbearia.
+- `notificacoes`: notificações internas por evento de agendamento, consulta por polling e processos periódicos idempotentes com rastreabilidade no TDD.
 
 ### Modified Capabilities
 
