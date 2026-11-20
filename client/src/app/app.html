@@ -3,7 +3,39 @@
 }
 
 @if (exibirConta()) {
-  <app-conta />
+  <nav aria-label="Navegação principal" class="container py-3 d-flex gap-2 flex-wrap">
+    <app-button variante="outline" tamanho="sm" (click)="abrirConta()">Minha conta</app-button>
+
+    @if (eProfissional()) {
+      <app-button variante="outline" tamanho="sm" (click)="abrirCriarBarbearia()">
+        Criar barbearia
+      </app-button>
+      <app-button variante="outline" tamanho="sm" (click)="abrirEntrarBarbearia()">
+        Entrar em barbearia
+      </app-button>
+      <app-button variante="outline" tamanho="sm" (click)="abrirProfissionais()">
+        Profissionais
+      </app-button>
+    }
+  </nav>
+
+  @switch (tela()) {
+    @case ('conta') {
+      <app-conta />
+    }
+    @case ('criar-barbearia') {
+      <app-cadastro-barbearia (criada)="abrirProfissionais()" />
+    }
+    @case ('entrar-barbearia') {
+      <app-entrar-barbearia (entrou)="abrirProfissionais()" />
+    }
+    @case ('profissionais') {
+      <app-profissionais />
+    }
+    @default {
+      <app-conta />
+    }
+  }
 } @else {
   @switch (tela()) {
     @case ('escolha') {

@@ -51,18 +51,28 @@
 
 ## 4. Barbearia e profissionais
 
-- [ ] 4.1 Implementar criação de barbearia com validação, fuso IANA e geração de código de convite; verificar testes de criação válida, campo inválido e código único
-  - Implementação realizada: rota `POST /api/v1/barbearias` restrita a profissionais; validação de campos, e-mail, telefone e fuso IANA; código de convite de 8 caracteres com verificação de unicidade e índice único; persistência da barbearia, do perfil do proprietário e do vínculo `Owner` na mesma transação.
-  - Testes unitários executados e aprovados (criação válida, campos inválidos, fuso inválido, colisão de código, esgotamento de tentativas e perfil cliente). Os testes de integração com banco real (Testcontainers) foram criados, mas não puderam ser executados neste ambiente (Docker indisponível); por isso a Task permanece pendente.
+- [x] 4.1 Implementar criação de barbearia com validação, fuso IANA e geração de código de convite; verificar testes de criação válida, campo inválido e código único
+  - Implementado: `POST /api/v1/barbearias`, validação de campos e fuso IANA, código de convite único e persistência transacional de barbearia, perfil do proprietário e vínculo `Proprietario`.
+  - Testes unitários e de integração (SQL Server via Testcontainers) executados e aprovados em 20/11/2026: criação válida, campos inválidos, fuso inválido, colisão de código, esgotamento de tentativas e perfil cliente.
 - [ ] 4.2 Implementar consulta e edição dos dados da barbearia restritas ao proprietário; verificar testes de edição válida, tentativa de barbeiro e preservação de agendamentos históricos
-  - Implementação realizada: `GET` e `PUT /api/v1/barbearias/{barbeariaId}`; consulta permitida a vínculo ativo e edição restrita a `CargoProfissional.Proprietario`, ambos derivados do usuário autenticado. `Barbearia.AtualizarDados` altera somente nome, telefone, e-mail, cidade, endereço e Instagram, preservando identificador, proprietário, código de convite, fuso, situação e `RowVersion`. Resolutor de tenant passou a consultar vínculos ativos reais.
-  - Testes unitários executados e aprovados (consulta pelo proprietário, edição válida com preservação, dados inválidos, barbeiro sem permissão, barbearia diferente e vínculo inativo). Testes de integração criados, mas bloqueados por Docker indisponível; Task permanece pendente.
-- [ ] 4.3 Implementar entrada por código de convite com rejeição de código inválido e de vínculo duplicado; verificar testes dos três cenários
-  - Implementação realizada: `POST /api/v1/barbearias/entrar`. O código é localizado no domínio; o perfil do usuário autenticado é reaproveitado (ou criado a partir da conta, sem nova identidade) e o vínculo é criado com `CargoProfissional.Barbeiro` e `StatusVinculo.Ativo`, defensivamente no domínio. Vínculos existentes em qualquer situação são rejeitados e o índice único `UX_Vinculos_Barbearia_Profissional` protege requisições concorrentes.
-  - Testes unitários executados e aprovados (código válido, código inexistente, vínculo inativo, perfil ausente, perfil cliente, código vazio, conflito concorrente e ausência de campo de cargo). Testes de integração criados, mas bloqueados por Docker indisponível; Task permanece pendente.
-- [ ] 4.4 Implementar gestão de vínculos: ativar, desativar, editar dados profissionais e remover, preservando conta e histórico; verificar testes de cada operação e de tentativa sobre vínculo de outro profissional
+  - Implementado: `GET` e `PUT /api/v1/barbearias/{barbeariaId}`; leitura para vínculo ativo e edição restrita a `CargoProfissional.Proprietario`. `Barbearia.Atualizar` preserva identificador, proprietário, convite, fuso, situação e `RowVersion`.
+  - Testes unitários e de integração executados e aprovados: edição válida, dados inválidos, barbeiro negado, barbearia diferente e vínculo inativo.
+  - Pendente: não existe entidade de agendamento antes da seção 7; a preservação de agendamentos históricos não pode ser verificada nesta etapa.
+- [x] 4.3 Implementar entrada por código de convite com rejeição de código inválido e de vínculo duplicado; verificar testes dos três cenários
+  - Implementado: `POST /api/v1/barbearias/entrar`, com perfil reaproveitado da conta, vínculo `Barbeiro` criado pelo domínio e índice único `UX_Vinculos_Barbearia_Profissional` contra duplicidade.
+  - Testes unitários e de integração executados e aprovados: código válido, inexistente, vínculo duplicado, vínculo inativo, perfil ausente/cliente, código vazio e conflito concorrente.
+- [x] 4.4 Implementar gestão de vínculos: ativar, desativar, editar dados profissionais e remover, preservando conta e histórico; verificar testes de cada operação e de tentativa sobre vínculo de outro profissional
+  - Implementado: `PUT`, `PATCH .../status` e `DELETE /api/v1/barbearias/{barbeariaId}/profissionais/{id}`, com transições de domínio e remoção lógica; acrescido o `GET .../profissionais` previsto no TDD §10.2 para viabilizar a tela de gestão.
+  - Testes unitários, de arquitetura e de integração executados e aprovados: ativar/desativar, editar, remover preservando conta/perfil, negação a barbeiro, tentativa em outra barbearia e isolamento multi-tenant.
 - [ ] 4.5 Garantir que o proprietário tenha vínculo de profissional com agenda própria; verificar teste de acesso simultâneo às permissões administrativas e à agenda
+  - Implementado: a criação da barbearia reaproveita o perfil existente e gera vínculo `Proprietario` ativo; `ObterVinculoParaAgendaAsync` separa a autorização de agenda da autorização administrativa. Testes unitários e de integração aprovados.
+  - Pendente: disponibilidade e agenda pertencem às seções 6 e 7; sem esses módulos não há verificação funcional da agenda própria.
 - [ ] 4.6 Implementar telas de empresa, convite e profissionais; verificar E2E de criação de barbearia, entrada por convite e desativação de profissional
+  - Implementado: telas Angular de criação de barbearia, entrada por convite e gestão de profissionais (edição, ativação e desativação), integradas à navegação da aplicação.
+  - Testes Vitest (45/45), E2E (9/9: três fluxos da tarefa + axe) e build Angular executados e aprovados em 20/11/2026.
+  - Pendente: o E2E rodou sobre o dev server com API simulada por `page.route`; o TDD §13 prevê E2E com banco dedicado e massa criada por API. A integração real está coberta pelos testes de integração do backend, mas o E2E ponta a ponta com backend autenticado permanece pendente.
+
+Nota da seção: nenhuma migration foi versionada; a verificação `has-pending-model-changes` continua vácua (`follow-ups.md`, item 10) e não deve ser considerada concluída.
 
 ## 5. Catálogo de serviços
 

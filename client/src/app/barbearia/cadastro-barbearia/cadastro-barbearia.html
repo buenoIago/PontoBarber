@@ -1,0 +1,95 @@
+<section class="mx-auto" style="max-width: 36rem">
+  <h1 class="h3">Criar barbearia</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+
+  @if (barbearia(); as barbearia) {
+    <div class="alert alert-success" role="status">
+      <h2 class="h5">Barbearia criada</h2>
+      <p>
+        Código de convite: <strong>{{ barbearia.codigoConvite }}</strong>
+      </p>
+    </div>
+
+    <app-button (click)="criada.emit(barbearia)">Gerenciar profissionais</app-button>
+  } @else {
+    <form (submit)="enviar(); $event.preventDefault()">
+      <app-form-field id="barbearia-nome" rotulo="Nome" [obrigatorio]="true">
+        <input
+          id="barbearia-nome"
+          class="form-control"
+          [value]="nome()"
+          (input)="nome.set($any($event.target).value)"
+          required
+        />
+      </app-form-field>
+
+      <app-form-field id="barbearia-telefone" rotulo="Telefone comercial" [obrigatorio]="true">
+        <input
+          id="barbearia-telefone"
+          type="tel"
+          class="form-control"
+          [value]="telefoneComercial()"
+          (input)="telefoneComercial.set($any($event.target).value)"
+          required
+        />
+      </app-form-field>
+
+      <app-form-field id="barbearia-email" rotulo="E-mail comercial" [obrigatorio]="true">
+        <input
+          id="barbearia-email"
+          type="email"
+          class="form-control"
+          [value]="emailComercial()"
+          (input)="emailComercial.set($any($event.target).value)"
+          required
+        />
+      </app-form-field>
+
+      <app-form-field id="barbearia-cidade" rotulo="Cidade" [obrigatorio]="true">
+        <input
+          id="barbearia-cidade"
+          class="form-control"
+          [value]="cidade()"
+          (input)="cidade.set($any($event.target).value)"
+          required
+        />
+      </app-form-field>
+
+      <app-form-field id="barbearia-endereco" rotulo="Endereço" [obrigatorio]="true">
+        <input
+          id="barbearia-endereco"
+          class="form-control"
+          [value]="endereco()"
+          (input)="endereco.set($any($event.target).value)"
+          required
+        />
+      </app-form-field>
+
+      <app-form-field id="barbearia-instagram" rotulo="Instagram">
+        <input
+          id="barbearia-instagram"
+          class="form-control"
+          [value]="instagram()"
+          (input)="instagram.set($any($event.target).value)"
+        />
+      </app-form-field>
+
+      <app-form-field id="barbearia-fuso" rotulo="Fuso horário (IANA)" [obrigatorio]="true">
+        <input
+          id="barbearia-fuso"
+          class="form-control"
+          [value]="fusoHorarioId()"
+          (input)="fusoHorarioId.set($any($event.target).value)"
+          required
+        />
+      </app-form-field>
+
+      <div class="d-grid">
+        <app-button tipo="submit" [desabilitado]="carregando()">Criar barbearia</app-button>
+      </div>
+    </form>
+  }
+</section>

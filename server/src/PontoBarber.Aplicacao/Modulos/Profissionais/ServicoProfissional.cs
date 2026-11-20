@@ -67,4 +67,213 @@ public sealed class ServicoProfissional(
             vinculo.Cargo.ToString(),
             vinculo.Situacao.ToString());
     }
+
+    /// <summary>
+    /// Resolve o vínculo profissional que dá acesso à agenda dentro da barbearia
+    /// da rota (TDD §11.2). O proprietário, por sua função administrativa, pode
+    /// consultar a agenda de qualquer profissional; os demais profissionais
+    /// somente a própria. Este método não implementa agendamentos — fornece
+    /// apenas a autorização de recurso que os módulos posteriores usarão.
+    /// </summary>
+    public async Task<VinculoResponse> ObterVinculoParaAgendaAsync(
+        Guid barbeariaId,
+        Guid profissionalId,
+        string usuarioId,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(usuarioId, out _))
+            throw AcessoNegado();
+
+        var perfilUsuario = await profissionais.ObterPorUsuarioAsync(usuarioId, cancellationToken);
+        if (perfilUsuario is null)
+            throw AcessoNegado();
+
+        var vinculoUsuario = await profissionais.ObterVinculoAsync(barbeariaId, perfilUsuario.Id, cancellationToken);
+        if (vinculoUsuario is null || vinculoUsuario.Situacao != StatusVinculo.Ativo)
+            throw AcessoNegado();
+
+        var vinculoAlvo = await profissionais.ObterVinculoParaAtualizacaoAsync(
+            barbeariaId, profissionalId, cancellationToken);
+        if (vinculoAlvo is null || vinculoAlvo.Situacao == StatusVinculo.Removido)
+            throw AcessoNegado();
+
+        if (perfilUsuario.Id != profissionalId && vinculoUsuario.Cargo != CargoProfissional.Proprietario)
+            throw AcessoNegado();
+
+        return new VinculoResponse(
+            vinculoAlvo.Id,
+            vinculoAlvo.BarbeariaId,
+            vinculoAlvo.ProfissionalId,
+            vinculoAlvo.Cargo.ToString(),
+            vinculoAlvo.Situacao.ToString());
+    }
+
+    /// <summary>
+    /// Lista nome, telefone e situação dos profissionais da barbearia da rota
+    /// (RF-PROF-002/003). Exige vínculo ativo do usuário, sem exigir cargo de
+    /// proprietário para a leitura.
+    /// </summary>
+    public async Task<IReadOnlyList<ProfissionalResponse>> ListarProfissionaisAsync(
+        Guid barbeariaId,
+        string usuarioId,
+        CancellationToken cancellationToken)
+    {
+        await ObterVinculoAtivoAsync(barbeariaId, usuarioId, cancellationToken);
+
+        var vinculos = await profissionais.ListarProfissionaisAsync(barbeariaId, cancellationToken);
+        return vinculos
+            .Select(item => ParaResponse(item.Perfil, item.Vinculo.Situacao))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Edita apenas nome e telefone do perfil. O tenant e o vínculo do administrador
+    /// são derivados da rota e da sessão; o alvo é localizado dentro da mesma
+    /// barbearia (Task 4.4 / RF-PROF-005).
+    /// </summary>
+    public async Task<ProfissionalResponse> AtualizarDadosAsync(
+        Guid barbeariaId,
+        Guid profissionalId,
+        AtualizarProfissionalRequest request,
+        string usuarioId,
+        CancellationToken cancellationToken)
+    {
+        await ObterVinculoDoProprietarioAsync(barbeariaId, usuarioId, cancellationToken);
+        var (perfil, vinculo) = await ObterAlvoAsync(barbeariaId, profissionalId, cancellationToken);
+
+        var candidato = PerfilProfissional.Criar(
+            perfil.UsuarioId,
+            request.NomeCompleto?.Trim() ?? string.Empty,
+            NormalizarTelefone(request.Telefone));
+        Validar(candidato);
+
+        perfil.Atualizar(candidato);
+        await profissionais.SalvarAlteracoesAsync(cancellationToken);
+
+        return ParaResponse(perfil, vinculo.Situacao);
+    }
+
+    /// <summary>
+    /// Ativa ou desativa o vínculo por transição explícita de domínio.
+    /// Somente o proprietário da barbearia da rota pode executar (RF-PROF-006).
+    /// </summary>
+    public async Task<ProfissionalResponse> AlterarStatusAsync(
+        Guid barbeariaId,
+        Guid profissionalId,
+        AlterarStatusProfissionalRequest request,
+        string usuarioId,
+        CancellationToken cancellationToken)
+    {
+        await ObterVinculoDoProprietarioAsync(barbeariaId, usuarioId, cancellationToken);
+
+        if (request.Ativo is null)
+            throw new ExcecaoValidacaoAplicacao(new Dictionary<string, string[]>
+            {
+                ["ativo"] = ["Campo obrigatório."]
+            });
+
+        var (perfil, vinculo) = await ObterAlvoAsync(barbeariaId, profissionalId, cancellationToken);
+
+        if (request.Ativo.Value)
+            vinculo.Ativar();
+        else
+            vinculo.Desativar();
+
+        await profissionais.SalvarAlteracoesAsync(cancellationToken);
+
+        return ParaResponse(perfil, vinculo.Situacao);
+    }
+
+    /// <summary>
+    /// Remove o vínculo por desativação lógica (ADR-023). Perfil, conta de
+    /// acesso e registros históricos permanecem intactos (RF-PROF-007).
+    /// </summary>
+    public async Task RemoverVinculoAsync(
+        Guid barbeariaId,
+        Guid profissionalId,
+        string usuarioId,
+        CancellationToken cancellationToken)
+    {
+        await ObterVinculoDoProprietarioAsync(barbeariaId, usuarioId, cancellationToken);
+        var (_, vinculo) = await ObterAlvoAsync(barbeariaId, profissionalId, cancellationToken);
+
+        vinculo.Remover();
+        await profissionais.SalvarAlteracoesAsync(cancellationToken);
+    }
+
+    private async Task<VinculoProfissional> ObterVinculoAtivoAsync(
+        Guid barbeariaId,
+        string usuarioId,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(usuarioId, out _))
+            throw AcessoNegado();
+
+        var perfil = await profissionais.ObterPorUsuarioAsync(usuarioId, cancellationToken);
+        if (perfil is null)
+            throw AcessoNegado();
+
+        var vinculo = await profissionais.ObterVinculoAsync(barbeariaId, perfil.Id, cancellationToken);
+        if (vinculo is null || vinculo.Situacao != StatusVinculo.Ativo)
+            throw AcessoNegado();
+
+        return vinculo;
+    }
+
+    private async Task ObterVinculoDoProprietarioAsync(
+        Guid barbeariaId,
+        string usuarioId,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(usuarioId, out _))
+            throw AcessoNegado();
+
+        var perfil = await profissionais.ObterPorUsuarioAsync(usuarioId, cancellationToken);
+        if (perfil is null)
+            throw AcessoNegado();
+
+        var vinculo = await profissionais.ObterVinculoAsync(barbeariaId, perfil.Id, cancellationToken);
+        if (vinculo is null ||
+            vinculo.Situacao != StatusVinculo.Ativo ||
+            vinculo.Cargo != CargoProfissional.Proprietario)
+            throw AcessoNegado();
+    }
+
+    private async Task<(PerfilProfissional Perfil, VinculoProfissional Vinculo)> ObterAlvoAsync(
+        Guid barbeariaId,
+        Guid profissionalId,
+        CancellationToken cancellationToken)
+    {
+        var perfil = await profissionais.ObterPorIdAsync(profissionalId, cancellationToken);
+        if (perfil is null)
+            throw AcessoNegado();
+
+        // O alvo é sempre procurado pela barbearia da rota: um vínculo de outro
+        // tenant nunca é encontrado, mesmo que o identificador seja conhecido.
+        var vinculo = await profissionais.ObterVinculoParaAtualizacaoAsync(
+            barbeariaId, profissionalId, cancellationToken);
+        if (vinculo is null)
+            throw AcessoNegado();
+
+        return (perfil, vinculo);
+    }
+
+    private static void Validar(PerfilProfissional perfil)
+    {
+        var erros = perfil.Validar();
+        if (erros.Count == 0)
+            return;
+
+        throw new ExcecaoValidacaoAplicacao(
+            erros.ToDictionary(erro => erro.Campo, erro => new[] { erro.Mensagem }));
+    }
+
+    private static string? NormalizarTelefone(string? telefone) =>
+        string.IsNullOrWhiteSpace(telefone) ? null : telefone.Trim();
+
+    private static ProfissionalResponse ParaResponse(PerfilProfissional perfil, StatusVinculo situacao) =>
+        new(perfil.Id, perfil.NomeCompleto, perfil.Telefone, situacao.ToString());
+
+    private static ExcecaoAutorizacaoAplicacao AcessoNegado() =>
+        new(CodigosErro.TenantNegado, "O usuário não possui permissão para gerenciar este vínculo.");
 }

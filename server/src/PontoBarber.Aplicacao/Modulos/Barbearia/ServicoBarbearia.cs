@@ -39,7 +39,14 @@ public sealed class ServicoBarbearia(
 
         var codigoConvite = await GerarCodigoConviteUnicoAsync(cancellationToken);
 
-        var proprietario = PerfilProfissional.Criar(usuarioId, conta.NomeCompleto, conta.Telefone);
+        // O perfil profissional é global à conta: se o usuário já atua como
+        // profissional em outra barbearia, ele é reaproveitado. Assim a criação
+        // gera um único vínculo de proprietário, sem perfil ou conta duplicados
+        // (Task 4.5 / RN-AUTH-007).
+        var perfilExistente = await profissionais.ObterPorUsuarioAsync(usuarioId, cancellationToken);
+        var proprietario = perfilExistente ?? PerfilProfissional.Criar(usuarioId, conta.NomeCompleto, conta.Telefone);
+        var perfilNovo = perfilExistente is null ? proprietario : null;
+
         var barbearia = BarbeariaEntidade.Criar(
             request.Nome?.Trim() ?? string.Empty,
             request.TelefoneComercial?.Trim() ?? string.Empty,
@@ -54,7 +61,12 @@ public sealed class ServicoBarbearia(
         Validar(barbearia);
 
         var vinculo = VinculoProfissional.Criar(barbearia.Id, proprietario.Id);
-        await repositorio.CriarAsync(barbearia, proprietario, vinculo, cancellationToken);
+        var errosVinculo = vinculo.Validar();
+        if (errosVinculo.Count > 0)
+            throw new ExcecaoValidacaoAplicacao(
+                errosVinculo.ToDictionary(erro => erro.Campo, erro => new[] { erro.Mensagem }));
+
+        await repositorio.CriarAsync(barbearia, perfilNovo, vinculo, cancellationToken);
 
         return ParaResponse(barbearia);
     }

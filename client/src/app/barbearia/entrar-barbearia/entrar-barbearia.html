@@ -1,0 +1,36 @@
+<section class="mx-auto" style="max-width: 32rem">
+  <h1 class="h3">Entrar em uma barbearia</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+
+  @if (vinculo(); as vinculo) {
+    <div class="alert alert-success" role="status">
+      Você entrou na barbearia com o cargo {{ vinculo.cargo }}.
+    </div>
+
+    <app-button (click)="entrou.emit(vinculo)">Ver profissionais</app-button>
+  } @else {
+    <form (submit)="entrar(); $event.preventDefault()">
+      <app-form-field
+        id="convite-codigo"
+        rotulo="Código de convite"
+        dica="Informe o código compartilhado pelo proprietário."
+        [obrigatorio]="true"
+      >
+        <input
+          id="convite-codigo"
+          class="form-control"
+          [value]="codigoConvite()"
+          (input)="codigoConvite.set($any($event.target).value)"
+          required
+        />
+      </app-form-field>
+
+      <div class="d-grid">
+        <app-button tipo="submit" [desabilitado]="carregando()">Entrar na barbearia</app-button>
+      </div>
+    </form>
+  }
+</section>

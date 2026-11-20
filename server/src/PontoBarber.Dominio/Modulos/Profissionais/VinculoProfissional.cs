@@ -57,6 +57,43 @@ public sealed class VinculoProfissional : EntidadeBase<VinculoProfissional>, IPe
     }
 
     /// <summary>
+    /// Reativa um vínculo inativo. Somente a transição Inativo → Ativo é
+    /// permitida (TDD §8.1, RF-PROF-006).
+    /// </summary>
+    public void Ativar()
+    {
+        if (Situacao != StatusVinculo.Inativo)
+            throw new InvalidOperationException("Somente um vínculo inativo pode ser ativado.");
+
+        Situacao = StatusVinculo.Ativo;
+    }
+
+    /// <summary>
+    /// Desativa um vínculo ativo, preservando a conta, o perfil e o histórico.
+    /// Somente a transição Ativo → Inativo é permitida (RN-PROF-004).
+    /// </summary>
+    public void Desativar()
+    {
+        if (Situacao != StatusVinculo.Ativo)
+            throw new InvalidOperationException("Somente um vínculo ativo pode ser desativado.");
+
+        Situacao = StatusVinculo.Inativo;
+    }
+
+    /// <summary>
+    /// Encerra o vínculo por desativação lógica: o registro permanece para
+    /// histórico, mas deixa de conferir acesso à barbearia (ADR-023/RN-PROF-005).
+    /// </summary>
+    public void Remover()
+    {
+        if (Situacao == StatusVinculo.Removido)
+            throw new InvalidOperationException("O vínculo já foi removido.");
+
+        Situacao = StatusVinculo.Removido;
+        RemovidoEmUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
     /// Não existe atualização genérica permitida para vínculo: cargo,
     /// situação e datas pertencem a operações específicas (Task 4.4).
     /// Alterações são rejeitadas; valores idênticos são aceitos sem efeito.

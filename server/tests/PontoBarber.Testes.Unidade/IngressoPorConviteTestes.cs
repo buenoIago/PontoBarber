@@ -152,7 +152,7 @@ public sealed class IngressoPorConviteTestes
         public Task<bool> CodigoConviteExisteAsync(string codigo, CancellationToken cancellationToken) =>
             Task.FromResult(false);
 
-        public Task CriarAsync(BarbeariaEntidade barbearia, PerfilProfissional proprietario, VinculoProfissional vinculo, CancellationToken ct) =>
+        public Task CriarAsync(BarbeariaEntidade barbearia, PerfilProfissional? perfilNovo, VinculoProfissional vinculo, CancellationToken ct) =>
             Task.CompletedTask;
 
         public Task<BarbeariaEntidade?> ObterPorIdAsync(Guid barbeariaId, CancellationToken ct) =>
@@ -175,11 +175,19 @@ public sealed class IngressoPorConviteTestes
         public Task<PerfilProfissional?> ObterPorUsuarioAsync(string usuarioId, CancellationToken ct) =>
             Task.FromResult(Perfil);
 
+        public Task<PerfilProfissional?> ObterPorIdAsync(Guid profissionalId, CancellationToken ct) =>
+            Task.FromResult(Perfil?.Id == profissionalId ? Perfil : null);
+
         public Task<VinculoProfissional?> ObterVinculoAsync(Guid barbeariaId, Guid profissionalId, CancellationToken ct) =>
             Task.FromResult(Vinculo);
 
         public Task<bool> PossuiVinculoAtivoAsync(Guid usuarioId, Guid barbeariaId, CancellationToken ct) =>
             Task.FromResult(false);
+
+        public Task<IReadOnlyList<ProfissionalVinculo>> ListarProfissionaisAsync(
+            Guid barbeariaId,
+            CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<ProfissionalVinculo>>([]);
 
         public Task AdicionarVinculoAsync(PerfilProfissional? perfilNovo, VinculoProfissional vinculo, CancellationToken ct)
         {
@@ -190,6 +198,14 @@ public sealed class IngressoPorConviteTestes
             VinculoAdicionado = vinculo;
             return Task.CompletedTask;
         }
+
+        public Task<VinculoProfissional?> ObterVinculoParaAtualizacaoAsync(
+            Guid barbeariaId,
+            Guid profissionalId,
+            CancellationToken ct) =>
+            Task.FromResult(Vinculo);
+
+        public Task SalvarAlteracoesAsync(CancellationToken ct) => Task.CompletedTask;
     }
 
     private sealed class IdentidadeFake(string tipo) : IIdentidade

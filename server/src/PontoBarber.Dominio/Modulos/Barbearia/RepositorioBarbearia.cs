@@ -12,9 +12,14 @@ public interface IBarbeariaRepositorio
 {
     Task<bool> CodigoConviteExisteAsync(string codigo, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Persiste a barbearia, o vínculo de proprietário e, quando informado, o
+    /// perfil recém-criado. Um perfil já existente é reaproveitado e não deve
+    /// ser incluído novamente (Task 4.5).
+    /// </summary>
     Task CriarAsync(
         BarbeariaEntidade barbearia,
-        PerfilProfissional proprietario,
+        PerfilProfissional? perfilNovo,
         VinculoProfissional vinculo,
         CancellationToken cancellationToken);
 

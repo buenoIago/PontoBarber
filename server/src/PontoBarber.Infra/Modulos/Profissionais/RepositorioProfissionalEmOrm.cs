@@ -19,6 +19,12 @@ public sealed class RepositorioProfissionalEmOrm(ContextoPontoBarber contexto) :
             .AsNoTracking()
             .SingleOrDefaultAsync(perfil => perfil.UsuarioId == usuarioId, cancellationToken);
 
+    public Task<PerfilProfissional?> ObterPorIdAsync(Guid profissionalId, CancellationToken cancellationToken) =>
+        // Acompanhado: a edição passa por PerfilProfissional.Atualizar e é
+        // persistida por SalvarAlteracoesAsync.
+        contexto.Set<PerfilProfissional>()
+            .SingleOrDefaultAsync(perfil => perfil.Id == profissionalId, cancellationToken);
+
     public Task<VinculoProfissional?> ObterVinculoAsync(
         Guid barbeariaId,
         Guid profissionalId,
@@ -40,6 +46,26 @@ public sealed class RepositorioProfissionalEmOrm(ContextoPontoBarber contexto) :
                perfil.UsuarioId == usuarioId.ToString() &&
                vinculo.Situacao == StatusVinculo.Ativo
          select vinculo).AnyAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProfissionalVinculo>> ListarProfissionaisAsync(
+        Guid barbeariaId,
+        CancellationToken cancellationToken)
+    {
+        // Filtro global por BarbeariaId mais predicato explícito da rota.
+        var vinculos = await contexto.Set<VinculoProfissional>()
+            .Where(vinculo => vinculo.BarbeariaId == barbeariaId && vinculo.Situacao != StatusVinculo.Removido)
+            .ToListAsync(cancellationToken);
+
+        var ids = vinculos.Select(vinculo => vinculo.ProfissionalId).ToList();
+        var perfis = await contexto.Set<PerfilProfissional>()
+            .Where(perfil => ids.Contains(perfil.Id))
+            .ToDictionaryAsync(perfil => perfil.Id, cancellationToken);
+
+        return vinculos
+            .Where(vinculo => perfis.ContainsKey(vinculo.ProfissionalId))
+            .Select(vinculo => new ProfissionalVinculo(perfis[vinculo.ProfissionalId], vinculo))
+            .ToList();
+    }
 
     public async Task AdicionarVinculoAsync(
         PerfilProfissional? perfilNovo,
@@ -68,6 +94,22 @@ public sealed class RepositorioProfissionalEmOrm(ContextoPontoBarber contexto) :
                 "O perfil profissional já existe para este usuário.");
         }
     }
+
+    public Task<VinculoProfissional?> ObterVinculoParaAtualizacaoAsync(
+        Guid barbeariaId,
+        Guid profissionalId,
+        CancellationToken cancellationToken) =>
+        // Mesma justificativa de ObterVinculoAsync: o tenant sendo validado é
+        // o da rota e ainda não está no contexto da requisição. O predicato
+        // por BarbeariaId é explícito e a entidade volta acompanhada.
+        contexto.Set<VinculoProfissional>()
+            .IgnoreQueryFilters()
+            .SingleOrDefaultAsync(
+                vinculo => vinculo.BarbeariaId == barbeariaId && vinculo.ProfissionalId == profissionalId,
+                cancellationToken);
+
+    public Task SalvarAlteracoesAsync(CancellationToken cancellationToken) =>
+        contexto.SaveChangesAsync(cancellationToken);
 
     private static bool EhConflito(DbUpdateException excecao, string indice) =>
         excecao.InnerException is SqlException sql &&

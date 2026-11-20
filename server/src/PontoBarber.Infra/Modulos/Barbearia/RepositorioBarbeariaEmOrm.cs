@@ -20,12 +20,13 @@ public sealed class RepositorioBarbeariaEmOrm(ContextoPontoBarber contexto) : IB
 
     public async Task CriarAsync(
         BarbeariaEntidade barbearia,
-        PerfilProfissional proprietario,
+        PerfilProfissional? perfilNovo,
         VinculoProfissional vinculo,
         CancellationToken cancellationToken)
     {
         contexto.Set<BarbeariaEntidade>().Add(barbearia);
-        contexto.Set<PerfilProfissional>().Add(proprietario);
+        if (perfilNovo is not null)
+            contexto.Set<PerfilProfissional>().Add(perfilNovo);
         contexto.Set<VinculoProfissional>().Add(vinculo);
 
         await SalvarAsync(cancellationToken);

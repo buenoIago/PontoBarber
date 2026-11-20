@@ -43,6 +43,24 @@ public sealed class CriacaoBarbeariaTestes
     }
 
     [TestMethod]
+    public async Task Criar_ComPerfilProfissionalExistente_ReaproveitaSemDuplicar()
+    {
+        var perfilExistente = PerfilProfissional.Criar(_usuarioId, "Profissional Existente", "11999999999");
+        var repositorio = new RepositorioFake();
+        var profissionais = new ProfissionalFake { PerfilExistente = perfilExistente };
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, profissionais);
+
+        var resposta = await servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None);
+
+        Assert.IsNull(repositorio.PerfilNovo);
+        Assert.AreEqual(perfilExistente.Id, repositorio.Vinculo!.ProfissionalId);
+        Assert.AreEqual(perfilExistente.Id, repositorio.Barbearia!.IdProfissionalProprietario);
+        Assert.AreEqual(resposta.Id, repositorio.Vinculo.BarbeariaId);
+        Assert.AreEqual(CargoProfissional.Proprietario, repositorio.Vinculo.Cargo);
+        Assert.AreEqual(StatusVinculo.Ativo, repositorio.Vinculo.Situacao);
+    }
+
+    [TestMethod]
     public async Task Criar_ComCamposInvalidos_RetornaErrosPorCampo()
     {
         var repositorio = new RepositorioFake();
@@ -134,6 +152,7 @@ public sealed class CriacaoBarbeariaTestes
         public int ConsultasCodigo { get; private set; }
         public Barbearia? Barbearia { get; private set; }
         public PerfilProfissional? Proprietario { get; private set; }
+        public PerfilProfissional? PerfilNovo { get; private set; }
         public VinculoProfissional? Vinculo { get; private set; }
 
         public Task<bool> CodigoConviteExisteAsync(string codigo, CancellationToken cancellationToken)
@@ -145,12 +164,13 @@ public sealed class CriacaoBarbeariaTestes
 
         public Task CriarAsync(
             Barbearia barbearia,
-            PerfilProfissional proprietario,
+            PerfilProfissional? perfilNovo,
             VinculoProfissional vinculo,
             CancellationToken cancellationToken)
         {
             Barbearia = barbearia;
-            Proprietario = proprietario;
+            PerfilNovo = perfilNovo;
+            Proprietario = perfilNovo;
             Vinculo = vinculo;
             return Task.CompletedTask;
         }
@@ -170,7 +190,12 @@ public sealed class CriacaoBarbeariaTestes
 
     private sealed class ProfissionalFake : IProfissionalRepositorio
     {
+        public PerfilProfissional? PerfilExistente { get; init; }
+
         public Task<PerfilProfissional?> ObterPorUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>
+            Task.FromResult(PerfilExistente);
+
+        public Task<PerfilProfissional?> ObterPorIdAsync(Guid profissionalId, CancellationToken cancellationToken) =>
             Task.FromResult<PerfilProfissional?>(null);
 
         public Task<VinculoProfissional?> ObterVinculoAsync(
@@ -185,11 +210,24 @@ public sealed class CriacaoBarbeariaTestes
             CancellationToken cancellationToken) =>
             Task.FromResult(false);
 
+        public Task<IReadOnlyList<ProfissionalVinculo>> ListarProfissionaisAsync(
+            Guid barbeariaId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProfissionalVinculo>>([]);
+
         public Task AdicionarVinculoAsync(
             PerfilProfissional? perfilNovo,
             VinculoProfissional vinculo,
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
+
+        public Task<VinculoProfissional?> ObterVinculoParaAtualizacaoAsync(
+            Guid barbeariaId,
+            Guid profissionalId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<VinculoProfissional?>(null);
+
+        public Task SalvarAlteracoesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class IdentidadeFake : IIdentidade
