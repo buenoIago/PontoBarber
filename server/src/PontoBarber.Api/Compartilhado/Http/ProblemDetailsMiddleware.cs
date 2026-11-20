@@ -34,6 +34,18 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next)
                 "Requisição inválida",
                 validacao.Message,
                 validacao.Erros),
+            ExcecaoAutorizacaoAplicacao autorizacao => (
+                StatusCodes.Status403Forbidden,
+                autorizacao.Codigo,
+                "Acesso negado",
+                autorizacao.Message,
+                null),
+            ExcecaoNaoEncontradoAplicacao naoEncontrado => (
+                StatusCodes.Status404NotFound,
+                naoEncontrado.Codigo,
+                "Não encontrado",
+                naoEncontrado.Message,
+                null),
             ExcecaoConflitoAplicacao conflito => (
                 StatusCodes.Status409Conflict,
                 conflito.Codigo,

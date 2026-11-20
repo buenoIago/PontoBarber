@@ -9,6 +9,7 @@ using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Aplicacao.Modulos.Barbearia;
+using PontoBarber.Aplicacao.Modulos.Profissionais;
 using PontoBarber.Infra;
 using Serilog;
 using Serilog.Events;
@@ -21,9 +22,10 @@ builder.Services.AddHttpContextAccessor();
 // AddIdentity (via AddInfrastructureServices) registra a autenticação e o cookie.
 builder.Services.AdicionarAuthApi();
 builder.Services.AddScoped<IContextoTenant, ContextoTenantHttp>();
-builder.Services.AddScoped<IResolutorVinculoTenant, ResolutorVinculoTenantNegaTodos>();
+builder.Services.AddScoped<IResolutorVinculoTenant, ResolutorVinculoTenantEmOrm>();
 builder.Services.AddScoped<ServicoConta>();
 builder.Services.AddScoped<ServicoBarbearia>();
+builder.Services.AddScoped<ServicoProfissional>();
 
 var loggerConsole = new LoggerConfiguration()
     .WriteTo.Sink(new SinkConsoleSeguro())

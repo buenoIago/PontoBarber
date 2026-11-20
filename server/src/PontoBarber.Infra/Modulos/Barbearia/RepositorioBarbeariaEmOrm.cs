@@ -9,8 +9,8 @@ using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 namespace PontoBarber.Infra.Modulos.Barbearia;
 
 /// <summary>
-/// Persistência da criação de barbearia com o proprietário e seu vínculo na
-/// mesma transação (ADR-019).
+/// Persistência da barbearia: criação transacional, consulta e atualização
+/// de dados cadastrais (ADR-019, Task 4.2).
 /// </summary>
 public sealed class RepositorioBarbeariaEmOrm(ContextoPontoBarber contexto) : IBarbeariaRepositorio
 {
@@ -28,6 +28,27 @@ public sealed class RepositorioBarbeariaEmOrm(ContextoPontoBarber contexto) : IB
         contexto.Set<PerfilProfissional>().Add(proprietario);
         contexto.Set<VinculoProfissional>().Add(vinculo);
 
+        await SalvarAsync(cancellationToken);
+    }
+
+    public Task<BarbeariaEntidade?> ObterPorIdAsync(Guid barbeariaId, CancellationToken cancellationToken) =>
+        contexto.Set<BarbeariaEntidade>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(barbearia => barbearia.Id == barbeariaId, cancellationToken);
+
+    public Task<BarbeariaEntidade?> ObterPorCodigoConviteAsync(string codigo, CancellationToken cancellationToken) =>
+        contexto.Set<BarbeariaEntidade>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(barbearia => barbearia.CodigoConvite == codigo, cancellationToken);
+
+    public async Task AtualizarAsync(BarbeariaEntidade barbearia, CancellationToken cancellationToken)
+    {
+        contexto.Set<BarbeariaEntidade>().Update(barbearia);
+        await SalvarAsync(cancellationToken);
+    }
+
+    private async Task SalvarAsync(CancellationToken cancellationToken)
+    {
         try
         {
             await contexto.SaveChangesAsync(cancellationToken);
@@ -43,5 +64,5 @@ public sealed class RepositorioBarbeariaEmOrm(ContextoPontoBarber contexto) : IB
     private static bool EhConflitoDeConvite(DbUpdateException excecao) =>
         excecao.InnerException is SqlException sql &&
         (sql.Number == 2601 || sql.Number == 2627) &&
-        sql.Message.Contains("UX_Barbershops_CodigoConvite", StringComparison.Ordinal);
+        sql.Message.Contains("UX_Barbearias_CodigoConvite", StringComparison.Ordinal);
 }

@@ -23,11 +23,10 @@ public class TestesConvencaoPersistenciaTenant
     [TestMethod]
     public void EntidadesDeNegocio_SemTenantId_SaoRejeitadas()
     {
-        var entidades = typeof(IEntidade).Assembly
+        var entidades = typeof(EntidadeBase<>).Assembly
             .GetTypes()
             .Where(type => type.IsClass && !type.IsAbstract)
-            .Where(type => typeof(IEntidade).IsAssignableFrom(type)
-                || type.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)?.PropertyType == typeof(Guid))
+            .Where(type => type.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)?.PropertyType == typeof(Guid))
             .ToList();
 
         var semTenant = entidades
@@ -39,6 +38,39 @@ public class TestesConvencaoPersistenciaTenant
         Assert.IsTrue(
             semTenant.Count == 0,
             $"Entidades de negócio sem IPertencenteTenant/BarbeariaId: {string.Join(", ", semTenant)}");
+    }
+
+    [TestMethod]
+    public void EntidadesConcretasDoDominio_HerdamEntidadeBase()
+    {
+        var entidades = typeof(EntidadeBase<>).Assembly
+            .GetTypes()
+            .Where(type => type.IsClass && !type.IsAbstract)
+            .Where(type => type.Namespace?.StartsWith("PontoBarber.Dominio.Modulos", StringComparison.Ordinal) == true)
+            .Where(type => type.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)?.PropertyType == typeof(Guid))
+            .ToList();
+
+        var foraDoPadrao = entidades
+            .Where(tipo => !HerdarEntidadeBase(tipo))
+            .Select(tipo => tipo.Name)
+            .OrderBy(nome => nome, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.AreEqual(0, foraDoPadrao.Count,
+            $"Entidades fora de EntidadeBase<T>: {string.Join(", ", foraDoPadrao)}");
+    }
+
+    private static bool HerdarEntidadeBase(Type tipo)
+    {
+        var atual = tipo.BaseType;
+        while (atual is not null)
+        {
+            if (atual.IsGenericType && atual.GetGenericTypeDefinition() == typeof(EntidadeBase<>))
+                return true;
+            atual = atual.BaseType;
+        }
+
+        return false;
     }
 
     [TestMethod]

@@ -22,13 +22,14 @@ public sealed class CriacaoBarbeariaTestes
     public async Task Criar_ComDadosValidos_CriaBarbeariaComProprietarioEVinculoOwner()
     {
         var repositorio = new RepositorioFake();
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio);
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake());
 
         var resposta = await servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None);
 
         Assert.AreEqual("Barbearia Central", resposta.Nome);
         Assert.AreEqual("America/Sao_Paulo", resposta.FusoHorarioId);
-        Assert.AreEqual(8, resposta.CodigoConvite.Length);
+        Assert.IsNotNull(resposta.CodigoConvite);
+        Assert.AreEqual(8, resposta.CodigoConvite!.Length);
         Assert.IsNotNull(repositorio.Barbearia);
         Assert.AreEqual(resposta.Id, repositorio.Barbearia!.Id);
         Assert.AreEqual(repositorio.Barbearia.CodigoConvite, resposta.CodigoConvite);
@@ -45,7 +46,7 @@ public sealed class CriacaoBarbeariaTestes
     public async Task Criar_ComCamposInvalidos_RetornaErrosPorCampo()
     {
         var repositorio = new RepositorioFake();
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio);
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake());
         var request = RequisicaoValida() with
         {
             Nome = "  ",
@@ -67,7 +68,7 @@ public sealed class CriacaoBarbeariaTestes
     [TestMethod]
     public async Task Criar_ComFusoLocalDoWindows_RejeitaPorNaoSerIana()
     {
-        var servico = new ServicoBarbearia(new IdentidadeFake(), new RepositorioFake());
+        var servico = new ServicoBarbearia(new IdentidadeFake(), new RepositorioFake(), new ProfissionalFake());
         var request = RequisicaoValida() with { FusoHorarioId = "E. South America Standard Time" };
 
         var excecao = await Assert.ThrowsExactlyAsync<ExcecaoValidacaoAplicacao>(
@@ -80,7 +81,7 @@ public sealed class CriacaoBarbeariaTestes
     public async Task Criar_QuandoCodigoConviteJaExiste_GeraOutroCodigo()
     {
         var repositorio = new RepositorioFake { CodigoExisteNasPrimeirasChamadas = 1 };
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio);
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake());
 
         var resposta = await servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None);
 
@@ -92,7 +93,7 @@ public sealed class CriacaoBarbeariaTestes
     public async Task Criar_QuandoNaoConsegueCodigoUnico_RetornaConflito()
     {
         var repositorio = new RepositorioFake { CodigoExisteSempre = true };
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio);
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake());
 
         var excecao = await Assert.ThrowsExactlyAsync<ExcecaoConflitoAplicacao>(
             () => servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None));
@@ -106,7 +107,7 @@ public sealed class CriacaoBarbeariaTestes
     {
         var repositorio = new RepositorioFake();
         var identidade = new IdentidadeFake { Tipo = ServicoConta.TipoCliente };
-        var servico = new ServicoBarbearia(identidade, repositorio);
+        var servico = new ServicoBarbearia(identidade, repositorio, new ProfissionalFake());
 
         var excecao = await Assert.ThrowsExactlyAsync<ExcecaoValidacaoAplicacao>(
             () => servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None));
@@ -153,6 +154,42 @@ public sealed class CriacaoBarbeariaTestes
             Vinculo = vinculo;
             return Task.CompletedTask;
         }
+
+        public Task<Barbearia?> ObterPorIdAsync(Guid barbeariaId, CancellationToken cancellationToken) =>
+            Task.FromResult(Barbearia);
+
+        public Task<Barbearia?> ObterPorCodigoConviteAsync(string codigo, CancellationToken cancellationToken) =>
+            Task.FromResult(Barbearia);
+
+        public Task AtualizarAsync(Barbearia barbearia, CancellationToken cancellationToken)
+        {
+            Barbearia = barbearia;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ProfissionalFake : IProfissionalRepositorio
+    {
+        public Task<PerfilProfissional?> ObterPorUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>
+            Task.FromResult<PerfilProfissional?>(null);
+
+        public Task<VinculoProfissional?> ObterVinculoAsync(
+            Guid barbeariaId,
+            Guid profissionalId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<VinculoProfissional?>(null);
+
+        public Task<bool> PossuiVinculoAtivoAsync(
+            Guid usuarioId,
+            Guid barbeariaId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
+        public Task AdicionarVinculoAsync(
+            PerfilProfissional? perfilNovo,
+            VinculoProfissional vinculo,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class IdentidadeFake : IIdentidade

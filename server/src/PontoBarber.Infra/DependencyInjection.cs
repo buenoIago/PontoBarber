@@ -3,10 +3,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Dominio.Modulos.Barbearia;
+using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Infra.Compartilhado.Identity;
 using PontoBarber.Infra.Compartilhado.Orm;
 using PontoBarber.Infra.Identity;
 using PontoBarber.Infra.Modulos.Barbearia;
+using PontoBarber.Infra.Modulos.Profissionais;
 
 namespace PontoBarber.Infra;
 
@@ -29,6 +31,7 @@ public static class DependencyInjection
         services.AddIdentityPontoBarber();
         services.AddScoped<IIdentidade, AdaptadorIdentidade>();
         services.AddScoped<IBarbeariaRepositorio, RepositorioBarbeariaEmOrm>();
+        services.AddScoped<IProfissionalRepositorio, RepositorioProfissionalEmOrm>();
 
         return services;
     }

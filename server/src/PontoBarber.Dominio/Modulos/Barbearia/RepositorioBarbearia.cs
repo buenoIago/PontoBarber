@@ -4,9 +4,9 @@ using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 namespace PontoBarber.Dominio.Modulos.Barbearia;
 
 /// <summary>
-/// Porta de persistência da criação de barbearia. A verificação do código de
-/// convite e a gravação do tenant, do perfil do proprietário e do vínculo
-/// ocorrem na mesma transação (ADR-019).
+/// Porta de persistência da barbearia: criação, leitura e atualização de
+/// dados cadastrais (ADR-019). O tenant é derivado do vínculo do usuário,
+/// nunca aceito do corpo da requisição.
 /// </summary>
 public interface IBarbeariaRepositorio
 {
@@ -17,4 +17,10 @@ public interface IBarbeariaRepositorio
         PerfilProfissional proprietario,
         VinculoProfissional vinculo,
         CancellationToken cancellationToken);
+
+    Task<BarbeariaEntidade?> ObterPorIdAsync(Guid barbeariaId, CancellationToken cancellationToken);
+
+    Task<BarbeariaEntidade?> ObterPorCodigoConviteAsync(string codigo, CancellationToken cancellationToken);
+
+    Task AtualizarAsync(BarbeariaEntidade barbearia, CancellationToken cancellationToken);
 }

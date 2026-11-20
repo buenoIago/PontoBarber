@@ -8,7 +8,7 @@ namespace PontoBarber.Infra.Modulos.Barbearia.Configuracoes;
 
 /// <summary>
 /// Mapeamento da barbearia, incluindo o índice único global do convite
-/// (TDD §8.3: UX_Barbershops_CodigoConvite).
+/// (TDD §8.3: UX_Barbearias_CodigoConvite).
 /// </summary>
 public sealed class ConfiguracaoBarbearia : ConfiguracaoEntidade<BarbeariaEntidade>
 {
@@ -33,7 +33,7 @@ public sealed class ConfiguracaoBarbearia : ConfiguracaoEntidade<BarbeariaEntida
 
         builder.HasIndex(entidade => entidade.CodigoConvite)
             .IsUnique()
-            .HasDatabaseName("UX_Barbershops_CodigoConvite");
+            .HasDatabaseName("UX_Barbearias_CodigoConvite");
 
         builder.Property(entidade => entidade.RowVersion)
             .IsRowVersion()

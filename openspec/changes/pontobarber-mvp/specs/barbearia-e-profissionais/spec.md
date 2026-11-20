@@ -39,6 +39,14 @@ O proprietário SHALL poder consultar e editar nome, telefone comercial, e-mail 
 - **WHEN** um barbeiro vinculado tenta salvar alterações nos dados da barbearia
 - **THEN** a operação é recusada e os dados anteriores são preservados
 
+#### Scenario: Identificador alterado na requisição
+- **WHEN** um usuário informa o identificador de outra barbearia
+- **THEN** o acesso é negado com base no vínculo ativo do usuário autenticado
+
+#### Scenario: Campos imutáveis na edição
+- **WHEN** o proprietário edita os dados cadastrais
+- **THEN** identificador, proprietário, código de convite, fuso horário, vínculos e histórico de agendamentos permanecem inalterados
+
 ### Requirement: Entrada de profissional por código de convite
 Um barbeiro autenticado SHALL poder entrar em uma barbearia existente informando o código de convite. Código inexistente MUST ser rejeitado e vínculo já existente MUST NOT ser duplicado.
 
@@ -53,6 +61,18 @@ Um barbeiro autenticado SHALL poder entrar em uma barbearia existente informando
 #### Scenario: Vínculo já existente
 - **WHEN** um barbeiro já vinculado tenta entrar novamente na mesma barbearia
 - **THEN** a operação é recusada sem duplicar o vínculo
+
+#### Scenario: Vínculo inativo
+- **WHEN** o profissional possui vínculo inativo ou removido com a barbearia
+- **THEN** o ingresso é recusado, sem reativação nem duplicação automática
+
+#### Scenario: Cargo e perfil do próprio usuário
+- **WHEN** o profissional entra por código válido
+- **THEN** o vínculo pertence ao perfil do usuário autenticado e recebe cargo de barbeiro, sem opção de escolha ou elevação pelo cliente
+
+#### Scenario: Requisições concorrentes
+- **WHEN** duas requisições simultâneas tentam criar o mesmo vínculo
+- **THEN** o índice único garante que apenas um vínculo seja persistido
 
 ### Requirement: Gestão de vínculos pelo proprietário
 O proprietário SHALL visualizar nome, telefone e situação dos profissionais vinculados, editar dados profissionais, ativar, desativar e remover vínculos. A desativação e a remoção MUST preservar a conta e o histórico.

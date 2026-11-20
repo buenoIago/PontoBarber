@@ -7,7 +7,7 @@ namespace PontoBarber.Dominio.Modulos.Barbearia;
 /// Barbearia — raiz do tenant (ADR-006). Não implementa
 /// <see cref="IPertencenteTenant"/>: seu próprio Id identifica o tenant.
 /// </summary>
-public sealed class Barbearia : IEntidade
+public sealed class Barbearia : EntidadeBase<Barbearia>
 {
     private const int _tamanhoCodigoConvite = 8;
     private const string _alfabetoCodigoConvite = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -16,7 +16,6 @@ public sealed class Barbearia : IEntidade
     {
     }
 
-    public Guid Id { get; private set; }
     public string Nome { get; private set; } = string.Empty;
     public string TelefoneComercial { get; private set; } = string.Empty;
     public string EmailComercial { get; private set; } = string.Empty;
@@ -46,7 +45,6 @@ public sealed class Barbearia : IEntidade
 
         return new Barbearia
         {
-            Id = Guid.CreateVersion7(),
             Nome = nome,
             TelefoneComercial = telefoneComercial,
             EmailComercial = emailComercial,
@@ -60,6 +58,84 @@ public sealed class Barbearia : IEntidade
             CriadoEmUtc = agora,
             AtualizadoEmUtc = agora
         };
+    }
+
+    public override IReadOnlyList<ErroValidacao> Validar()
+    {
+        var erros = new List<ErroValidacao>();
+
+        if (string.IsNullOrWhiteSpace(Nome))
+            erros.Add(new ErroValidacao("nome", "Campo obrigatório."));
+
+        if (string.IsNullOrWhiteSpace(TelefoneComercial))
+            erros.Add(new ErroValidacao("telefoneComercial", "Campo obrigatório."));
+        else if (TelefoneComercial.Count(char.IsDigit) < 10)
+            erros.Add(new ErroValidacao("telefoneComercial", "Informe um telefone válido."));
+
+        if (string.IsNullOrWhiteSpace(EmailComercial))
+            erros.Add(new ErroValidacao("emailComercial", "Campo obrigatório."));
+        else if (!EmailValido(EmailComercial))
+            erros.Add(new ErroValidacao("emailComercial", "Informe um e-mail válido."));
+
+        if (string.IsNullOrWhiteSpace(Cidade))
+            erros.Add(new ErroValidacao("cidade", "Campo obrigatório."));
+
+        if (string.IsNullOrWhiteSpace(Endereco))
+            erros.Add(new ErroValidacao("endereco", "Campo obrigatório."));
+
+        if (string.IsNullOrWhiteSpace(FusoHorarioId))
+            erros.Add(new ErroValidacao("fusoHorarioId", "Campo obrigatório."));
+        else if (!FusoIanaValido(FusoHorarioId))
+            erros.Add(new ErroValidacao("fusoHorarioId", "Informe um identificador de fuso IANA válido."));
+
+        return erros;
+    }
+
+    /// <summary>
+    /// Copia somente os dados cadastrais permitidos. Identificador,
+    /// proprietário, código de convite, fuso, situação, auditoria de criação
+    /// e RowVersion não são alterados (SPEC §2, Task 4.2).
+    /// </summary>
+    public override void Atualizar(Barbearia entidadeAtualizada)
+    {
+        ArgumentNullException.ThrowIfNull(entidadeAtualizada);
+
+        Nome = entidadeAtualizada.Nome;
+        TelefoneComercial = entidadeAtualizada.TelefoneComercial;
+        EmailComercial = entidadeAtualizada.EmailComercial;
+        Cidade = entidadeAtualizada.Cidade;
+        Endereco = entidadeAtualizada.Endereco;
+        Instagram = entidadeAtualizada.Instagram;
+        AtualizadoEmUtc = DateTime.UtcNow;
+    }
+
+    private static bool EmailValido(string email)
+    {
+        var arroba = email.IndexOf('@');
+        return arroba > 0 &&
+            arroba < email.Length - 1 &&
+            email.IndexOf('.', arroba + 1) > arroba + 1;
+    }
+
+    private static bool FusoIanaValido(string fuso)
+    {
+        // Identificadores IANA possuem barra; ids locais do Windows não são aceitos.
+        if (!fuso.Contains('/', StringComparison.Ordinal))
+            return false;
+
+        try
+        {
+            _ = TimeZoneInfo.FindSystemTimeZoneById(fuso);
+            return true;
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return false;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

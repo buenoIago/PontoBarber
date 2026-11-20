@@ -13,6 +13,18 @@ public sealed record CriarBarbeariaRequest(
     string? Instagram,
     string? FusoHorarioId);
 
+/// <summary>
+/// Edição permitida: somente os dados cadastrais. Fuso horário, código de
+/// convite, proprietário e identificadores não são editáveis (Task 4.2).
+/// </summary>
+public sealed record AtualizarBarbeariaRequest(
+    string? Nome,
+    string? TelefoneComercial,
+    string? EmailComercial,
+    string? Cidade,
+    string? Endereco,
+    string? Instagram);
+
 public sealed record BarbeariaResponse(
     Guid Id,
     string Nome,
@@ -21,5 +33,5 @@ public sealed record BarbeariaResponse(
     string Cidade,
     string Endereco,
     string? Instagram,
-    string CodigoConvite,
+    string? CodigoConvite,
     string FusoHorarioId);

@@ -4,7 +4,7 @@ namespace PontoBarber.Dominio.Compartilhado;
 /// Identifica uma entidade que pertence a uma barbearia específica (tenant),
 /// conforme ADR-006.
 /// </summary>
-public interface IPertencenteTenant : IEntidade
+public interface IPertencenteTenant
 {
     /// <summary>
     /// Identificador da barbearia (tenant) a que a entidade pertence.

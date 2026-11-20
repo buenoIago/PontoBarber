@@ -6,13 +6,12 @@ namespace PontoBarber.Dominio.Modulos.Profissionais;
 /// Vínculo entre um profissional e uma barbearia (ADR-006). O criador da
 /// barbearia recebe o vínculo <see cref="CargoProfissional.Proprietario"/>.
 /// </summary>
-public sealed class VinculoProfissional : IPertencenteTenant
+public sealed class VinculoProfissional : EntidadeBase<VinculoProfissional>, IPertencenteTenant
 {
     private VinculoProfissional()
     {
     }
 
-    public Guid Id { get; private set; }
     public Guid BarbeariaId { get; private set; }
     public Guid ProfissionalId { get; private set; }
     public CargoProfissional Cargo { get; private set; }
@@ -21,13 +20,61 @@ public sealed class VinculoProfissional : IPertencenteTenant
     public DateTime? RemovidoEmUtc { get; private set; }
 
     public static VinculoProfissional Criar(Guid barbeariaId, Guid profissionalId) =>
+        CriarComCargo(barbeariaId, profissionalId, CargoProfissional.Proprietario);
+
+    /// <summary>
+    /// Cria o vínculo de um profissional convidado. O cargo é fixado pelo
+    /// domínio como <see cref="CargoProfissional.Barbeiro"/>: o cliente não
+    /// informa nem pode elevar privilégios (Task 4.3).
+    /// </summary>
+    public static VinculoProfissional CriarBarbeiro(Guid barbeariaId, Guid profissionalId) =>
+        CriarComCargo(barbeariaId, profissionalId, CargoProfissional.Barbeiro);
+
+    private static VinculoProfissional CriarComCargo(
+        Guid barbeariaId,
+        Guid profissionalId,
+        CargoProfissional cargo) =>
         new()
         {
-            Id = Guid.CreateVersion7(),
             BarbeariaId = barbeariaId,
             ProfissionalId = profissionalId,
-            Cargo = CargoProfissional.Proprietario,
+            Cargo = cargo,
             Situacao = StatusVinculo.Ativo,
             VinculadoEmUtc = DateTime.UtcNow
         };
+
+    public override IReadOnlyList<ErroValidacao> Validar()
+    {
+        var erros = new List<ErroValidacao>();
+
+        if (BarbeariaId == Guid.Empty)
+            erros.Add(new ErroValidacao("barbeariaId", "Campo obrigatório."));
+
+        if (ProfissionalId == Guid.Empty)
+            erros.Add(new ErroValidacao("profissionalId", "Campo obrigatório."));
+
+        return erros;
+    }
+
+    /// <summary>
+    /// Não existe atualização genérica permitida para vínculo: cargo,
+    /// situação e datas pertencem a operações específicas (Task 4.4).
+    /// Alterações são rejeitadas; valores idênticos são aceitos sem efeito.
+    /// </summary>
+    public override void Atualizar(VinculoProfissional entidadeAtualizada)
+    {
+        ArgumentNullException.ThrowIfNull(entidadeAtualizada);
+
+        if (Id != entidadeAtualizada.Id ||
+            BarbeariaId != entidadeAtualizada.BarbeariaId ||
+            ProfissionalId != entidadeAtualizada.ProfissionalId ||
+            Cargo != entidadeAtualizada.Cargo ||
+            Situacao != entidadeAtualizada.Situacao ||
+            VinculadoEmUtc != entidadeAtualizada.VinculadoEmUtc ||
+            RemovidoEmUtc != entidadeAtualizada.RemovidoEmUtc)
+        {
+            throw new InvalidOperationException(
+                "O vínculo não pode ser alterado por atualização genérica.");
+        }
+    }
 }
