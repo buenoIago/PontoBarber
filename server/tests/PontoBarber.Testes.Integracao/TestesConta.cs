@@ -3,10 +3,13 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
+using PontoBarber.Infra.Compartilhado.Orm;
 using PontoBarber.Infra.Identity;
 
 namespace PontoBarber.Testes.Integracao;
@@ -214,14 +217,26 @@ public sealed class TestesConta
         confirmarSenha = "Senha123"
     };
 
-    private static WebApplicationFactory<Program> CriarFabricaComBanco() =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+    private static WebApplicationFactory<Program> CriarFabricaComBanco()
+    {
+        // Banco exclusivo deste teste: evita colisões entre classes e impede
+        // que o schema da aplicação seja criado no banco master do container.
+        var database = $"PontoBarberConta_{Guid.NewGuid():N}";
+        var conexao = ConfiguracaoTestesIntegracao.Container.ObterStringConexao(database);
+
+        var fabrica = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:DefaultConnection"] =
-                        ConfiguracaoTestesIntegracao.Container.ObterStringConexao("master")
+                    ["ConnectionStrings:DefaultConnection"] = conexao
                 })));
+
+        using var escopo = fabrica.Services.CreateScope();
+        var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        contexto.Database.EnsureCreated();
+
+        return fabrica;
+    }
 
     private static async Task<HttpResponseMessage> PostAsync(HttpClient cliente, string rota, object corpo)
     {
@@ -241,16 +256,14 @@ public sealed class TestesConta
     {
         foreach (var cookie in resposta.Headers.GetValues("Set-Cookie"))
         {
-            if (!cookie.Contains("__Host-pb.csrf", StringComparison.Ordinal))
+            if (!cookie.Contains(ConfiguracaoAuth.CookieRequestToken, StringComparison.Ordinal))
                 continue;
 
             var trecho = cookie.Split(';')[0];
-            var valor = Uri.UnescapeDataString(trecho[(trecho.IndexOf('=') + 1)..]);
-            var inicio = valor.IndexOf(':');
-            return inicio >= 0 ? valor[..inicio] : valor;
+            return Uri.UnescapeDataString(trecho[(trecho.IndexOf('=') + 1)..]);
         }
 
-        throw new InvalidOperationException("Cookie antiforgery não emitido.");
+        throw new InvalidOperationException("Cookie de request token antiforgery não emitido.");
     }
 
     private static async Task<JsonElement> LerCorpoAsync(HttpResponseMessage resposta)

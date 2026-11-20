@@ -29,7 +29,12 @@ public sealed class TestesHospedagemSpa : IDisposable
 
     private HttpClient CriarCliente() =>
         new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(builder => builder.UseWebRoot(_webRoot))
+            .WithWebHostBuilder(builder =>
+            {
+                // ADR-033: a SPA é servida somente fora de Development.
+                builder.UseEnvironment("Production");
+                builder.UseWebRoot(_webRoot);
+            })
             .CreateClient();
 
     [TestMethod]

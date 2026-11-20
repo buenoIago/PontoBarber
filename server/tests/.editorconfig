@@ -1,0 +1,6 @@
+# Nomenclatura de testes conforme TDD §7.1: Metodo_Cenario_Resultado.
+# Este arquivo fica na raiz de server/tests para que a seção seja relativa aos
+# próprios arquivos de teste, sem depender do caminho/casing da raiz do repo.
+# Vale tanto no Windows quanto no Linux.
+[*.cs]
+dotnet_diagnostic.CA1707.severity = none

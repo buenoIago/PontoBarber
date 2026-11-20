@@ -75,6 +75,26 @@ public sealed class SqlServerFixture : IAsyncDisposable
         return construtor.ConnectionString;
     }
 
+    /// <summary>
+    /// Cria um catálogo exclusivo no container e devolve a connection string.
+    /// Usado quando o teste precisa de um banco existente, mas não deve criar
+    /// schema no <c>master</c> nem compartilhar estado com outros testes.
+    /// </summary>
+    public string CriarBancoIsolado(string prefixo)
+    {
+        var database = $"{prefixo}_{Guid.NewGuid():N}";
+
+        using (var conexao = new SqlConnection(ObterStringConexao("master")))
+        {
+            conexao.Open();
+            using var comando = conexao.CreateCommand();
+            comando.CommandText = $"CREATE DATABASE [{database}]";
+            comando.ExecuteNonQuery();
+        }
+
+        return ObterStringConexao(database);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_container is not null)

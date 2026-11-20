@@ -4,10 +4,12 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PontoBarber.Aplicacao.Auth;
+using PontoBarber.Infra.Compartilhado.Orm;
 using PontoBarber.Infra.Identity;
 
 namespace PontoBarber.Testes.Integracao;
@@ -126,15 +128,22 @@ public sealed class TestesIdentity : IDisposable
     [TestMethod]
     public async Task UserManager_ComSenhaValida_CriaUsuario()
     {
+        // Banco exclusivo deste teste: o schema do Identity é criado apenas
+        // neste catálogo isolado, nunca no master do container.
+        var database = $"PontoBarberIdentity_{Guid.NewGuid():N}";
+        var conexao = ConfiguracaoTestesIntegracao.Container.ObterStringConexao(database);
+
         using var fabrica = _fabrica.WithWebHostBuilder(builder =>
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:DefaultConnection"] =
-                        ConfiguracaoTestesIntegracao.Container.ObterStringConexao("master")
+                    ["ConnectionStrings:DefaultConnection"] = conexao
                 })));
 
         using var escopo = fabrica.Services.CreateScope();
+        var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        contexto.Database.EnsureCreated();
+
         var gerenciador = escopo.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
 
         var resultado = await gerenciador.CreateAsync(

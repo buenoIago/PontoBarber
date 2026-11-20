@@ -5,11 +5,13 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
+using PontoBarber.Infra.Compartilhado.Orm;
 
 namespace PontoBarber.Testes.Integracao;
 
@@ -221,17 +223,29 @@ public sealed class TestesSessaoConta
     private static WebApplicationFactory<Program> CriarFabricaComBanco() =>
         CriarFabricaComBanco(TimeProvider.System);
 
-    private static WebApplicationFactory<Program> CriarFabricaComBanco(TimeProvider relogio) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+    private static WebApplicationFactory<Program> CriarFabricaComBanco(TimeProvider relogio)
+    {
+        // Banco exclusivo deste teste: evita colisões entre classes e impede
+        // que o schema da aplicação seja criado no banco master do container.
+        var database = $"PontoBarberSessao_{Guid.NewGuid():N}";
+        var conexao = ConfiguracaoTestesIntegracao.Container.ObterStringConexao(database);
+
+        var fabrica = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:DefaultConnection"] =
-                        ConfiguracaoTestesIntegracao.Container.ObterStringConexao("master")
+                    ["ConnectionStrings:DefaultConnection"] = conexao
                 }));
             builder.ConfigureServices(servicos => servicos.AddSingleton(relogio));
         });
+
+        using var escopo = fabrica.Services.CreateScope();
+        var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        contexto.Database.EnsureCreated();
+
+        return fabrica;
+    }
 
     private static async Task<(string Email, string Senha)> CriarUsuarioAsync(
         HttpClient cliente,
@@ -271,14 +285,14 @@ public sealed class TestesSessaoConta
     {
         var pagina = await cliente.GetAsync("/health/live");
         var token = ObterTokenAntiforgery(pagina);
-        var cookieCsrf = ObterCookie(pagina, ConfiguracaoAuth.CookieCsrf);
 
         using var requisicao = new HttpRequestMessage(HttpMethod.Post, rota)
         {
             Content = new StringContent(JsonSerializer.Serialize(corpo, _json), Encoding.UTF8, "application/json")
         };
+        // O cookie token protegido é reenviado automaticamente pelo container
+        // do HttpClient; o request token viaja no header.
         requisicao.Headers.Add(ConfiguracaoAuth.HeaderCsrf, token);
-        requisicao.Headers.Add("Cookie", cookieCsrf);
 
         return await cliente.SendAsync(requisicao);
     }
@@ -287,27 +301,14 @@ public sealed class TestesSessaoConta
     {
         foreach (var cookie in resposta.Headers.GetValues("Set-Cookie"))
         {
-            if (!cookie.Contains(ConfiguracaoAuth.CookieCsrf, StringComparison.Ordinal))
+            if (!cookie.Contains(ConfiguracaoAuth.CookieRequestToken, StringComparison.Ordinal))
                 continue;
 
             var trecho = cookie.Split(';')[0];
-            var valor = Uri.UnescapeDataString(trecho[(trecho.IndexOf('=') + 1)..]);
-            var inicio = valor.IndexOf(':');
-            return inicio >= 0 ? valor[..inicio] : valor;
+            return Uri.UnescapeDataString(trecho[(trecho.IndexOf('=') + 1)..]);
         }
 
-        throw new InvalidOperationException("Cookie antiforgery não emitido.");
-    }
-
-    private static string ObterCookie(HttpResponseMessage resposta, string nome)
-    {
-        foreach (var cookie in resposta.Headers.GetValues("Set-Cookie"))
-        {
-            if (cookie.Contains(nome, StringComparison.Ordinal))
-                return cookie.Split(';')[0];
-        }
-
-        throw new InvalidOperationException($"Cookie {nome} não emitido.");
+        throw new InvalidOperationException("Cookie de request token antiforgery não emitido.");
     }
 
     private static async Task<JsonElement> LerCorpoAsync(HttpResponseMessage resposta)

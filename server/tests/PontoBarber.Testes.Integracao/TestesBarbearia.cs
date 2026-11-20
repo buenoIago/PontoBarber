@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Aplicacao.Modulos.Barbearia.DTOs;
 using PontoBarber.Dominio.Modulos.Barbearia;
@@ -49,7 +50,9 @@ public sealed class TestesBarbearia
         var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
         var barbearia = await contexto.Set<Barbearia>().SingleAsync();
         Assert.AreEqual(corpo.GetProperty("id").GetString(), barbearia.Id.ToString());
+        // Fora do contexto HTTP não há tenant ativo: o filtro global esconderia o vínculo.
         Assert.IsTrue(await contexto.Set<VinculoProfissional>()
+            .IgnoreQueryFilters()
             .AnyAsync(vinculo => vinculo.Cargo == CargoProfissional.Proprietario &&
                                  vinculo.Situacao == StatusVinculo.Ativo));
     }
@@ -153,11 +156,9 @@ public sealed class TestesBarbearia
     {
         var respostaGet = await cliente.GetAsync("/health/live");
         var valor = respostaGet.Headers.GetValues("Set-Cookie")
-            .First(cookie => cookie.Contains("__Host-pb.csrf", StringComparison.Ordinal));
+            .First(cookie => cookie.Contains(ConfiguracaoAuth.CookieRequestToken, StringComparison.Ordinal));
         var trecho = valor.Split(';')[0];
-        var texto = Uri.UnescapeDataString(trecho[(trecho.IndexOf('=') + 1)..]);
-        var indice = texto.IndexOf(':');
-        var token = indice >= 0 ? texto[..indice] : texto;
+        var token = Uri.UnescapeDataString(trecho[(trecho.IndexOf('=') + 1)..]);
 
         using var requisicao = new HttpRequestMessage(HttpMethod.Post, rota)
         {

@@ -69,7 +69,7 @@ public class TestesHealthChecks : IDisposable
     }
 
     private static string ObterStringConexaoDisponivel() =>
-        ConfiguracaoTestesIntegracao.Container.ObterStringConexao("master");
+        ConfiguracaoTestesIntegracao.Container.CriarBancoIsolado("PontoBarberHealth");
 
     private HttpClient CriarCliente(string? stringConexao) =>
         _fabrica.WithWebHostBuilder(builder =>

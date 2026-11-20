@@ -10,7 +10,15 @@ namespace PontoBarber.Api.Modulos.Auth;
 /// </summary>
 public static class ConfiguracaoAuth
 {
+    /// <summary>Cookie token do antiforgery, legível somente pelo servidor.</summary>
     public const string CookieCsrf = "__Host-pb.csrf";
+
+    /// <summary>
+    /// Request token do antiforgery (cookie token + token de requisição), exposto
+    /// ao cliente para ser devolvido no header <see cref="HeaderCsrf"/>.
+    /// </summary>
+    public const string CookieRequestToken = "__Host-pb.xsrf";
+
     public const string HeaderCsrf = "X-CSRF-TOKEN";
 
     public const string PolíticaCliente = "Cliente";
@@ -23,7 +31,9 @@ public static class ConfiguracaoAuth
         services.AddAntiforgery(opcoes =>
         {
             opcoes.Cookie.Name = CookieCsrf;
-            opcoes.Cookie.HttpOnly = false; // o cliente Angular lê o cookie e envia o header
+            // O cookie token nunca sai para o JavaScript: o request token é
+            // publicado separadamente em CookieRequestToken pelo middleware.
+            opcoes.Cookie.HttpOnly = true;
             opcoes.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             opcoes.Cookie.SameSite = SameSiteMode.Lax;
             opcoes.Cookie.Path = "/";

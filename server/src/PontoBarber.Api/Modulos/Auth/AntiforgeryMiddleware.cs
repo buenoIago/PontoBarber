@@ -5,8 +5,20 @@ using PontoBarber.Aplicacao.Compartilhado;
 namespace PontoBarber.Api.Modulos.Auth;
 
 /// <summary>
-/// Emite o cookie antiforgery e valida o header em toda requisição que
-/// altera estado (TDD §11.1/§12.3). Requisições seguras apenas recebem o cookie.
+/// Emite o request token antiforgery em um cookie legível pelo cliente e valida
+/// o header em toda requisição que altera estado (TDD §11.1/§12.3).
+/// <para>
+/// O cookie token permanece protegido no cookie do ASP.NET Core
+/// (<see cref="ConfiguracaoAuth.CookieCsrf"/>). O par
+/// <c>cookieToken:requestToken</c> é publicado em
+/// <see cref="ConfiguracaoAuth.CookieRequestToken"/> para ser devolvido em
+/// <see cref="ConfiguracaoAuth.HeaderCsrf"/>.
+/// </para>
+/// <para>
+/// Como a política de cookie é <c>SecurePolicy.Always</c>, nenhum token é
+/// emitido em requisições HTTP. Requisições HTTP que alteram estado são
+/// rejeitadas; endpoints de health check em HTTP seguem sem antiforgery.
+/// </para>
 /// </summary>
 public sealed class AntiforgeryMiddleware(
     RequestDelegate proximo,
@@ -14,7 +26,35 @@ public sealed class AntiforgeryMiddleware(
 {
     public async Task InvokeAsync(HttpContext contexto)
     {
-        antiforgery.GetAndStoreTokens(contexto);
+        if (!contexto.Request.IsHttps)
+        {
+            // Emitir cookie Secure em HTTP lança no CheckSSLConfig do ASP.NET Core.
+            // Requisições seguras seguem sem token; as que alteram estado falham fechado.
+            if (MetodoAlterEstado(contexto.Request.Method))
+            {
+                await EscreverFalhaAsync(
+                    contexto,
+                    "A proteção antiforgery exige uma requisição HTTPS.",
+                    "Token ausente ou inválido.");
+                return;
+            }
+
+            await proximo(contexto);
+            return;
+        }
+
+        var tokens = antiforgery.GetAndStoreTokens(contexto);
+
+        contexto.Response.Cookies.Append(
+            ConfiguracaoAuth.CookieRequestToken,
+            tokens.RequestToken!,
+            new CookieOptions
+            {
+                HttpOnly = false,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                Path = "/"
+            });
 
         if (!MetodoAlterEstado(contexto.Request.Method))
         {
@@ -28,13 +68,10 @@ public sealed class AntiforgeryMiddleware(
         }
         catch (AntiforgeryValidationException)
         {
-            await EscritorProblemDetails.EscreverAsync(
+            await EscreverFalhaAsync(
                 contexto,
-                StatusCodes.Status400BadRequest,
-                CodigosErro.ValidacaoFalhou,
-                "Requisição inválida",
                 "Token antiforgery ausente ou inválido.",
-                new Dictionary<string, string[]> { ["antiForgeryToken"] = ["Token ausente ou inválido."] });
+                "Token ausente ou inválido.");
             return;
         }
 
@@ -46,4 +83,13 @@ public sealed class AntiforgeryMiddleware(
         !HttpMethods.IsHead(metodo) &&
         !HttpMethods.IsOptions(metodo) &&
         !HttpMethods.IsTrace(metodo);
+
+    private static Task EscreverFalhaAsync(HttpContext contexto, string detalhe, string mensagemCampo) =>
+        EscritorProblemDetails.EscreverAsync(
+            contexto,
+            StatusCodes.Status400BadRequest,
+            CodigosErro.ValidacaoFalhou,
+            "Requisição inválida",
+            detalhe,
+            new Dictionary<string, string[]> { ["antiForgeryToken"] = [mensagemCampo] });
 }

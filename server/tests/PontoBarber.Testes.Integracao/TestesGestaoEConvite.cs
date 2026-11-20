@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
@@ -56,7 +57,15 @@ public sealed class TestesGestaoEConvite
 
         var resposta = await EnviarComAntiforgeryAsync(
             cliente, HttpMethod.Put, $"/api/v1/barbearias/{barbearia.Id}",
-            new { nome = "Barbearia Atualizada", endereco = "Rua Nova, 200" });
+            new
+            {
+                nome = "Barbearia Atualizada",
+                telefoneComercial = "(11) 99999-9999",
+                emailComercial = "contato@barbearia.com",
+                cidade = "São Paulo",
+                endereco = "Rua Nova, 200",
+                instagram = "@barbeariacentral"
+            });
 
         Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
         using var escopo = fabrica.Services.CreateScope();
@@ -304,11 +313,9 @@ public sealed class TestesGestaoEConvite
     {
         var respostaGet = await cliente.GetAsync("/health/live");
         var valor = respostaGet.Headers.GetValues("Set-Cookie")
-            .First(cookie => cookie.Contains("__Host-pb.csrf", StringComparison.Ordinal));
+            .First(cookie => cookie.Contains(ConfiguracaoAuth.CookieRequestToken, StringComparison.Ordinal));
         var trecho = valor.Split(';')[0];
-        var texto = Uri.UnescapeDataString(trecho[(trecho.IndexOf('=') + 1)..]);
-        var indice = texto.IndexOf(':');
-        var token = indice >= 0 ? texto[..indice] : texto;
+        var token = Uri.UnescapeDataString(trecho[(trecho.IndexOf('=') + 1)..]);
 
         using var requisicao = new HttpRequestMessage(metodo, rota)
         {

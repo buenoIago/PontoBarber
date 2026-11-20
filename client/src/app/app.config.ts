@@ -14,7 +14,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideHttpClient(
       withInterceptors([interceptorCorrelacao, interceptorErro]),
-      withXsrfConfiguration({ cookieName: '__Host-pb.csrf', headerName: 'X-CSRF-TOKEN' }),
+      withXsrfConfiguration({ cookieName: '__Host-pb.xsrf', headerName: 'X-CSRF-TOKEN' }),
     ),
   ],
 };

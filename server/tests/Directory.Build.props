@@ -1,0 +1,16 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      Nomenclatura de testes conforme TDD §7.1: Metodo_Cenario_Resultado.
+      A supressão também existe em server/tests/.editorconfig para IDEs e
+      `dotnet format`. O NoWarn garante o build independentemente de reúso de
+      nós do MSBuild e de diferenças de maiúsculas/minúsculas no caminho,
+      mantendo CA1707 ativo no código de produção.
+    -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+</Project>
