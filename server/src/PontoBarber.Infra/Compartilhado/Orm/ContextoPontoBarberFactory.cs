@@ -5,20 +5,24 @@ using PontoBarber.Aplicacao.Compartilhado;
 namespace PontoBarber.Infra.Compartilhado.Orm;
 
 /// <summary>
-/// Cria o contexto usado apenas por ferramentas de design-time do EF Core.
-/// A connection string é fictícia e serve somente para construir o modelo —
-/// nenhuma conexão é aberta por comandos como
-/// <c>dotnet ef migrations has-pending-model-changes</c>.
+/// Cria o contexto oficial usado apenas por ferramentas de design-time do EF Core.
+/// A connection string vem da mesma configuração da aplicação
+/// (<c>ConnectionStrings:DefaultConnection</c>, ou
+/// <c>ConnectionStrings__DefaultConnection</c> no ambiente), sem credenciais no
+/// código. Comandos que apenas montam o modelo não abrem conexão.
 /// </summary>
 public sealed class ContextoPontoBarberFactory : IDesignTimeDbContextFactory<ContextoPontoBarber>
 {
-    private const string _stringConexaoDesignTime =
-        "Server=localhost;Database=PontoBarberDesignTime;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=1";
-
     public ContextoPontoBarber CreateDbContext(string[] args)
     {
+        var stringConexao = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+
+        if (string.IsNullOrWhiteSpace(stringConexao))
+            throw new InvalidOperationException(
+                "Defina ConnectionStrings__DefaultConnection para executar ferramentas de design-time do EF Core.");
+
         var opcoes = new DbContextOptionsBuilder<ContextoPontoBarber>()
-            .UseSqlServer(_stringConexaoDesignTime)
+            .UseSqlServer(stringConexao, sql => sql.EnableRetryOnFailure(3))
             .Options;
 
         return new ContextoPontoBarber(opcoes, new ContextoTenantDesignTime());

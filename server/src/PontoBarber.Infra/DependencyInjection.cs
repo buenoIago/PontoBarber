@@ -28,10 +28,14 @@ public static class DependencyInjection
                 options.UseSqlServer(stringConexao);
         });
 
+        // Único registro de Identity. A configuração de senha, bloqueio,
+        // e-mail único e cookie vive em AddIdentityPontoBarber (ADR-005/TDD §11.1),
+        // com os stores no ContextoPontoBarber — o mesmo contexto do domínio.
         services.AddIdentityPontoBarber();
         services.AddScoped<IIdentidade, AdaptadorIdentidade>();
         services.AddScoped<IBarbeariaRepositorio, RepositorioBarbeariaEmOrm>();
         services.AddScoped<IProfissionalRepositorio, RepositorioProfissionalEmOrm>();
+        services.AddDataProtection();
 
         return services;
     }
