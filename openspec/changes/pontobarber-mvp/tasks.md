@@ -76,10 +76,22 @@ Nota da seção: nenhuma migration foi versionada; a verificação `has-pending-
 
 ## 5. Catálogo de serviços
 
-- [ ] 5.1 Implementar seed do catálogo modelo (Corte 40 min, Barba 30 min, Corte + Barba 70 min) sem preços fixos; verificar teste de disponibilidade do modelo em barbearia nova
-- [ ] 5.2 Implementar criação e edição de serviços restritas ao proprietário, com validação de preço não negativo e duração; verificar testes de criação válida, valor inválido e tentativa de barbeiro
+- [x] 5.1 Implementar seed do catálogo modelo (oito serviços, durações iniciais, sem preços fixos); verificar teste de disponibilidade do modelo em barbearia nova
+  - Catálogo revisado em 20/11/2026: Cabelo — Corte social/tradicional 30, degradê 40, infantil 30, raspagem 20, acabamento 15, lavagem 20; Barba e Bigode — simples 20, completa 30. Substitui os três serviços anteriormente previstos em SPEC/TDD; divergência registrada aqui sem alterar esses documentos.
+  - Implementado: `Servico`, `CatalogoModeloServicos`, `IServicoRepositorio` e `ServicoCatalogoModelo`; a criação de barbearia aplica o catálogo à nova barbearia.
+  - Testes unitários e de integração executados e aprovados: oito serviços com durações corretas, ausência de preço, idempotência e isolamento entre barbearias.
+- [x] 5.2 Implementar criação e edição de serviços, com validação de preço não negativo e duração
+  - Implementado: `POST` e `PUT /api/v1/barbearias/{barbeariaId}/servicos`, com `Servico.Criar`, `AtualizarDados`, `AtualizarValores` e validação de nome, duração (> 0) e preço (obrigatório e não negativo). Nome/disponibilidade restritos ao proprietário; barbeiro altera somente preço e duração (revisão de SPEC §8/TDD §11.2 registrada nesta seção).
+  - Testes unitários e de integração executados e aprovados: criação válida, preço negativo, duração inválida, barbeiro criando serviço, edição completa pelo proprietário, edição de preço/duração pelo barbeiro, tentativa de alterar nome/disponibilidade e serviço de outra barbearia.
 - [ ] 5.3 Implementar remoção lógica e consulta por perfil, com cliente vendo apenas serviços ativos; verificar testes de serviço removido fora da oferta e de histórico preservado com nome, duração e preço originais
-- [ ] 5.4 Implementar tela de catálogo com criação, edição e remoção; verificar E2E do fluxo do proprietário e leitura sem opções de edição para barbeiro
+  - Implementado parcialmente: `DELETE /api/v1/barbearias/{barbeariaId}/servicos/{id}` (somente proprietário, desativação lógica) e `GET /api/v1/barbearias/{barbeariaId}/servicos`; clientes recebem somente serviços ativos, proprietários e barbeiros com vínculo ativo veem o catálogo da própria barbearia, inclusive inativos.
+  - Testes unitários e de integração executados e aprovados: remoção sem exclusão, barbeiro impedido de remover, oferta do cliente sem serviços removidos, consulta por perfil, isolamento entre barbearias e tentativa sobre serviço de outro tenant.
+  - Pendente: não há entidade/snapshots de agendamento antes da seção 7; não é possível criar ou verificar `NomeServicoSnapshot`, `DuracaoSnapshot` e `PrecoSnapshot` nesta etapa sem antecipar aquele módulo. A remoção/edição não altera os dados do próprio `Servico`, mas a preservação histórica depende da implementação dos agendamentos.
+- [x] 5.4 Implementar tela de catálogo com criação, edição e remoção; verificar E2E do fluxo do proprietário e leitura sem opções de edição para barbeiro
+  - Implementado em `client/src/app/servicos/`, integrada à navegação por sinais: proprietário cria, edita nome/preço/duração/disponibilidade e remove; barbeiro edita apenas preço/duração; cliente consulta somente ativos sem ações de edição.
+  - Testes Vitest (52/52) e E2E (14/14, incluindo os cinco cenários da tarefa + axe) executados e aprovados em 20/11/2026. Os E2E usam interceptação da API via `page.route`, sem persistência real.
+
+Nota da seção: a seção 5 permanece aberta enquanto a Task 5.3 depender dos snapshots históricos da seção 7. Nenhuma migration foi versionada; a verificação de alterações pendentes do modelo permanece sem efeito prático até a primeira migration real.
 
 ## 6. Disponibilidade e horários
 

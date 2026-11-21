@@ -17,6 +17,8 @@
         Profissionais
       </app-button>
     }
+
+    <app-button variante="outline" tamanho="sm" (click)="abrirServicos()">Serviços</app-button>
   </nav>
 
   @switch (tela()) {
@@ -31,6 +33,9 @@
     }
     @case ('profissionais') {
       <app-profissionais />
+    }
+    @case ('servicos') {
+      <app-catalogo-servicos />
     }
     @default {
       <app-conta />

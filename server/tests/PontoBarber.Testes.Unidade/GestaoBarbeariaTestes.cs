@@ -2,8 +2,10 @@ using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Aplicacao.Modulos.Barbearia;
 using PontoBarber.Aplicacao.Modulos.Barbearia.DTOs;
+using PontoBarber.Aplicacao.Modulos.Servicos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
+using PontoBarber.Dominio.Modulos.Servicos;
 using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 
 #pragma warning disable CA1707 // Nomenclatura de testes Metodo_Cenario_Resultado (TDD §7.1)
@@ -131,6 +133,9 @@ public sealed class GestaoBarbeariaTestes
         Assert.IsFalse(repositorio.Atualizado);
     }
 
+    private static ServicoCatalogoModelo NovoServicoCatalogo() =>
+        new(new ServicoRepositorioFake());
+
     private static AtualizarBarbeariaRequest NovaRequisicao() => new(
         "Barbearia Central",
         "(11) 99999-9999",
@@ -153,7 +158,7 @@ public sealed class GestaoBarbeariaTestes
 
         var repositorio = new BarbeariaRepositorioFake(barbearia);
         var profissional = new ProfissionalRepositorioFake(perfil, vinculo);
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, profissional);
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, profissional, NovoServicoCatalogo());
         return (servico, repositorio, profissional, barbearia);
     }
 
@@ -221,6 +226,27 @@ public sealed class GestaoBarbeariaTestes
             Task.FromResult(Vinculo);
 
         public Task SalvarAlteracoesAsync(CancellationToken ct) => Task.CompletedTask;
+    }
+
+    private sealed class ServicoRepositorioFake : IServicoRepositorio
+    {
+        public Task<IReadOnlyList<Servico>> ListarPorBarbeariaAsync(
+            Guid barbeariaId,
+            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Servico>>([]);
+
+        public Task<IReadOnlyList<Servico>> ListarAtivosPorBarbeariaAsync(
+            Guid barbeariaId,
+            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Servico>>([]);
+
+        public Task<Servico?> ObterPorIdAsync(
+            Guid barbeariaId,
+            Guid servicoId,
+            CancellationToken cancellationToken) => Task.FromResult<Servico?>(null);
+
+        public Task AtualizarAsync(Servico servico, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task AdicionarAsync(IReadOnlyList<Servico> servicos, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class IdentidadeFake : IIdentidade

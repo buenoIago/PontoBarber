@@ -15,6 +15,7 @@ import { Login } from './auth/login/login';
 import { CadastroBarbearia } from './barbearia/cadastro-barbearia/cadastro-barbearia';
 import { EntrarBarbearia } from './barbearia/entrar-barbearia/entrar-barbearia';
 import { Profissionais } from './barbearia/profissionais/profissionais';
+import { CatalogoServicos } from './servicos/catalogo/catalogo';
 import { Button } from './shared/ui/button/button';
 
 type Tela =
@@ -24,7 +25,8 @@ type Tela =
   | 'conta'
   | 'criar-barbearia'
   | 'entrar-barbearia'
-  | 'profissionais';
+  | 'profissionais'
+  | 'servicos';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,6 +39,7 @@ type Tela =
     CadastroBarbearia,
     EntrarBarbearia,
     Profissionais,
+    CatalogoServicos,
   ],
   selector: 'app-root',
   templateUrl: './app.html',
@@ -104,5 +107,10 @@ export class App {
   abrirProfissionais(): void {
     this.auth.limparErro();
     this.telaState.set('profissionais');
+  }
+
+  abrirServicos(): void {
+    this.auth.limparErro();
+    this.telaState.set('servicos');
   }
 }

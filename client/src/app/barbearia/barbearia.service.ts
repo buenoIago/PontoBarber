@@ -59,6 +59,10 @@ export class BarbeariaService {
     );
   }
 
+  selecionar(barbeariaId: string): void {
+    this.barbeariaIdState.set(barbeariaId);
+  }
+
   listarProfissionais(barbeariaId = this.barbeariaIdState()): void {
     if (!barbeariaId) return;
 

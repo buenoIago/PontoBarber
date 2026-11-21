@@ -1,6 +1,7 @@
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Aplicacao.Modulos.Barbearia.DTOs;
+using PontoBarber.Aplicacao.Modulos.Servicos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
@@ -15,7 +16,8 @@ namespace PontoBarber.Aplicacao.Modulos.Barbearia;
 public sealed class ServicoBarbearia(
     IIdentidade identidade,
     IBarbeariaRepositorio repositorio,
-    IProfissionalRepositorio profissionais)
+    IProfissionalRepositorio profissionais,
+    ServicoCatalogoModelo catalogoServicos)
 {
     private const int _tentativasCodigoConvite = 10;
 
@@ -67,6 +69,7 @@ public sealed class ServicoBarbearia(
                 errosVinculo.ToDictionary(erro => erro.Campo, erro => new[] { erro.Mensagem }));
 
         await repositorio.CriarAsync(barbearia, perfilNovo, vinculo, cancellationToken);
+        await catalogoServicos.AplicarAsync(barbearia.Id, cancellationToken);
 
         return ParaResponse(barbearia);
     }

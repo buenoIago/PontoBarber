@@ -1,0 +1,215 @@
+<section class="mx-auto" style="max-width: 56rem">
+  <h1 class="h3">Catálogo de serviços</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+
+  @if (sucesso()) {
+    <div class="alert alert-success" role="status">{{ sucesso() }}</div>
+  }
+
+  @if (!barbeariaId()) {
+    <app-empty-state
+      titulo="Nenhuma barbearia selecionada"
+      descricao="Informe o identificador da barbearia para consultar o catálogo."
+    >
+      <form
+        class="mx-auto"
+        style="max-width: 24rem"
+        (submit)="selecionar(); $event.preventDefault()"
+      >
+        <app-form-field id="barbearia-id" rotulo="Identificador da barbearia" [obrigatorio]="true">
+          <input
+            id="barbearia-id"
+            class="form-control"
+            [value]="idInformado()"
+            (input)="idInformado.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
+        <app-button tipo="submit">Consultar catálogo</app-button>
+      </form>
+    </app-empty-state>
+  } @else {
+    <div class="d-flex justify-content-between mb-3">
+      <app-button variante="outline" tamanho="sm" (click)="recarregar()">
+        Atualizar lista
+      </app-button>
+
+      @if (eProprietario() && !criando()) {
+        <app-button tamanho="sm" (click)="iniciarCriacao()">Novo serviço</app-button>
+      }
+    </div>
+
+    @if (criando()) {
+      <form class="card card-body mb-3" (submit)="salvar(); $event.preventDefault()">
+        <h2 class="h5">Novo serviço</h2>
+        <app-form-field id="servico-nome" rotulo="Nome" [obrigatorio]="true">
+          <input
+            id="servico-nome"
+            class="form-control"
+            [value]="nome()"
+            (input)="nome.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
+        <app-form-field id="servico-duracao" rotulo="Duração (minutos)" [obrigatorio]="true">
+          <input
+            id="servico-duracao"
+            type="number"
+            min="1"
+            class="form-control"
+            [value]="duracao()"
+            (input)="duracao.set(+$any($event.target).value)"
+            required
+          />
+        </app-form-field>
+        <app-form-field id="servico-preco" rotulo="Preço" [obrigatorio]="true">
+          <input
+            id="servico-preco"
+            type="number"
+            min="0"
+            step="0.01"
+            class="form-control"
+            [value]="preco()"
+            (input)="preco.set(+$any($event.target).value)"
+            required
+          />
+        </app-form-field>
+        <app-form-field id="servico-ativo" rotulo="Disponível">
+          <input
+            id="servico-ativo"
+            type="checkbox"
+            class="form-check-input"
+            [checked]="ativo()"
+            (change)="ativo.set($any($event.target).checked)"
+          />
+        </app-form-field>
+        <div class="d-flex gap-2">
+          <app-button tipo="submit" [desabilitado]="carregando()">Salvar</app-button>
+          <app-button variante="outline" (click)="cancelar()">Cancelar</app-button>
+        </div>
+      </form>
+    }
+
+    @if (servicosDaBarbearia().length === 0) {
+      <app-empty-state
+        titulo="Nenhum serviço cadastrado"
+        descricao="Os serviços do catálogo aparecerão aqui."
+      />
+    } @else {
+      <app-table legenda="Serviços da barbearia">
+        <thead>
+          <tr>
+            <th scope="col">Nome</th>
+            <th scope="col">Duração</th>
+            <th scope="col">Preço</th>
+            <th scope="col">Situação</th>
+            @if (!eCliente()) {
+              <th scope="col">Ações</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (servico of servicosDaBarbearia(); track servico.id) {
+            <tr>
+              <td>{{ servico.nome }}</td>
+              <td>{{ servico.duracaoMinutos }} min</td>
+              <td>{{ precoTexto(servico) }}</td>
+              <td>{{ servico.ativo ? 'Ativo' : 'Inativo' }}</td>
+              @if (!eCliente()) {
+                <td>
+                  @if (editandoId() === servico.id) {
+                    <form
+                      class="d-flex gap-2 align-items-end"
+                      (submit)="salvar(); $event.preventDefault()"
+                    >
+                      @if (eProprietario()) {
+                        <app-form-field
+                          [id]="'editar-servico-nome-' + servico.id"
+                          rotulo="Nome"
+                          [obrigatorio]="true"
+                        >
+                          <input
+                            [id]="'editar-servico-nome-' + servico.id"
+                            class="form-control"
+                            [value]="nome()"
+                            (input)="nome.set($any($event.target).value)"
+                            required
+                          />
+                        </app-form-field>
+                      }
+                      <app-form-field
+                        [id]="'editar-servico-duracao-' + servico.id"
+                        rotulo="Duração"
+                        [obrigatorio]="true"
+                      >
+                        <input
+                          [id]="'editar-servico-duracao-' + servico.id"
+                          type="number"
+                          min="1"
+                          class="form-control"
+                          [value]="duracao()"
+                          (input)="duracao.set(+$any($event.target).value)"
+                          required
+                        />
+                      </app-form-field>
+                      <app-form-field
+                        [id]="'editar-servico-preco-' + servico.id"
+                        rotulo="Preço"
+                        [obrigatorio]="true"
+                      >
+                        <input
+                          [id]="'editar-servico-preco-' + servico.id"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          class="form-control"
+                          [value]="preco()"
+                          (input)="preco.set(+$any($event.target).value)"
+                          required
+                        />
+                      </app-form-field>
+                      @if (eProprietario()) {
+                        <app-form-field
+                          [id]="'editar-servico-ativo-' + servico.id"
+                          rotulo="Disponível"
+                        >
+                          <input
+                            [id]="'editar-servico-ativo-' + servico.id"
+                            type="checkbox"
+                            class="form-check-input"
+                            [checked]="ativo()"
+                            (change)="ativo.set($any($event.target).checked)"
+                          />
+                        </app-form-field>
+                      }
+                      <app-button tipo="submit" tamanho="sm" [desabilitado]="carregando()">
+                        Salvar
+                      </app-button>
+                      <app-button variante="outline" tamanho="sm" (click)="cancelar()">
+                        Cancelar
+                      </app-button>
+                    </form>
+                  } @else {
+                    <div class="d-flex gap-2">
+                      <app-button variante="outline" tamanho="sm" (click)="iniciarEdicao(servico)">
+                        {{ eBarbeiro() ? 'Editar valores' : 'Editar' }}
+                      </app-button>
+                      @if (eProprietario() && servico.ativo) {
+                        <app-button variante="secondary" tamanho="sm" (click)="remover(servico)">
+                          Remover
+                        </app-button>
+                      }
+                    </div>
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </app-table>
+    }
+  }
+</section>

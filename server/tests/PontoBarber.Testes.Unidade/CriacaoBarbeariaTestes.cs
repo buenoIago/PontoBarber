@@ -2,8 +2,10 @@ using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Aplicacao.Modulos.Barbearia;
 using PontoBarber.Aplicacao.Modulos.Barbearia.DTOs;
+using PontoBarber.Aplicacao.Modulos.Servicos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
+using PontoBarber.Dominio.Modulos.Servicos;
 
 #pragma warning disable CA1707 // Nomenclatura de testes Metodo_Cenario_Resultado (TDD §7.1)
 
@@ -22,7 +24,7 @@ public sealed class CriacaoBarbeariaTestes
     public async Task Criar_ComDadosValidos_CriaBarbeariaComProprietarioEVinculoOwner()
     {
         var repositorio = new RepositorioFake();
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake());
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake(), NovoServicoCatalogo());
 
         var resposta = await servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None);
 
@@ -48,7 +50,7 @@ public sealed class CriacaoBarbeariaTestes
         var perfilExistente = PerfilProfissional.Criar(_usuarioId, "Profissional Existente", "11999999999");
         var repositorio = new RepositorioFake();
         var profissionais = new ProfissionalFake { PerfilExistente = perfilExistente };
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, profissionais);
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, profissionais, NovoServicoCatalogo());
 
         var resposta = await servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None);
 
@@ -64,7 +66,7 @@ public sealed class CriacaoBarbeariaTestes
     public async Task Criar_ComCamposInvalidos_RetornaErrosPorCampo()
     {
         var repositorio = new RepositorioFake();
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake());
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake(), NovoServicoCatalogo());
         var request = RequisicaoValida() with
         {
             Nome = "  ",
@@ -86,7 +88,7 @@ public sealed class CriacaoBarbeariaTestes
     [TestMethod]
     public async Task Criar_ComFusoLocalDoWindows_RejeitaPorNaoSerIana()
     {
-        var servico = new ServicoBarbearia(new IdentidadeFake(), new RepositorioFake(), new ProfissionalFake());
+        var servico = new ServicoBarbearia(new IdentidadeFake(), new RepositorioFake(), new ProfissionalFake(), NovoServicoCatalogo());
         var request = RequisicaoValida() with { FusoHorarioId = "E. South America Standard Time" };
 
         var excecao = await Assert.ThrowsExactlyAsync<ExcecaoValidacaoAplicacao>(
@@ -99,7 +101,7 @@ public sealed class CriacaoBarbeariaTestes
     public async Task Criar_QuandoCodigoConviteJaExiste_GeraOutroCodigo()
     {
         var repositorio = new RepositorioFake { CodigoExisteNasPrimeirasChamadas = 1 };
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake());
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake(), NovoServicoCatalogo());
 
         var resposta = await servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None);
 
@@ -111,7 +113,7 @@ public sealed class CriacaoBarbeariaTestes
     public async Task Criar_QuandoNaoConsegueCodigoUnico_RetornaConflito()
     {
         var repositorio = new RepositorioFake { CodigoExisteSempre = true };
-        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake());
+        var servico = new ServicoBarbearia(new IdentidadeFake(), repositorio, new ProfissionalFake(), NovoServicoCatalogo());
 
         var excecao = await Assert.ThrowsExactlyAsync<ExcecaoConflitoAplicacao>(
             () => servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None));
@@ -125,7 +127,7 @@ public sealed class CriacaoBarbeariaTestes
     {
         var repositorio = new RepositorioFake();
         var identidade = new IdentidadeFake { Tipo = ServicoConta.TipoCliente };
-        var servico = new ServicoBarbearia(identidade, repositorio, new ProfissionalFake());
+        var servico = new ServicoBarbearia(identidade, repositorio, new ProfissionalFake(), NovoServicoCatalogo());
 
         var excecao = await Assert.ThrowsExactlyAsync<ExcecaoValidacaoAplicacao>(
             () => servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None));
@@ -133,6 +135,24 @@ public sealed class CriacaoBarbeariaTestes
         Assert.IsTrue(excecao.Erros.ContainsKey("usuario"));
         Assert.IsNull(repositorio.Barbearia);
     }
+
+    [TestMethod]
+    public async Task Criar_ComDadosValidos_AplicaCatalogoModeloNaNovaBarbearia()
+    {
+        var repositorioServicos = new ServicoRepositorioFake();
+        var servico = new ServicoBarbearia(
+            new IdentidadeFake(), new RepositorioFake(), new ProfissionalFake(),
+            new ServicoCatalogoModelo(repositorioServicos));
+
+        var resposta = await servico.CriarAsync(RequisicaoValida(), _usuarioId, CancellationToken.None);
+
+        Assert.AreEqual(8, repositorioServicos.Quantidade(resposta.Id));
+        Assert.IsTrue(repositorioServicos.Todos(resposta.Id).All(item =>
+            item.BarbeariaId == resposta.Id && item.Ativo && item.EhModelo && item.Preco is null));
+    }
+
+    private static ServicoCatalogoModelo NovoServicoCatalogo(IServicoRepositorio? repositorio = null) =>
+        new(repositorio ?? new ServicoRepositorioFake());
 
     private static CriarBarbeariaRequest RequisicaoValida() => new(
         "Barbearia Central",
@@ -228,6 +248,53 @@ public sealed class CriacaoBarbeariaTestes
             Task.FromResult<VinculoProfissional?>(null);
 
         public Task SalvarAlteracoesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class ServicoRepositorioFake : IServicoRepositorio
+    {
+        private readonly Dictionary<Guid, List<Servico>> _servicos = [];
+
+        public Task<IReadOnlyList<Servico>> ListarPorBarbeariaAsync(
+            Guid barbeariaId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Servico>>(
+                _servicos.TryGetValue(barbeariaId, out var lista) ? [.. lista] : []);
+
+        public Task<IReadOnlyList<Servico>> ListarAtivosPorBarbeariaAsync(
+            Guid barbeariaId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Servico>>(
+                _servicos.TryGetValue(barbeariaId, out var lista) ? [.. lista.Where(item => item.Ativo)] : []);
+
+        public Task<Servico?> ObterPorIdAsync(
+            Guid barbeariaId,
+            Guid servicoId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(_servicos.TryGetValue(barbeariaId, out var lista)
+                ? lista.FirstOrDefault(item => item.Id == servicoId)
+                : null);
+
+        public Task AtualizarAsync(Servico servico, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task AdicionarAsync(IReadOnlyList<Servico> servicos, CancellationToken cancellationToken)
+        {
+            foreach (var grupo in servicos.GroupBy(item => item.BarbeariaId))
+            {
+                if (!_servicos.TryGetValue(grupo.Key, out var lista))
+                {
+                    lista = [];
+                    _servicos[grupo.Key] = lista;
+                }
+                lista.AddRange(grupo);
+            }
+            return Task.CompletedTask;
+        }
+
+        public int Quantidade(Guid barbeariaId) =>
+            _servicos.TryGetValue(barbeariaId, out var lista) ? lista.Count : 0;
+
+        public List<Servico> Todos(Guid barbeariaId) =>
+            _servicos.TryGetValue(barbeariaId, out var lista) ? lista : [];
     }
 
     private sealed class IdentidadeFake : IIdentidade
