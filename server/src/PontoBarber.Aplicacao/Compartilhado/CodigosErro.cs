@@ -16,6 +16,12 @@ public static class CodigosErro
     public const string AgendaForaFuncionamento = "schedule.outside_business_hours";
     public const string AgendaForaDisponibilidade = "schedule.outside_availability";
     public const string AgendaBloqueada = "schedule.blocked";
+
+    /// <summary>
+    /// Código do comportamento de timeout de lock definido em TDD §5.5.1
+    /// (503 com Retry-After), ausente da tabela de códigos de TDD §11.1.
+    /// </summary>
+    public const string AgendaLockTimeout = "schedule.lock_timeout";
     public const string AgendamentoEstadoInvalido = "appointment.invalid_state";
     public const string AgendamentoNaoIniciado = "appointment.not_started";
     public const string AgendamentoJaIniciado = "appointment.already_started";

@@ -2,12 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PontoBarber.Aplicacao.Auth;
+using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Dominio.Modulos.Servicos;
 using PontoBarber.Infra.Compartilhado.Identity;
 using PontoBarber.Infra.Compartilhado.Orm;
 using PontoBarber.Infra.Identity;
+using PontoBarber.Infra.Modulos.Agendamentos;
 using PontoBarber.Infra.Modulos.Barbearia;
 using PontoBarber.Infra.Modulos.Profissionais;
 using PontoBarber.Infra.Modulos.Servicos;
@@ -41,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<IHorarioFuncionamentoRepositorio, RepositorioHorarioFuncionamentoEmOrm>();
         services.AddScoped<IDisponibilidadeSemanalRepositorio, RepositorioDisponibilidadeSemanalEmOrm>();
         services.AddScoped<IBloqueioAgendaRepositorio, RepositorioBloqueioAgendaEmOrm>();
+        services.AddScoped<IAgendamentoRepositorio, RepositorioAgendamentoEmOrm>();
         services.AddDataProtection();
 
         return services;

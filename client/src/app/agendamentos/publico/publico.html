@@ -1,0 +1,94 @@
+<section class="mx-auto" style="max-width: 40rem">
+  <h1 class="h3">Agendar horário</h1>
+  <p class="text-body-secondary">Fuso da barbearia: {{ fuso() }}</p>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+  @if (sucesso()) {
+    <div class="alert alert-success" role="status">{{ sucesso() }}</div>
+  }
+
+  @if (!barbeariaId()) {
+    <app-form-field id="barbearia-agendamento" rotulo="Identificador da barbearia" [obrigatorio]="true">
+      <input
+        id="barbearia-agendamento"
+        class="form-control"
+        [value]="idBarbeariaInformado()"
+        (input)="idBarbeariaInformado.set($any($event.target).value)"
+        required
+      />
+    </app-form-field>
+    <app-button (click)="selecionarBarbearia()">Consultar barbearia</app-button>
+  } @else {
+    <app-form-field id="servico-agendamento" rotulo="Serviço" [obrigatorio]="true">
+      <select
+        id="servico-agendamento"
+        class="form-select"
+        [value]="servicoId()"
+        (change)="servicoId.set($any($event.target).value); consultar()"
+        required
+      >
+        <option value="">Selecione</option>
+        @for (servico of servicos(); track servico.id) {
+          <option [value]="servico.id">{{ servico.nome }}</option>
+        }
+      </select>
+    </app-form-field>
+
+    <app-form-field id="profissional-agendamento" rotulo="Profissional" [obrigatorio]="true">
+      <select
+        id="profissional-agendamento"
+        class="form-select"
+        [value]="profissionalId()"
+        (change)="profissionalId.set($any($event.target).value); consultar()"
+        required
+      >
+        <option value="">Selecione</option>
+        @for (profissional of profissionais(); track profissional.id) {
+          <option [value]="profissional.id">{{ profissional.nomeCompleto }}</option>
+        }
+      </select>
+    </app-form-field>
+
+    <app-form-field id="data-agendamento" rotulo="Data" [obrigatorio]="true">
+      <input
+        id="data-agendamento"
+        type="date"
+        class="form-control"
+        [value]="data()"
+        (change)="selecionarData($any($event.target).value)"
+        required
+      />
+    </app-form-field>
+
+    <app-form-field id="horario-agendamento" rotulo="Horário disponível" [obrigatorio]="true">
+      <select
+        id="horario-agendamento"
+        class="form-select"
+        [value]="horario()"
+        (change)="horario.set($any($event.target).value)"
+        required
+      >
+        <option value="">Selecione</option>
+        @for (slot of slots(); track slot.startsAtUtc) {
+          <option [value]="slot.startsAtUtc">{{ formatar(slot.startsAtUtc) }}</option>
+        }
+      </select>
+    </app-form-field>
+
+    <app-form-field id="observacoes-agendamento" rotulo="Observações (opcional)">
+      <textarea
+        id="observacoes-agendamento"
+        class="form-control"
+        maxlength="500"
+        [value]="observacoes()"
+        (input)="observacoes.set($any($event.target).value)"
+      ></textarea>
+    </app-form-field>
+
+    <app-button (click)="confirmar()" [desabilitado]="carregando() || !horario()">
+      Confirmar agendamento
+    </app-button>
+  }
+</section>

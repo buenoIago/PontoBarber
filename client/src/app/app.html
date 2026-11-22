@@ -21,9 +21,13 @@
         Disponibilidade
       </app-button>
       <app-button variante="outline" tamanho="sm" (click)="abrirBloqueios()">Bloqueios</app-button>
+      <app-button variante="outline" tamanho="sm" (click)="abrirAgenda()">Agenda</app-button>
     }
 
     <app-button variante="outline" tamanho="sm" (click)="abrirServicos()">Serviços</app-button>
+    @if (!eProfissional()) {
+      <app-button variante="outline" tamanho="sm" (click)="abrirAgendar()">Agendar</app-button>
+    }
   </nav>
 
   @switch (tela()) {
@@ -41,6 +45,12 @@
     }
     @case ('servicos') {
       <app-catalogo-servicos />
+    }
+    @case ('agenda') {
+      <app-agenda />
+    }
+    @case ('agendar') {
+      <app-agendamento-publico />
     }
     @case ('horarios') {
       <app-horarios-config />

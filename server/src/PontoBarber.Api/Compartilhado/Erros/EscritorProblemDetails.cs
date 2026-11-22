@@ -18,7 +18,8 @@ internal static class EscritorProblemDetails
         string codigo,
         string titulo,
         string? detalhe,
-        IReadOnlyDictionary<string, string[]>? erros = null)
+        IReadOnlyDictionary<string, string[]>? erros = null,
+        Action<HttpResponse>? configurarResposta = null)
     {
         if (contexto.Response.HasStarted)
             return;
@@ -42,6 +43,7 @@ internal static class EscritorProblemDetails
             problema.Extensions["detail"] = null;
 
         contexto.Response.Clear();
+        configurarResposta?.Invoke(contexto.Response);
         contexto.Response.StatusCode = status;
         contexto.Response.ContentType = "application/problem+json";
         await contexto.Response.WriteAsync(JsonSerializer.Serialize(problema, _options));

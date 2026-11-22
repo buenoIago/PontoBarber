@@ -1,7 +1,9 @@
 using PontoBarber.Aplicacao.Compartilhado;
+using PontoBarber.Aplicacao.Modulos.Agendamentos;
 using PontoBarber.Aplicacao.Modulos.Barbearia;
 using PontoBarber.Aplicacao.Modulos.Profissionais.DTOs;
 using PontoBarber.Dominio.Compartilhado;
+using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
 
@@ -14,7 +16,9 @@ namespace PontoBarber.Aplicacao.Modulos.Profissionais;
 public sealed class GestaoDisponibilidadeSemanal(
     IDisponibilidadeSemanalRepositorio repositorio,
     IHorarioFuncionamentoRepositorio horarios,
-    IProfissionalRepositorio profissionais)
+    IProfissionalRepositorio profissionais,
+    IAgendamentoRepositorio agendamentos,
+    IBarbeariaRepositorio barbearias)
 {
     public async Task<IReadOnlyList<DisponibilidadeSemanalResponse>> ListarAsync(
         Guid barbeariaId,
@@ -49,6 +53,8 @@ public sealed class GestaoDisponibilidadeSemanal(
                     CodigosErro.AgendaForaFuncionamento,
                     "A janela de disponibilidade está fora do funcionamento da barbearia.");
         }
+
+        await GarantirAgendamentosExistentesAsync(barbeariaId, profissionalId, request, cancellationToken);
 
         var existentes = await repositorio.ListarAsync(barbeariaId, profissionalId, cancellationToken);
         var novas = new List<DisponibilidadeSemanal>();
@@ -95,6 +101,43 @@ public sealed class GestaoDisponibilidadeSemanal(
             if (erros.Count > 0)
                 throw new ExcecaoValidacaoAplicacao(
                     erros.ToDictionary(erro => erro.Campo, erro => new[] { erro.Mensagem }));
+        }
+    }
+
+    private async Task GarantirAgendamentosExistentesAsync(
+        Guid barbeariaId,
+        Guid profissionalId,
+        IReadOnlyList<JanelaDisponibilidadeRequest> request,
+        CancellationToken cancellationToken)
+    {
+        var barbearia = await barbearias.ObterPorIdAsync(barbeariaId, cancellationToken);
+        if (barbearia is null)
+            return;
+
+        var fuso = TimeZoneInfo.FindSystemTimeZoneById(barbearia.FusoHorarioId);
+        var agora = TimeZoneInfo.ConvertTime(DateTime.UtcNow, fuso);
+        var ateUtc = TimeZoneInfo.ConvertTimeToUtc(
+            DateTime.SpecifyKind(agora.Date.AddDays(30), DateTimeKind.Unspecified), fuso);
+
+        var reservas = await agendamentos.ListarAtivosPorPeriodoAsync(
+            barbeariaId, [profissionalId], agora.ToUniversalTime(), ateUtc, cancellationToken);
+
+        foreach (var agendamento in reservas)
+        {
+            var local = TimeZoneInfo.ConvertTime(agendamento.IniciaEmUtc, fuso);
+            var diaSemana = local.DayOfWeek == DayOfWeek.Sunday
+                ? DiaSemana.Domingo
+                : (DiaSemana)(int)local.DayOfWeek;
+            var hora = TimeOnly.FromDateTime(local);
+            var fim = TimeOnly.FromDateTime(
+                TimeZoneInfo.ConvertTime(agendamento.TerminaEmUtc, fuso));
+
+            if (!request.Any(janela => (DiaSemana)janela.DiaSemana == diaSemana &&
+                                       hora >= janela.IniciaEm && fim <= janela.TerminaEm))
+                throw new ExcecaoValidacaoAplicacao(new Dictionary<string, string[]>
+                {
+                    ["janelas"] = ["Não é possível remover ou reduzir a janela que cobre um agendamento existente."]
+                });
         }
     }
 

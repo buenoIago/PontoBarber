@@ -19,7 +19,16 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next)
         catch (Exception excecao) when (!contexto.Response.HasStarted)
         {
             var (status, codigo, titulo, detalhe, erros) = Mapear(excecao);
-            await EscritorProblemDetails.EscreverAsync(contexto, status, codigo, titulo, detalhe, erros);
+            await EscritorProblemDetails.EscreverAsync(
+                contexto,
+                status,
+                codigo,
+                titulo,
+                detalhe,
+                erros,
+                status == StatusCodes.Status503ServiceUnavailable
+                    ? resposta => resposta.Headers.RetryAfter = "1"
+                    : null);
         }
     }
 
@@ -57,6 +66,12 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next)
                 horario.Codigo,
                 "Horário inválido",
                 horario.Message,
+                null),
+            ExcecaoIndisponibilidadeAplicacao indisponibilidade => (
+                StatusCodes.Status503ServiceUnavailable,
+                indisponibilidade.Codigo,
+                "Serviço temporariamente indisponível",
+                indisponibilidade.Message,
                 null),
             DbUpdateConcurrencyException => (
                 StatusCodes.Status409Conflict,

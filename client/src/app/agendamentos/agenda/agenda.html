@@ -1,0 +1,75 @@
+<section class="mx-auto" style="max-width: 56rem">
+  <h1 class="h3">Agenda</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <app-button variante="outline" tamanho="sm" rotuloAria="Período anterior" (click)="navegar(-1)">
+      ‹
+    </app-button>
+    <span>{{ periodo().de }} a {{ periodo().ate }}</span>
+    <app-button variante="outline" tamanho="sm" rotuloAria="Próximo período" (click)="navegar(1)">
+      ›
+    </app-button>
+  </div>
+
+  <div class="btn-group mb-3" role="group" aria-label="Visualização da agenda">
+    @for (opcao of ['dia', 'semana', 'mes']; track opcao) {
+      <app-button
+        [variante]="visao() === opcao ? 'primary' : 'outline'"
+        tamanho="sm"
+        (click)="alternar($any(opcao))"
+      >
+        {{ opcao === 'mes' ? 'Mês' : opcao === 'semana' ? 'Semana' : 'Dia' }}
+      </app-button>
+    }
+  </div>
+
+  @if (eProprietario()) {
+    <app-form-field id="profissional-agenda" rotulo="Profissional">
+      <select
+        id="profissional-agenda"
+        class="form-select"
+        [value]="selecionadoId() ?? ''"
+        (change)="selecionar($any($event.target).value)"
+      >
+        @for (profissional of profissionais(); track profissional.id) {
+          <option [value]="profissional.id">{{ profissional.nomeCompleto }}</option>
+        }
+      </select>
+    </app-form-field>
+  }
+
+  @if (carregando()) {
+    <p role="status">Carregando agenda...</p>
+  } @else if (eventos().length === 0) {
+    <app-empty-state
+      titulo="Nenhum compromisso"
+      descricao="Não há agendamentos nem bloqueios no período selecionado."
+    />
+  } @else {
+    <app-table legenda="Compromissos do período">
+      <thead>
+        <tr>
+          <th scope="col">Início</th>
+          <th scope="col">Compromisso</th>
+          <th scope="col">Situação</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (evento of eventos(); track evento.id) {
+          <tr [class]="evento.tipo === 'bloqueio' ? 'table-secondary' : evento.situacao === 'Cancelado' ? 'table-danger' : 'table-light'">
+            <td>{{ formatarHora(evento.iniciaEmUtc) }}</td>
+            <td>
+              <strong>{{ evento.titulo }}</strong>
+              <div class="text-body-secondary">{{ evento.detalhe }}</div>
+            </td>
+            <td>{{ evento.situacao }}</td>
+          </tr>
+        }
+      </tbody>
+    </app-table>
+  }
+</section>

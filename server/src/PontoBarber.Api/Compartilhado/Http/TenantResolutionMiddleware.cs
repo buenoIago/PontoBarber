@@ -26,7 +26,7 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
         // Catálogo e consulta de horários são leituras públicas previstas na
         // SPEC/TDD; a resolução de tenant fica a cargo do caso de uso, que
         // filtra por BarbeariaId. Nenhuma outra rota é eximida.
-        if (EhLeituraPublicaPermitida(contexto))
+        if (EhLeituraPublicaPermitida(contexto) || EhAgendamentoPublico(contexto))
         {
             await next(contexto);
             return;
@@ -74,6 +74,21 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
                partes[2] == "barbearias" &&
                Guid.TryParse(partes[3], out _) &&
                partes[4] is "servicos" or "disponibilidade";
+    }
+
+    private static bool EhAgendamentoPublico(HttpContext contexto)
+    {
+        if (!HttpMethods.IsPost(contexto.Request.Method))
+            return false;
+
+        var partes = contexto.Request.Path.Value?.Trim('/').Split('/');
+        return partes is { Length: 6 } &&
+               partes[0] == "api" &&
+               partes[1] == "v1" &&
+               partes[2] == "barbearias" &&
+               Guid.TryParse(partes[3], out _) &&
+               partes[4] == "agendamentos" &&
+               partes[5] == "public";
     }
 
     private static Task NegarAcessoAsync(HttpContext contexto) =>

@@ -36,6 +36,7 @@ const MENSAGENS: Record<string, string> = {
   'schedule.outside_business_hours': 'O horário está fora do funcionamento da barbearia.',
   'schedule.outside_availability': 'O profissional não está disponível neste horário.',
   'schedule.blocked': 'Este horário está bloqueado.',
+  'schedule.lock_timeout': 'A agenda está ocupada. Tente novamente em instantes.',
   'appointment.invalid_state': 'O agendamento não permite esta operação no estado atual.',
   'appointment.not_started': 'O atendimento ainda não foi iniciado.',
   'appointment.already_started': 'O atendimento já foi iniciado.',

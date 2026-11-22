@@ -3,8 +3,10 @@ using PontoBarber.Aplicacao.Modulos.Barbearia;
 using PontoBarber.Aplicacao.Modulos.Profissionais;
 using PontoBarber.Aplicacao.Modulos.Profissionais.DTOs;
 using PontoBarber.Dominio.Compartilhado;
+using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
+using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 
 #pragma warning disable CA1707 // Nomenclatura de testes Metodo_Cenario_Resultado (TDD §7.1)
 
@@ -138,10 +140,60 @@ public sealed class DisponibilidadeSemanalTestes
         var repositorio = new DisponibilidadeRepositorioFake();
         var profissionais = new ProfissionalRepositorioFake(perfil, vinculoUsuario, vinculoAlvo);
         return (
-            new GestaoDisponibilidadeSemanal(repositorio, horarios, profissionais),
+            new GestaoDisponibilidadeSemanal(
+                repositorio, horarios, profissionais,
+                new AgendamentoRepositorioFake(), new BarbeariaRepositorioFake()),
             repositorio,
             alvo.Id,
             outro.Id);
+    }
+
+    private sealed class AgendamentoRepositorioFake : IAgendamentoRepositorio
+    {
+        public Task<ResultadoConfirmacao> ConfirmarAsync(
+            Agendamento agendamento, string chaveLock, CancellationToken cancellationToken) =>
+            Task.FromResult(ResultadoConfirmacao.Sucesso);
+
+        public Task<bool> ExisteConflitoAsync(
+            Guid barbeariaId, Guid profissionalId, DateTime inicioUtc, DateTime fimUtc,
+            CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<IReadOnlyList<Agendamento>> ListarAtivosPorPeriodoAsync(
+            Guid barbeariaId, IReadOnlyCollection<Guid> profissionalIds, DateTime inicioUtc,
+            DateTime fimUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Agendamento>>([]);
+
+        public Task<IReadOnlyList<Agendamento>> ListarPorBarbeariaAsync(
+            Guid barbeariaId, DateTime inicioUtc, DateTime fimUtc, Guid? profissionalId,
+            string? clienteId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Agendamento>>([]);
+
+        public Task<IReadOnlyList<Agendamento>> ListarDoClienteAsync(
+            string clienteId, DateTime inicioUtc, DateTime fimUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Agendamento>>([]);
+
+        public Task<Agendamento?> ObterPorIdAsync(
+            Guid barbeariaId, Guid agendamentoId, CancellationToken cancellationToken) =>
+            Task.FromResult<Agendamento?>(null);
+    }
+
+    private sealed class BarbeariaRepositorioFake : IBarbeariaRepositorio
+    {
+        public Task<bool> CodigoConviteExisteAsync(string codigo, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
+        public Task CriarAsync(
+            BarbeariaEntidade barbearia, PerfilProfissional? perfilNovo,
+            VinculoProfissional vinculo, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<BarbeariaEntidade?> ObterPorIdAsync(Guid barbeariaId, CancellationToken cancellationToken) =>
+            Task.FromResult<BarbeariaEntidade?>(null);
+
+        public Task<BarbeariaEntidade?> ObterPorCodigoConviteAsync(
+            string codigo, CancellationToken cancellationToken) => Task.FromResult<BarbeariaEntidade?>(null);
+
+        public Task AtualizarAsync(BarbeariaEntidade barbearia, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class HorarioRepositorioFake : IHorarioFuncionamentoRepositorio

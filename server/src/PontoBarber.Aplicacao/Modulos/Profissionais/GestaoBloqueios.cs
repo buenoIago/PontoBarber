@@ -1,5 +1,7 @@
 using PontoBarber.Aplicacao.Compartilhado;
+using PontoBarber.Aplicacao.Modulos.Agendamentos;
 using PontoBarber.Aplicacao.Modulos.Profissionais.DTOs;
+using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Profissionais;
 
 namespace PontoBarber.Aplicacao.Modulos.Profissionais;
@@ -10,7 +12,8 @@ namespace PontoBarber.Aplicacao.Modulos.Profissionais;
 /// </summary>
 public sealed class GestaoBloqueios(
     IBloqueioAgendaRepositorio repositorio,
-    IProfissionalRepositorio profissionais)
+    IProfissionalRepositorio profissionais,
+    IAgendamentoRepositorio agendamentos)
 {
     public async Task<IReadOnlyList<BloqueioResponse>> ListarAsync(
         Guid barbeariaId,
@@ -39,9 +42,15 @@ public sealed class GestaoBloqueios(
             throw new ExcecaoValidacaoAplicacao(
                 erros.ToDictionary(erro => erro.Campo, erro => new[] { erro.Mensagem }));
 
-        // A verificação de conflito com agendamentos depende da seção 7 e está
-        // registrada como pendente em tasks.md. Nenhuma estrutura provisória
-        // de agendamento é criada aqui.
+        if (await agendamentos.ExisteConflitoAsync(
+                barbeariaId,
+                profissionalId,
+                request.IniciaEmUtc,
+                request.TerminaEmUtc,
+                cancellationToken))
+            throw new ExcecaoConflitoAplicacao(
+                CodigosErro.AgendaBloqueada, "O bloqueio conflita com um agendamento existente.");
+
         var bloqueio = BloqueioAgenda.Criar(
             barbeariaId, profissionalId, request.IniciaEmUtc, request.TerminaEmUtc, request.Motivo);
         await repositorio.AdicionarAsync(bloqueio, cancellationToken);

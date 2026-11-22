@@ -16,6 +16,8 @@ import { CadastroBarbearia } from './barbearia/cadastro-barbearia/cadastro-barbe
 import { EntrarBarbearia } from './barbearia/entrar-barbearia/entrar-barbearia';
 import { Profissionais } from './barbearia/profissionais/profissionais';
 import { CatalogoServicos } from './servicos/catalogo/catalogo';
+import { Agenda } from './agendamentos/agenda/agenda';
+import { AgendamentoPublico } from './agendamentos/publico/publico';
 import { Bloqueios } from './configuracoes/bloqueios/bloqueios';
 import { Disponibilidade } from './configuracoes/disponibilidade/disponibilidade';
 import { Horarios } from './configuracoes/horarios/horarios';
@@ -30,6 +32,8 @@ type Tela =
   | 'entrar-barbearia'
   | 'profissionais'
   | 'servicos'
+  | 'agenda'
+  | 'agendar'
   | 'horarios'
   | 'disponibilidade'
   | 'bloqueios';
@@ -46,6 +50,8 @@ type Tela =
     EntrarBarbearia,
     Profissionais,
     CatalogoServicos,
+    Agenda,
+    AgendamentoPublico,
     Horarios,
     Disponibilidade,
     Bloqueios,
@@ -121,6 +127,16 @@ export class App {
   abrirServicos(): void {
     this.auth.limparErro();
     this.telaState.set('servicos');
+  }
+
+  abrirAgenda(): void {
+    this.auth.limparErro();
+    this.telaState.set('agenda');
+  }
+
+  abrirAgendar(): void {
+    this.auth.limparErro();
+    this.telaState.set('agendar');
   }
 
   abrirHorarios(): void {

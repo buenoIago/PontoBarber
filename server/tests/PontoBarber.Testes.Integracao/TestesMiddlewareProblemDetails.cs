@@ -48,6 +48,18 @@ public class TestesMiddlewareProblemDetails
     }
 
     [TestMethod]
+    public async Task MiddlewareProblemDetails_ComTimeoutDeLock_Retorna503ComRetryAfter()
+    {
+        var resposta = await ExecutarAsync(_ => Task.FromException(
+            new ExcecaoIndisponibilidadeAplicacao(
+                CodigosErro.AgendaLockTimeout, "A agenda está ocupada. Tente novamente em instantes.")));
+
+        Assert.AreEqual(StatusCodes.Status503ServiceUnavailable, resposta.Status);
+        Assert.AreEqual(CodigosErro.AgendaLockTimeout, ObterTexto(resposta.Corpo, "code"));
+        Assert.AreEqual("1", resposta.RetryAfter);
+    }
+
+    [TestMethod]
     public async Task MiddlewareProblemDetails_ComConcorrencia_Retorna409ComCodigoEstavel()
     {
         var resposta = await ExecutarAsync(
@@ -102,11 +114,15 @@ public class TestesMiddlewareProblemDetails
             raiz = documento.RootElement.Clone();
         }
 
-        return new RespostaTeste(contexto.Response.StatusCode, contexto.Response.ContentType, raiz);
+        return new RespostaTeste(
+            contexto.Response.StatusCode,
+            contexto.Response.ContentType,
+            contexto.Response.Headers.RetryAfter.ToString(),
+            raiz);
     }
 
     private static string ObterTexto(JsonElement corpo, string propriedade) =>
         corpo.GetProperty(propriedade).GetString() ?? string.Empty;
 
-    private sealed record RespostaTeste(int Status, string? TipoConteudo, JsonElement Corpo);
+    private sealed record RespostaTeste(int Status, string? TipoConteudo, string RetryAfter, JsonElement Corpo);
 }

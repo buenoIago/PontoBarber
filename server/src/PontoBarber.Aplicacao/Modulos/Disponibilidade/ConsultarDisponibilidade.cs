@@ -1,6 +1,7 @@
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Aplicacao.Modulos.Disponibilidade.DTOs;
 using PontoBarber.Dominio.Compartilhado;
+using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Dominio.Modulos.Servicos;
@@ -18,7 +19,8 @@ public sealed class ConsultarDisponibilidade(
     IProfissionalRepositorio profissionais,
     IHorarioFuncionamentoRepositorio horarios,
     IDisponibilidadeSemanalRepositorio disponibilidades,
-    IBloqueioAgendaRepositorio bloqueios)
+    IBloqueioAgendaRepositorio bloqueios,
+    IAgendamentoRepositorio agendamentos)
 {
     private const int _janelaPadrao = 15;
     private const int _limiteMaximo = 30;
@@ -71,6 +73,12 @@ public sealed class ConsultarDisponibilidade(
         var fimDiaUtc = ParaUtc(data, horario.FechaAs!.Value, fuso);
         var bloqueiosDoDia = await bloqueios.ListarPeriodoAsync(
             barbeariaId, inicioDiaUtc, fimDiaUtc, cancellationToken);
+        var agendamentosDoDia = await agendamentos.ListarAtivosPorPeriodoAsync(
+            barbeariaId,
+            alvos.Select(alvo => alvo.Perfil.Id).ToList(),
+            inicioDiaUtc,
+            fimDiaUtc,
+            cancellationToken);
 
         var slots = new List<SlotDisponibilidade>();
         foreach (var alvo in alvos)
@@ -101,6 +109,11 @@ public sealed class ConsultarDisponibilidade(
                     if (bloqueiosDoDia.Any(bloqueio => bloqueio.ProfissionalId == alvo.Perfil.Id &&
                                                      inicioSlot < bloqueio.TerminaEmUtc &&
                                                      fimSlot > bloqueio.IniciaEmUtc))
+                        continue;
+
+                    if (agendamentosDoDia.Any(agendamento => agendamento.ProfissionalId == alvo.Perfil.Id &&
+                                                          inicioSlot < agendamento.TerminaEmUtc &&
+                                                          fimSlot > agendamento.IniciaEmUtc))
                         continue;
 
                     slots.Add(new SlotDisponibilidade(
