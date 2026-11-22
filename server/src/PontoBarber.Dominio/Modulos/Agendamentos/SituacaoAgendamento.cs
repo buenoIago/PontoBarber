@@ -4,5 +4,6 @@ namespace PontoBarber.Dominio.Modulos.Agendamentos;
 public enum SituacaoAgendamento
 {
     Confirmado = 0,
-    Cancelado = 1
+    Cancelado = 1,
+    NaoCompareceu = 2
 }

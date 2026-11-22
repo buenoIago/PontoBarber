@@ -131,6 +131,20 @@ public sealed class Agendamento : EntidadeBase<Agendamento>, IPertencenteTenant
     }
 
     /// <summary>
+    /// Fecha um agendamento vencido como não comparecimento. TDD §12.3:
+    /// elegível somente confirmado com início há mais de 2 horas.
+    /// </summary>
+    public void RegistrarNaoComparecimento(DateTime agoraUtc)
+    {
+        if (Situacao != SituacaoAgendamento.Confirmado)
+            throw new InvalidOperationException("Somente um agendamento confirmado pode virar não comparecimento.");
+        if (agoraUtc < IniciaEmUtc.AddHours(2))
+            throw new InvalidOperationException("O agendamento ainda não venceu para não comparecimento.");
+
+        Situacao = SituacaoAgendamento.NaoCompareceu;
+    }
+
+    /// <summary>
     /// Reativa um agendamento cancelado ao aceitar uma sugestão de horário.
     /// </summary>
     public void Reativar(DateTime novoInicioUtc, DateTime agoraUtc)

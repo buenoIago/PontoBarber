@@ -3,6 +3,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PontoBarber.Dominio.Modulos.Agendamentos;
+using PontoBarber.Dominio.Modulos.Notificacoes;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Infra.Compartilhado.Orm;
 
@@ -268,25 +269,168 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
             return ResultadoCicloVida.Sucesso;
         }, cancellationToken);
 
-    public async Task<int> ExpirarSugestoesAsync(DateTime agoraUtc, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SugestaoExpiradaInfo>> ExpirarSugestoesAsync(
+        DateTime agoraUtc, CancellationToken cancellationToken)
     {
-        var expiradas = await contexto.Set<SugestaoHorario>()
-            .IgnoreQueryFilters()
-            .Where(sugestao => sugestao.Situacao == SituacaoSugestao.Pendente &&
-                               sugestao.ExpiraEmUtc <= agoraUtc)
-            .ToListAsync(cancellationToken);
-        if (expiradas.Count == 0)
-            return 0;
+        const string chaveLock = "pb:job:ExpireTimeSlotSuggestionsJob";
 
-        foreach (var sugestao in expiradas)
+        await using var transacao = await contexto.Database.BeginTransactionAsync(cancellationToken);
+        var conexao = (SqlConnection)contexto.Database.GetDbConnection();
+        var transacaoDb = (SqlTransaction)transacao.GetDbTransaction();
+
+        var falhaLock = await AdquirirLocksAsync(conexao, transacaoDb, [chaveLock], cancellationToken);
+        if (falhaLock is not null)
         {
-            sugestao.Expirar(agoraUtc);
-            RegistrarEvento(sugestao.BarbeariaId, sugestao.AgendamentoId, TipoEventoHistorico.SugestaoExpirada,
-                sugestao.AutorUsuarioId, agoraUtc, detalhes: "Reserva liberada por expiração.");
+            await transacao.RollbackAsync(cancellationToken);
+            return [];
         }
 
-        await contexto.SaveChangesAsync(cancellationToken);
-        return expiradas.Count;
+        try
+        {
+            var expiradas = await contexto.Set<SugestaoHorario>()
+                .IgnoreQueryFilters()
+                .Where(sugestao => sugestao.Situacao == SituacaoSugestao.Pendente &&
+                                   sugestao.ExpiraEmUtc <= agoraUtc)
+                .OrderBy(sugestao => sugestao.Id)
+                .Take(500)
+                .ToListAsync(cancellationToken);
+
+            var infos = new List<SugestaoExpiradaInfo>();
+            foreach (var sugestao in expiradas)
+            {
+                var agendamento = await ObterAsync(
+                    sugestao.BarbeariaId, sugestao.AgendamentoId, cancellationToken);
+                sugestao.Expirar(agoraUtc);
+                RegistrarEvento(
+                    sugestao.BarbeariaId, sugestao.AgendamentoId, TipoEventoHistorico.SugestaoExpirada,
+                    "sistema", agoraUtc, detalhes: "Reserva liberada por expiração.");
+
+                if (agendamento is not null)
+                    infos.Add(new SugestaoExpiradaInfo(
+                        sugestao.Id, sugestao.BarbeariaId, sugestao.AgendamentoId,
+                        agendamento.ClienteId, agendamento.ProfissionalId, sugestao.InicioSugeridoUtc));
+            }
+
+            await CriarNotificacoesExpiracaoAsync(expiradas, infos, agoraUtc, cancellationToken);
+            await contexto.SaveChangesAsync(cancellationToken);
+            // O lock é de transação: liberá-lo antes do commit permitiria que
+            // outra execução lesse o estado antigo e processasse o mesmo lote.
+            await transacao.CommitAsync(cancellationToken);
+            return infos;
+        }
+        catch (DbUpdateException)
+        {
+            await transacao.RollbackAsync(cancellationToken);
+            return [];
+        }
+    }
+
+    public async Task<int> FecharVencidosAsync(DateTime agoraUtc, CancellationToken cancellationToken)
+    {
+        const string chaveLock = "pb:job:CloseOverdueAppointmentsJob";
+        var limite = agoraUtc.AddHours(-2);
+
+        await using var transacao = await contexto.Database.BeginTransactionAsync(cancellationToken);
+        var conexao = (SqlConnection)contexto.Database.GetDbConnection();
+        var transacaoDb = (SqlTransaction)transacao.GetDbTransaction();
+
+        var falhaLock = await AdquirirLocksAsync(conexao, transacaoDb, [chaveLock], cancellationToken);
+        if (falhaLock is not null)
+        {
+            await transacao.RollbackAsync(cancellationToken);
+            return 0;
+        }
+
+        try
+        {
+            var vencidos = await contexto.Set<Agendamento>()
+                .IgnoreQueryFilters()
+                .Where(agendamento => agendamento.Situacao == SituacaoAgendamento.Confirmado &&
+                                      agendamento.IniciaEmUtc <= limite)
+                .OrderBy(agendamento => agendamento.IniciaEmUtc)
+                .Take(500)
+                .ToListAsync(cancellationToken);
+
+            foreach (var agendamento in vencidos)
+            {
+                agendamento.RegistrarNaoComparecimento(agoraUtc);
+                RegistrarEvento(
+                    agendamento.BarbeariaId, agendamento.Id, TipoEventoHistorico.NaoComparecimento,
+                    "sistema", agoraUtc, agendamento.IniciaEmUtc,
+                    detalhes: "Fechamento automático por não comparecimento.");
+            }
+
+            await contexto.SaveChangesAsync(cancellationToken);
+            // Mesma razão da expiração: manter o lock até o commit serializa
+            // execuções simultâneas do mesmo processo.
+            await transacao.CommitAsync(cancellationToken);
+            return vencidos.Count;
+        }
+        catch (DbUpdateException)
+        {
+            await transacao.RollbackAsync(cancellationToken);
+            return 0;
+        }
+    }
+
+    private async Task CriarNotificacoesExpiracaoAsync(
+        IReadOnlyList<SugestaoHorario> expiradas,
+        List<SugestaoExpiradaInfo> infos,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken)
+    {
+        if (infos.Count == 0) return;
+
+        var eventIds = expiradas.Select(sugestao => sugestao.Id).ToList();
+        var existentes = (await contexto.Set<Notificacao>()
+                .IgnoreQueryFilters()
+                .Where(notificacao => eventIds.Contains(notificacao.EventId))
+                .Select(notificacao => new { notificacao.EventId, notificacao.DestinatarioUsuarioId })
+                .ToListAsync(cancellationToken))
+            .Select(item => (item.EventId, item.DestinatarioUsuarioId))
+            .ToHashSet();
+
+        const string mensagem = "O horário sugerido expirou e a reserva temporária foi liberada.";
+
+        foreach (var info in infos)
+        {
+            var destinatarios = new HashSet<string>(StringComparer.Ordinal) { info.ClienteId };
+
+            var profissional = await contexto.Set<PerfilProfissional>()
+                .IgnoreQueryFilters()
+                .SingleOrDefaultAsync(perfil => perfil.Id == info.ProfissionalId, cancellationToken);
+            if (profissional is not null)
+                destinatarios.Add(profissional.UsuarioId);
+
+            var vinculoDono = await contexto.Set<VinculoProfissional>()
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(
+                    vinculo => vinculo.BarbeariaId == info.BarbeariaId &&
+                               vinculo.Cargo == CargoProfissional.Proprietario,
+                    cancellationToken);
+            if (vinculoDono is not null)
+            {
+                var dono = await contexto.Set<PerfilProfissional>()
+                    .IgnoreQueryFilters()
+                    .SingleOrDefaultAsync(perfil => perfil.Id == vinculoDono.ProfissionalId, cancellationToken);
+                if (dono is not null)
+                    destinatarios.Add(dono.UsuarioId);
+            }
+
+            foreach (var destinatario in destinatarios)
+            {
+                if (!existentes.Add((info.SugestaoId, destinatario))) continue;
+
+                contexto.Set<Notificacao>().Add(Notificacao.Criar(
+                    info.BarbeariaId,
+                    destinatario,
+                    TipoNotificacao.SugestaoExpirada,
+                    info.AgendamentoId,
+                    mensagem,
+                    info.SugestaoId,
+                    agoraUtc));
+            }
+        }
     }
 
     public async Task<IReadOnlyList<HistoricoAgendamento>> ListarHistoricoAsync(

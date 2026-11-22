@@ -82,8 +82,18 @@ public interface IAgendamentoRepositorio
         DateTime agoraUtc,
         CancellationToken cancellationToken);
 
-    /// <summary>Marca como expiradas as sugestões vencidas. Idempotente.</summary>
-    Task<int> ExpirarSugestoesAsync(DateTime agoraUtc, CancellationToken cancellationToken);
+    /// <summary>
+    /// Marca como expiradas as sugestões vencidas e registra, na mesma
+    /// transação, as notificações idempotentes por EventId. Idempotente.
+    /// </summary>
+    Task<IReadOnlyList<SugestaoExpiradaInfo>> ExpirarSugestoesAsync(
+        DateTime agoraUtc, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Fecha como não comparecimento os agendamentos confirmados vencidos há
+    /// mais de 2 horas, em lotes, com evento de histórico na mesma transação.
+    /// </summary>
+    Task<int> FecharVencidosAsync(DateTime agoraUtc, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<HistoricoAgendamento>> ListarHistoricoAsync(
         Guid barbeariaId, Guid agendamentoId, CancellationToken cancellationToken);

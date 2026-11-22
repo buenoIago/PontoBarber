@@ -17,7 +17,11 @@ public class TestesConvencaoPersistenciaTenant
         "PerfilProfissional",
         "Barbearia",
         "IdempotencyRecord",
-        "JobRun"
+        "JobRun",
+        // Nomes concretos adotados no projeto para os mesmos registros
+        // operacionais globais do TDD §8.1 (sem BarbeariaId por definição).
+        "RegistroIdempotencia",
+        "ExecucaoJob"
     };
 
     [TestMethod]

@@ -11,9 +11,12 @@ using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Aplicacao.Modulos.Agendamentos;
 using PontoBarber.Aplicacao.Modulos.Barbearia;
 using PontoBarber.Aplicacao.Modulos.Disponibilidade;
+using PontoBarber.Aplicacao.Modulos.Jobs;
+using PontoBarber.Aplicacao.Modulos.Jobs.Processos;
 using PontoBarber.Aplicacao.Modulos.Profissionais;
 using PontoBarber.Aplicacao.Modulos.Servicos;
 using PontoBarber.Infra;
+using PontoBarber.Infra.Modulos.Jobs;
 using Serilog;
 using Serilog.Events;
 
@@ -38,6 +41,13 @@ builder.Services.AddScoped<ConsultarDisponibilidade>();
 builder.Services.AddScoped<ServicoAgendamentos>();
 builder.Services.AddScoped<ValidadorHorarioAgendamento>();
 builder.Services.AddScoped<ServicoCicloVidaAgendamentos>();
+builder.Services.AddScoped<ServicoExecucaoJobs>();
+builder.Services.AddScoped<ExpirarSugestoesProcesso>();
+builder.Services.AddScoped<FecharVencidosProcesso>();
+builder.Services.AddScoped<ExpurgarIdempotenciaProcesso>();
+builder.Services.AddScoped<RegistroProcessosPeriodicos>();
+// Adaptador provisório (ADR-027 pendente): não é um scheduler definitivo.
+builder.Services.AddHostedService<DisparadorProvisorioJobs>();
 
 var loggerConsole = new LoggerConfiguration()
     .WriteTo.Sink(new SinkConsoleSeguro())

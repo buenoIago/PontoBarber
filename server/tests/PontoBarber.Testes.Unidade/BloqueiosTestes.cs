@@ -229,7 +229,11 @@ public sealed class BloqueiosTestes
             IReadOnlyList<string> chavesLock, DateTime agoraUtc, CancellationToken cancellationToken) =>
             Task.FromResult(ResultadoCicloVida.Sucesso);
 
-        public Task<int> ExpirarSugestoesAsync(DateTime agoraUtc, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<SugestaoExpiradaInfo>> ExpirarSugestoesAsync(
+            DateTime agoraUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SugestaoExpiradaInfo>>([]);
+
+        public Task<int> FecharVencidosAsync(DateTime agoraUtc, CancellationToken cancellationToken) =>
             Task.FromResult(0);
 
         public Task<IReadOnlyList<HistoricoAgendamento>> ListarHistoricoAsync(

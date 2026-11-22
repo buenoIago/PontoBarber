@@ -163,12 +163,24 @@ Nota da seção: a dependência da Task 5.3 quanto aos snapshots históricos foi
 
 ## 9. Processos periódicos
 
-- [ ] 9.1 Definir o contrato de execução de processos na `Aplicacao` e o registro em `ExecucoesJob` com início, fim, resultado e quantidade; verificar teste de registro em execução bem-sucedida e em falha
-- [ ] 9.2 Implementar adaptador de disparo provisório apenas em `Infra`, sem escolher biblioteca definitiva, e documentar a pendência do ADR-027; verificar que `Dominio` e `Aplicacao` não referenciam biblioteca de agendamento
-- [ ] 9.3 Implementar expiração de sugestões com `UPDATE` condicional e notificação aos envolvidos; verificar teste de expiração e de execução repetida sem liberação ou notificação duplicada
-- [ ] 9.4 Implementar fechamento de agendamentos vencidos como não comparecimento; verificar teste de agendamento vencido e de reprocessamento sem alteração de status
-- [ ] 9.5 Implementar expurgo de registros de idempotência por data de expiração; verificar teste de remoção de expirado e preservação de vigente
-- [ ] 9.6 Documentar os processos e a limitação de durabilidade enquanto o ADR-027 estiver pendente; verificar que o documento lista os quatro processos e seus gatilhos
+- [x] 9.1 Definir o contrato de execução de processos na `Aplicacao` e o registro em `ExecucoesJob` com início, fim, resultado e quantidade; verificar teste de registro em execução bem-sucedida e em falha
+  - Implementado: `IProcessoPeriodico`/`ResultadoProcessamento` na Aplicação, `ExecucaoJob` no Domínio (`Iniciar`, `Concluir`, `Falhar`), `IExecucaoJobRepositorio` e `ServicoExecucaoJobs`. O registro é criado no início, concluído com a quantidade processada ou marcado como falho com o tipo da exceção (sem dados sensíveis). Falha no registro da conclusão é propagada, nunca confundida com sucesso.
+  - Testes unitários e de integração com persistência real executados e aprovados: sucesso com quantidade e momentos UTC, falha registrada e propagada, rejeição de dupla conclusão e de conclusão sem início.
+- [x] 9.2 Implementar adaptador de disparo provisório apenas em `Infra`, sem escolher biblioteca definitiva, e documentar a pendência do ADR-027; verificar que `Dominio` e `Aplicacao` não referenciam bibliotecas de agendamento
+  - Implementado: `DisparadorProvisorioJobs` (`BackgroundService` com escopo de DI por tick e intervalo configurável), `RegistroProcessosPeriodicos` na Aplicação e endpoints de acionamento manual que também passam pelo registro de execução. Nenhuma biblioteca de scheduler foi adicionada; o adaptador é in-process e não durável, conforme documentado em `docs/PROCESSOS_PERIODICOS.md`.
+  - Testes de arquitetura executados e aprovados: Domínio e Aplicação sem referências a Quartz, Hangfire, scheduler ou Hosting; contrato de execução localizado na Aplicação.
+- [x] 9.3 Implementar expiração de sugestões com `UPDATE` condicional e notificação aos envolvidos; verificar teste de expiração e de execução repetida sem liberação ou notificação duplicada
+  - Implementado: processamento condicional em lotes de 500 sobre sugestões `Pendente` e vencidas, com reserva liberada, histórico na mesma transação e notificações para cliente, profissional e proprietário. Não havia infraestrutura de notificações no projeto; foi criada apenas a persistência mínima `Notificacao` com chave única `(EventId, DestinatarioUsuarioId)` (outbox leve da TDD §12.1), sem antecipar a seção 13.
+  - Testes de integração executados e aprovados: sugestão vencida expirada, vigente preservada, notificação única após reprocessamento, duas execuções simultâneas sem duplicidade e histórico íntegro. A proteção de aceite vencido da seção 8 continua independente do job.
+- [x] 9.4 Implementar fechamento de agendamentos vencidos como não comparecimento; verificar teste de agendamento vencido e de reprocessamento sem alteração de status
+  - Implementado: `CloseOverdueAppointmentsJob` com critério da TDD §12.3 (confirmados com início há mais de 2 horas), transição `RegistrarNaoComparecimento`, autor técnico `sistema`, evento `NaoComparecimento` no histórico na mesma transação e lotes de 500 com `sp_getapplock` por processo.
+  - Testes de integração executados e aprovados: elegível fechado, futuro e cancelado preservados, evento único em reprocessamento, cancelamento após o início recusado e histórico íntegro.
+- [x] 9.5 Implementar expurgo de registros de idempotência por data de expiração; verificar teste de remoção de expirado e preservação de vigente
+  - Implementado: estrutura oficial `RegistrosIdempotencia` (TDD §8.1/ADR-021), inexistente no código até esta etapa, e `PurgeIdempotencyRecordsJob` com `DELETE` direto por `ExpiraEmUtc`, sem carregar registros em memória.
+  - Testes de integração executados e aprovados: dois expirados removidos na primeira execução, vigente preservado, segunda execução sem efeito e quantidade correta.
+- [x] 9.6 Documentar os processos e a limitação de durabilidade enquanto o ADR-027 estiver pendente; verificar que o documento lista os quatro processos e seus gatilhos
+  - Criado `docs/PROCESSOS_PERIODICOS.md` com os quatro processos e gatilhos (expiração, não comparecimento, expurgo e `ReconcileNotificationsJob` identificado na TDD §12.3, pertencente à seção 13), contrato, registro em `ExecucoesJob`, idempotência, tratamento de falhas e a limitação de durabilidade/disponibilidade do adaptador provisório.
+  - `ReconcileNotificationsJob` permanece sem implementação nesta etapa por não pertencer às tasks 9.3–9.5; seu critério continua pendente na seção 13.4. Nenhum processo novo foi inventado para completar a documentação.
 
 ## 10. Atendimento e pagamentos
 

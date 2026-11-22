@@ -198,7 +198,8 @@ public sealed class ServicoCicloVidaAgendamentos(
     /// reserva não dependem do job, pois a validação de aceite também
     /// verifica ExpiraEmUtc em tempo real.
     /// </summary>
-    public Task<int> ExpirarSugestoesAsync(CancellationToken cancellationToken) =>
+    public Task<IReadOnlyList<SugestaoExpiradaInfo>> ExpirarSugestoesAsync(
+        CancellationToken cancellationToken) =>
         repositorio.ExpirarSugestoesAsync(DateTime.UtcNow, cancellationToken);
 
     private async Task GarantirAcessoAsync(
