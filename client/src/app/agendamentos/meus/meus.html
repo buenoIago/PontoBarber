@@ -1,0 +1,39 @@
+<section class="mx-auto" style="max-width: 48rem">
+  <h1 class="h3">Meus agendamentos</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+
+  @if (carregando()) {
+    <p role="status">Carregando agendamentos...</p>
+  } @else if (agenda().length === 0) {
+    <app-empty-state
+      titulo="Nenhum agendamento"
+      descricao="Você ainda não possui agendamentos neste período."
+    />
+  } @else {
+    <app-table legenda="Agendamentos dos próximos 30 dias">
+      <thead>
+        <tr>
+          <th scope="col">Início</th>
+          <th scope="col">Serviço</th>
+          <th scope="col">Situação</th>
+          <th scope="col">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (agendamento of agenda(); track agendamento.id) {
+          <tr>
+            <td>{{ formatar(agendamento.iniciaEmUtc) }}</td>
+            <td>{{ agendamento.nomeServico }}</td>
+            <td>{{ agendamento.situacao }}</td>
+            <td>
+              <app-button tamanho="sm" (click)="abrir(agendamento)">Gerenciar</app-button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </app-table>
+  }
+</section>

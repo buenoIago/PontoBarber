@@ -22,6 +22,9 @@ public sealed class ConfiguracaoAgendamento : ConfiguracaoEntidade<Agendamento>
         builder.Property(agendamento => agendamento.Observacoes).HasMaxLength(500);
         builder.Property(agendamento => agendamento.Origem).HasConversion<int>().IsRequired();
         builder.Property(agendamento => agendamento.Situacao).HasConversion<int>().IsRequired();
+        builder.Property(agendamento => agendamento.CanceladoEmUtc);
+        builder.Property(agendamento => agendamento.CanceladoPorUsuarioId).HasMaxLength(450);
+        builder.Property(agendamento => agendamento.MotivoCancelamento).HasMaxLength(500);
         builder.Property(agendamento => agendamento.RowVersion)
             .IsRowVersion()
             .IsConcurrencyToken();
@@ -33,6 +36,7 @@ public sealed class ConfiguracaoAgendamento : ConfiguracaoEntidade<Agendamento>
         builder.HasIndex(agendamento => new { agendamento.BarbeariaId, agendamento.ProfissionalId, agendamento.IniciaEmUtc })
             .IsUnique()
             .HasDatabaseName("UX_Appointments_Pro_Start_Active")
-            .HasFilter("[Situacao] IN (0, 1)");
+            // Cancelados (1) não ocupam o horário: o índice cobre somente ativos.
+            .HasFilter("[Situacao] = 0");
     }
 }

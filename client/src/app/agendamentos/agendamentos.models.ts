@@ -12,6 +12,9 @@ export interface Agendamento {
   preco: number;
   situacao: string;
   origem: string;
+  canceladoEmUtc?: string | null;
+  canceladoPorUsuarioId?: string | null;
+  motivoCancelamento?: string | null;
 }
 
 export interface BloqueioAgenda {
@@ -50,4 +53,28 @@ export interface NovoAgendamento {
   iniciaEmUtc: string;
   observacoes?: string | null;
   clienteId?: string | null;
+}
+
+export interface Sugestao {
+  id: string;
+  agendamentoId: string;
+  profissionalId: string;
+  inicioSugeridoUtc: string;
+  fimSugeridoUtc: string;
+  motivo: string;
+  situacao: 'Pendente' | 'Aceita' | 'Rejeitada' | 'Expirada';
+  expiraEmUtc: string;
+  respondidoEmUtc?: string | null;
+  autorUsuarioId: string;
+}
+
+export interface EventoHistorico {
+  id: string;
+  agendamentoId: string;
+  tipoEvento: string;
+  atorUsuarioId: string | null;
+  ocorridoEmUtc: string;
+  inicioAnteriorUtc: string | null;
+  novoInicioUtc: string | null;
+  detalhes: string | null;
 }

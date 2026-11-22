@@ -274,6 +274,343 @@ public sealed class TestesAgendamentos
         Assert.AreEqual(1, await contexto.Set<Agendamento>().IgnoreQueryFilters().CountAsync());
     }
 
+    [TestMethod]
+    public async Task Cancelamento_ClienteCancelaProprioELiberaHorario()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var inicio = ProximoInicio();
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, inicio);
+
+        var resposta = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "cancelar"),
+            new { motivo = "Desistência" });
+
+        Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
+        var corpo = await LerCorpoAsync(resposta);
+        Assert.AreEqual("Cancelado", corpo.GetProperty("situacao").GetString());
+        Assert.AreEqual(cenario.ClienteId.ToString(), corpo.GetProperty("canceladoPorUsuarioId").GetString());
+
+        using var outroCliente = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarClienteAsync(outroCliente);
+        var reocupacao = await EnviarComAntiforgeryAsync(
+            outroCliente, HttpMethod.Post, PublicUrl(cenario.BarbeariaId),
+            NovoAgendamento(cenario.ProfissionalId, cenario.ServicoId, inicio));
+        Assert.AreEqual(HttpStatusCode.Created, reocupacao.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Cancelamento_ClienteNaoCancelaAgendamentoDeOutro()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+
+        using var outroCliente = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarClienteAsync(outroCliente);
+        var resposta = await EnviarComAntiforgeryAsync(
+            outroCliente, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "cancelar"),
+            new { motivo = "Indevido" });
+
+        Assert.AreEqual(HttpStatusCode.Forbidden, resposta.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Cancelamento_BarbeiroEProprietario_RespeitamPermissao()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var idBarbeiro = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+        var idDono = await CriarAgendamentoAsync(cenario.Cliente, cenario, HorarioLocal(1, 11));
+
+        var peloBarbeiro = await EnviarComAntiforgeryAsync(
+            cenario.Profissional, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, idBarbeiro, "cancelar"),
+            new { motivo = "Cancelado pelo barbeiro" });
+        var peloDono = await EnviarComAntiforgeryAsync(
+            cenario.Dono, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, idDono, "cancelar"),
+            new { motivo = "Cancelado pelo proprietário" });
+
+        Assert.AreEqual(HttpStatusCode.OK, peloBarbeiro.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, peloDono.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Cancelamento_SemMotivoDoProfissional_Rejeita()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+
+        var resposta = await EnviarComAntiforgeryAsync(
+            cenario.Profissional, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "cancelar"),
+            new { motivo = (string?)null });
+
+        Assert.AreEqual(HttpStatusCode.BadRequest, resposta.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Cancelamento_DuplicadoEAposInicio_Rejeita()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var primeiro = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+        var segundo = await CriarAgendamentoAsync(cenario.Cliente, cenario, HorarioLocal(1, 11));
+
+        var duplicado = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, primeiro, "cancelar"), new { });
+        var segundaTentativa = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, primeiro, "cancelar"), new { });
+        Assert.AreEqual(HttpStatusCode.OK, duplicado.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Conflict, segundaTentativa.StatusCode);
+        Assert.AreEqual(CodigosErro.AgendamentoEstadoInvalido,
+            (await LerCorpoAsync(segundaTentativa)).GetProperty("code").GetString());
+
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+            var passado = DateTime.UtcNow.AddMinutes(-10);
+            await contexto.Database.ExecuteSqlRawAsync(
+                "UPDATE [Agendamentos] SET [IniciaEmUtc] = {0}, [TerminaEmUtc] = {1} WHERE [Id] = {2}",
+                passado, passado.AddMinutes(40), segundo);
+        }
+
+        var iniciado = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, segundo, "cancelar"), new { });
+        Assert.AreEqual(HttpStatusCode.Conflict, iniciado.StatusCode);
+        Assert.AreEqual(CodigosErro.AgendamentoJaIniciado,
+            (await LerCorpoAsync(iniciado)).GetProperty("code").GetString());
+    }
+
+    [TestMethod]
+    public async Task Remarcacao_Valida_MudaHorarioEPreservaSnapshot()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+        var novoInicio = HorarioLocal(1, 11);
+
+        var resposta = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "remarcar"),
+            new { iniciaEmUtc = novoInicio.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) });
+
+        Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
+        var corpo = await LerCorpoAsync(resposta);
+        Assert.AreEqual(novoInicio, corpo.GetProperty("iniciaEmUtc").GetDateTime());
+        Assert.AreEqual("Corte degradê", corpo.GetProperty("nomeServico").GetString());
+        Assert.AreEqual(40, corpo.GetProperty("duracaoMinutos").GetInt32());
+        Assert.AreEqual<decimal>(80m, corpo.GetProperty("preco").GetDecimal());
+
+        var historico = await LerCorpoAsync(await cenario.Cliente.GetAsync(
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/agendamentos/{agendamentoId}/historico"));
+        Assert.IsTrue(historico.EnumerateArray().Any(item => item.GetProperty("tipoEvento").GetString() == "Remarcacao"));
+    }
+
+    [TestMethod]
+    public async Task Remarcacao_HorarioOcupado_MantemHorarioOriginal()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var original = ProximoInicio();
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, original);
+        await CriarAgendamentoAsync(cenario.Cliente, cenario, HorarioLocal(1, 11));
+
+        var resposta = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "remarcar"),
+            new { iniciaEmUtc = HorarioLocal(1, 11).ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) });
+
+        Assert.AreEqual(HttpStatusCode.Conflict, resposta.StatusCode);
+        using var escopo = fabrica.Services.CreateScope();
+        var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        var persistido = await contexto.Set<Agendamento>().IgnoreQueryFilters().SingleAsync(item => item.Id == agendamentoId);
+        Assert.AreEqual(original, persistido.IniciaEmUtc);
+    }
+
+    [TestMethod]
+    public async Task Remarcacao_Concorrente_AceitaSomenteUma()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var idA = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+        var idB = await CriarAgendamentoAsync(cenario.Cliente, cenario, HorarioLocal(1, 11));
+        var alvo = HorarioLocal(2, 10);
+        var corpo = new { iniciaEmUtc = alvo.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) };
+
+        var respostas = await Task.WhenAll(
+            EnviarComAntiforgeryAsync(cenario.Cliente, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, idA, "remarcar"), corpo),
+            EnviarComAntiforgeryAsync(cenario.Cliente, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, idB, "remarcar"), corpo));
+
+        Assert.AreEqual(1, respostas.Count(resposta => resposta.StatusCode == HttpStatusCode.OK));
+        Assert.AreEqual(1, respostas.Count(resposta => resposta.StatusCode == HttpStatusCode.Conflict));
+    }
+
+    [TestMethod]
+    public async Task Sugestao_FluxoCompleto_ComAceiteTransacional()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+        var sugerido = HorarioLocal(1, 11);
+
+        var criacao = await EnviarComAntiforgeryAsync(
+            cenario.Profissional, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "sugestoes"),
+            new { iniciaEmUtc = sugerido.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture), motivo = "Horário melhor" });
+        Assert.AreEqual(HttpStatusCode.Created, criacao.StatusCode);
+        var sugestaoId = Guid.Parse((await LerCorpoAsync(criacao)).GetProperty("id").GetString()!);
+
+        var aceite = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post,
+            UrlAcao(cenario.BarbeariaId, agendamentoId, $"sugestoes/{sugestaoId}/aceitar"), new { });
+        Assert.AreEqual(HttpStatusCode.OK, aceite.StatusCode);
+        Assert.AreEqual("Aceita", (await LerCorpoAsync(aceite)).GetProperty("situacao").GetString());
+
+        using var escopo = fabrica.Services.CreateScope();
+        var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        var persistido = await contexto.Set<Agendamento>().IgnoreQueryFilters().SingleAsync(item => item.Id == agendamentoId);
+        Assert.AreEqual(SituacaoAgendamento.Confirmado, persistido.Situacao);
+        Assert.AreEqual(sugerido, persistido.IniciaEmUtc);
+        Assert.AreEqual("Corte degradê", persistido.NomeServicoSnapshot);
+
+        var eventos = await contexto.Set<HistoricoAgendamento>().IgnoreQueryFilters()
+            .Where(item => item.AgendamentoId == agendamentoId).ToListAsync();
+        Assert.IsTrue(eventos.Any(item => item.TipoEvento == TipoEventoHistorico.SugestaoCriada));
+        Assert.IsTrue(eventos.Any(item => item.TipoEvento == TipoEventoHistorico.SugestaoAceita));
+    }
+
+    [TestMethod]
+    public async Task Sugestao_SemMotivoEComConflito_Rejeita()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+        var sugerido = HorarioLocal(1, 11);
+        var body = new { iniciaEmUtc = sugerido.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture), motivo = "" };
+
+        var semMotivo = await EnviarComAntiforgeryAsync(
+            cenario.Profissional, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "sugestoes"), body);
+        Assert.AreEqual(HttpStatusCode.BadRequest, semMotivo.StatusCode);
+
+        await CriarAgendamentoAsync(cenario.Cliente, cenario, sugerido);
+        var conflito = await EnviarComAntiforgeryAsync(
+            cenario.Profissional, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "sugestoes"),
+            new { body.iniciaEmUtc, motivo = "Horário melhor" });
+        Assert.AreEqual(HttpStatusCode.Conflict, conflito.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Sugestao_Rejeicao_LiberaReserva()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+        var sugerido = HorarioLocal(1, 11);
+        var criacao = await EnviarComAntiforgeryAsync(
+            cenario.Profissional, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "sugestoes"),
+            new { iniciaEmUtc = sugerido.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture), motivo = "Troca" });
+        var sugestaoId = Guid.Parse((await LerCorpoAsync(criacao)).GetProperty("id").GetString()!);
+
+        var rejeicao = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post,
+            UrlAcao(cenario.BarbeariaId, agendamentoId, $"sugestoes/{sugestaoId}/rejeitar"), new { });
+        Assert.AreEqual(HttpStatusCode.OK, rejeicao.StatusCode);
+
+        using var outroCliente = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarClienteAsync(outroCliente);
+        var reocupacao = await EnviarComAntiforgeryAsync(
+            outroCliente, HttpMethod.Post, PublicUrl(cenario.BarbeariaId),
+            NovoAgendamento(cenario.ProfissionalId, cenario.ServicoId, sugerido));
+        Assert.AreEqual(HttpStatusCode.Created, reocupacao.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Sugestao_Expirada_NaoPodeAceitarEJobLiberaReserva()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+        var sugerido = HorarioLocal(1, 11);
+        var criacao = await EnviarComAntiforgeryAsync(
+            cenario.Profissional, HttpMethod.Post, UrlAcao(cenario.BarbeariaId, agendamentoId, "sugestoes"),
+            new { iniciaEmUtc = sugerido.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture), motivo = "Troca" });
+        var sugestaoId = Guid.Parse((await LerCorpoAsync(criacao)).GetProperty("id").GetString()!);
+
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+            await contexto.Database.ExecuteSqlRawAsync(
+                "UPDATE [SugestoesHorario] SET [ExpiraEmUtc] = {0} WHERE [Id] = {1}",
+                DateTime.UtcNow.AddHours(-1), sugestaoId);
+        }
+
+        var aceiteExpirado = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post,
+            UrlAcao(cenario.BarbeariaId, agendamentoId, $"sugestoes/{sugestaoId}/aceitar"), new { });
+        Assert.AreEqual(HttpStatusCode.Conflict, aceiteExpirado.StatusCode);
+        Assert.AreEqual(CodigosErro.SugestaoExpirada,
+            (await LerCorpoAsync(aceiteExpirado)).GetProperty("code").GetString());
+
+        var job = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post, "/api/v1/jobs/expirar-sugestoes", new { });
+        Assert.AreEqual(HttpStatusCode.OK, job.StatusCode);
+        Assert.IsTrue((await LerCorpoAsync(job)).GetProperty("expiradas").GetInt32() >= 1);
+
+        using var outroCliente = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarClienteAsync(outroCliente);
+        var reocupacao = await EnviarComAntiforgeryAsync(
+            outroCliente, HttpMethod.Post, PublicUrl(cenario.BarbeariaId),
+            NovoAgendamento(cenario.ProfissionalId, cenario.ServicoId, sugerido));
+        Assert.AreEqual(HttpStatusCode.Created, reocupacao.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Historico_AppendOnly_RejeitaEdicaoERemocao()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var agendamentoId = await CriarAgendamentoAsync(cenario.Cliente, cenario, ProximoInicio());
+
+        using var escopo = fabrica.Services.CreateScope();
+        var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        var evento = await contexto.Set<HistoricoAgendamento>().IgnoreQueryFilters().FirstAsync();
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => evento.Atualizar(evento));
+        contexto.Set<HistoricoAgendamento>().Remove(evento);
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => contexto.SaveChangesAsync());
+    }
+
+    private static string UrlAcao(Guid barbeariaId, Guid agendamentoId, string acao) =>
+        $"/api/v1/barbearias/{barbeariaId}/agendamentos/{agendamentoId}/{acao}";
+
+    private static DateTime HorarioLocal(int dias, int hora)
+    {
+        var data = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.UtcNow, _fuso)).AddDays(dias);
+        return TimeZoneInfo.ConvertTimeToUtc(
+            DateTime.SpecifyKind(data.ToDateTime(new TimeOnly(hora, 0)), DateTimeKind.Unspecified), _fuso);
+    }
+
+    private static async Task<Guid> CriarAgendamentoAsync(
+        HttpClient cliente, Cenario cenario, DateTime inicio)
+    {
+        var resposta = await EnviarComAntiforgeryAsync(
+            cliente, HttpMethod.Post, PublicUrl(cenario.BarbeariaId),
+            NovoAgendamento(cenario.ProfissionalId, cenario.ServicoId, inicio));
+        Assert.AreEqual(HttpStatusCode.Created, resposta.StatusCode);
+        return Guid.Parse((await LerCorpoAsync(resposta)).GetProperty("id").GetString()!);
+    }
+
     private static string PublicUrl(Guid barbeariaId) =>
         $"/api/v1/barbearias/{barbeariaId}/agendamentos/public";
 

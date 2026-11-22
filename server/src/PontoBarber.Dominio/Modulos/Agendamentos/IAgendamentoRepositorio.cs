@@ -45,4 +45,52 @@ public interface IAgendamentoRepositorio
         CancellationToken cancellationToken);
 
     Task<Agendamento?> ObterPorIdAsync(Guid barbeariaId, Guid agendamentoId, CancellationToken cancellationToken);
+
+    Task<ResultadoCicloVida> CancelarAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        string chaveLock,
+        string autorUsuarioId,
+        string? motivo,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken);
+
+    Task<ResultadoCicloVida> RemarcarAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        DateTime novoInicioUtc,
+        IReadOnlyList<string> chavesLock,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken);
+
+    Task<ResultadoCicloVida> SugerirAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        DateTime inicioSugeridoUtc,
+        string motivo,
+        string autorUsuarioId,
+        string chaveLock,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken);
+
+    Task<ResultadoCicloVida> ResponderSugestaoAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        Guid sugestaoId,
+        bool aceitar,
+        IReadOnlyList<string> chavesLock,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken);
+
+    /// <summary>Marca como expiradas as sugestões vencidas. Idempotente.</summary>
+    Task<int> ExpirarSugestoesAsync(DateTime agoraUtc, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<HistoricoAgendamento>> ListarHistoricoAsync(
+        Guid barbeariaId, Guid agendamentoId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<SugestaoHorario>> ListarSugestoesAsync(
+        Guid barbeariaId, Guid agendamentoId, CancellationToken cancellationToken);
+
+    Task<SugestaoHorario?> ObterSugestaoAsync(
+        Guid barbeariaId, Guid agendamentoId, Guid sugestaoId, CancellationToken cancellationToken);
 }

@@ -1,0 +1,163 @@
+<section class="mx-auto" style="max-width: 44rem">
+  <app-button variante="outline" tamanho="sm" (click)="voltarParaOrigem()">Voltar</app-button>
+  <h1 class="h3 mt-2">Detalhes do agendamento</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+  @if (sucesso()) {
+    <div class="alert alert-success" role="status">{{ sucesso() }}</div>
+  }
+  @if (carregando()) {
+    <p role="status">Carregando...</p>
+  }
+
+  @if (detalhe(); as agendamento) {
+    <div class="card mb-3">
+      <div class="card-body">
+        <h2 class="h5">{{ agendamento.nomeServico }}</h2>
+        <p class="mb-1"><strong>Início:</strong> {{ formatar(agendamento.iniciaEmUtc) }}</p>
+        <p class="mb-1"><strong>Término:</strong> {{ formatar(agendamento.terminaEmUtc) }}</p>
+        <p class="mb-1"><strong>Valor:</strong> R$ {{ agendamento.preco.toFixed(2) }}</p>
+        <p>
+          <strong>Situação:</strong>
+          <span [class]="'badge ' + (agendamento.situacao === 'Cancelado' ? 'text-bg-danger' : 'text-bg-success')">
+            {{ agendamento.situacao }}
+          </span>
+        </p>
+        @if (agendamento.situacao === 'Cancelado') {
+          <p class="text-body-secondary mb-0">
+            Cancelado em {{ formatar(agendamento.canceladoEmUtc) }} — {{ agendamento.motivoCancelamento || 'sem motivo' }}
+          </p>
+        }
+      </div>
+    </div>
+
+    @if (eCliente()) {
+      <h2 class="h5">Sugestões recebidas</h2>
+      @if (pendentes().length === 0) {
+        <app-empty-state
+          titulo="Nenhuma sugestão pendente"
+          descricao="Novos horários sugeridos aparecerão aqui."
+        />
+      } @else {
+        @for (sugestao of pendentes(); track sugestao.id) {
+          <div class="card mb-2">
+            <div class="card-body">
+              <p class="mb-1"><strong>Novo horário:</strong> {{ formatar(sugestao.inicioSugeridoUtc) }}</p>
+              <p class="mb-1">{{ sugestao.motivo }}</p>
+              <p class="text-body-secondary">Válido até {{ formatar(sugestao.expiraEmUtc) }}</p>
+              <div class="d-flex gap-2">
+                <app-button tamanho="sm" (click)="responder(sugestao.id, true)">Aceitar</app-button>
+                <app-button variante="outline" tamanho="sm" (click)="responder(sugestao.id, false)">
+                  Rejeitar
+                </app-button>
+              </div>
+            </div>
+          </div>
+        }
+      }
+    }
+
+    @if (agendamento.situacao === 'Confirmado') {
+      <h2 class="h5 mt-3">Alterar horário</h2>
+      <app-form-field id="detalhe-data" rotulo="Data">
+        <input
+          id="detalhe-data"
+          type="date"
+          class="form-control"
+          [value]="dataHorario()"
+          (input)="selecionarData($any($event.target).value)"
+        />
+      </app-form-field>
+      <app-form-field id="detalhe-horario" rotulo="Horário disponível">
+        <select
+          id="detalhe-horario"
+          class="form-select"
+          [value]="horario()"
+          (change)="horario.set($any($event.target).value)"
+        >
+          <option value="">Selecione</option>
+          @for (slot of slots(); track slot.startsAtUtc) {
+            <option [value]="slot.startsAtUtc">{{ formatar(slot.startsAtUtc) }}</option>
+          }
+        </select>
+      </app-form-field>
+
+      <div class="d-flex flex-wrap gap-2">
+        <app-button tamanho="sm" [desabilitado]="!horario()" (click)="remarcar()">Remarcar</app-button>
+        @if (!eCliente()) {
+          <app-button variante="outline" tamanho="sm" [desabilitado]="!horario()" (click)="sugerir()">
+            Sugerir novo horário
+          </app-button>
+        }
+      </div>
+
+      @if (!eCliente()) {
+        <app-form-field id="detalhe-motivo-sugestao" rotulo="Motivo da sugestão" [obrigatorio]="true">
+          <input
+            id="detalhe-motivo-sugestao"
+            class="form-control"
+            maxlength="500"
+            [value]="motivoSugestao()"
+            (input)="motivoSugestao.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
+      }
+
+      <div class="mt-3">
+        @if (!confirmandoCancelamento()) {
+          <app-button variante="secondary" tamanho="sm" (click)="confirmandoCancelamento.set(true)">
+            Cancelar agendamento
+          </app-button>
+        } @else {
+          <app-form-field id="detalhe-motivo-cancelamento" rotulo="Motivo do cancelamento">
+            <input
+              id="detalhe-motivo-cancelamento"
+              class="form-control"
+              maxlength="500"
+              [value]="motivoCancelamento()"
+              (input)="motivoCancelamento.set($any($event.target).value)"
+            />
+          </app-form-field>
+          <div class="d-flex gap-2">
+            <app-button variante="secondary" tamanho="sm" (click)="cancelar()">Confirmar cancelamento</app-button>
+            <app-button variante="outline" tamanho="sm" (click)="confirmandoCancelamento.set(false)">
+              Voltar
+            </app-button>
+          </div>
+        }
+      </div>
+    }
+
+    <h2 class="h5 mt-4">Histórico</h2>
+    @if (historico().length === 0) {
+      <app-empty-state titulo="Sem eventos" descricao="O histórico deste agendamento está vazio." />
+    } @else {
+      <ol class="list-group list-group-numbered">
+        @for (evento of historico(); track evento.id) {
+          <li class="list-group-item d-flex justify-content-between align-items-start">
+            <div>
+              <strong>{{ rotuloEvento(evento.tipoEvento) }}</strong>
+              <div class="text-body-secondary">
+                {{ formatar(evento.ocorridoEmUtc) }}
+                @if (evento.detalhes) { — {{ evento.detalhes }} }
+              </div>
+            </div>
+            @if (evento.novoInicioUtc) {
+              <span class="badge text-bg-light">{{ formatar(evento.novoInicioUtc) }}</span>
+            }
+          </li>
+        }
+      </ol>
+    }
+  } @else {
+    @if (!carregando()) {
+      <app-empty-state
+        titulo="Agendamento não encontrado"
+        descricao="Selecione um agendamento para ver os detalhes."
+      />
+    }
+  }
+</section>

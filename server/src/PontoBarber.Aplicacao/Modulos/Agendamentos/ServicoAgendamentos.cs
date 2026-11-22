@@ -2,7 +2,6 @@ using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Aplicacao.Modulos.Agendamentos.DTOs;
 using PontoBarber.Aplicacao.Modulos.Barbearia;
-using PontoBarber.Aplicacao.Modulos.Disponibilidade;
 using PontoBarber.Dominio.Compartilhado;
 using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
@@ -21,8 +20,7 @@ public sealed class ServicoAgendamentos(
     IProfissionalRepositorio profissionais,
     IServicoRepositorio servicos,
     IBarbeariaRepositorio barbearias,
-    IHorarioFuncionamentoRepositorio horarios,
-    IDisponibilidadeSemanalRepositorio disponibilidades)
+    ValidadorHorarioAgendamento validador)
 {
     public async Task<AgendamentoResponse> CriarPublicoAsync(
         Guid barbeariaId,
@@ -156,11 +154,6 @@ public sealed class ServicoAgendamentos(
         VinculoProfissional? vinculoUsuario,
         CancellationToken cancellationToken)
     {
-        var barbearia = await barbearias.ObterPorIdAsync(barbeariaId, cancellationToken);
-        if (barbearia is null)
-            throw new ExcecaoNaoEncontradoAplicacao(
-                CodigosErro.TenantNaoEncontrado, "Barbearia não encontrada.");
-
         var servico = await servicos.ObterPorIdAsync(barbeariaId, request.ServicoId, cancellationToken);
         if (servico is null || !servico.Ativo || servico.Preco is null)
             throw new ExcecaoValidacaoAplicacao(new Dictionary<string, string[]>
@@ -179,38 +172,8 @@ public sealed class ServicoAgendamentos(
                 ["profissionalId"] = ["Profissional sem vínculo ativo com a barbearia."]
             });
 
-        if (request.IniciaEmUtc.Kind != DateTimeKind.Utc)
-            throw new ExcecaoValidacaoAplicacao(new Dictionary<string, string[]>
-            {
-                ["iniciaEmUtc"] = ["Informe o horário em UTC."]
-            });
-
-        var fuso = TimeZoneInfo.FindSystemTimeZoneById(barbearia.FusoHorarioId);
-        var inicioLocal = TimeZoneInfo.ConvertTime(request.IniciaEmUtc, fuso);
-        var data = DateOnly.FromDateTime(inicioLocal);
-        ConsultarDisponibilidade.ValidarJanela(
-            DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.UtcNow, fuso)), data, null);
-
-        var diaSemana = data.DayOfWeek == DayOfWeek.Sunday
-            ? DiaSemana.Domingo
-            : (DiaSemana)(int)data.DayOfWeek;
-        var horaLocal = TimeOnly.FromDateTime(inicioLocal);
-        var fimLocal = TimeOnly.FromDateTime(
-            TimeZoneInfo.ConvertTime(request.IniciaEmUtc.AddMinutes(servico.DuracaoMinutos), fuso));
-
-        var horario = (await horarios.ListarPorBarbeariaAsync(barbeariaId, cancellationToken))
-            .FirstOrDefault(item => item.DiaSemana == diaSemana && !item.Fechado &&
-                                    item.AbreAs.HasValue && item.FechaAs.HasValue);
-        if (horario is null || horaLocal < horario.AbreAs || fimLocal > horario.FechaAs)
-            throw new ExcecaoHorarioAplicacao(
-                CodigosErro.AgendaForaFuncionamento, "O horário está fora do funcionamento da barbearia.");
-
-        var janelas = await disponibilidades.ListarAsync(
-            barbeariaId, request.ProfissionalId, cancellationToken);
-        if (!janelas.Any(janela => janela.DiaSemana == diaSemana &&
-                                   horaLocal >= janela.IniciaEm && fimLocal <= janela.TerminaEm))
-            throw new ExcecaoHorarioAplicacao(
-                CodigosErro.AgendaForaDisponibilidade, "O horário está fora da disponibilidade do profissional.");
+        await validador.ValidarAsync(
+            barbeariaId, request.ProfissionalId, request.IniciaEmUtc, servico.DuracaoMinutos, cancellationToken);
 
         var agendamento = Agendamento.Criar(
             barbeariaId,
@@ -224,7 +187,8 @@ public sealed class ServicoAgendamentos(
             request.Observacoes,
             origem);
 
-        var chaveLock = $"pb:{barbeariaId}:{request.ProfissionalId}:{data:yyyy-MM-dd}";
+        var chaveLock = await validador.ObterChaveLockAsync(
+            barbeariaId, request.ProfissionalId, request.IniciaEmUtc, cancellationToken);
         var resultado = await repositorio.ConfirmarAsync(agendamento, chaveLock, cancellationToken);
         if (resultado == ResultadoConfirmacao.Indisponivel)
             throw new ExcecaoIndisponibilidadeAplicacao(
@@ -277,7 +241,10 @@ public sealed class ServicoAgendamentos(
             agendamento.DuracaoSnapshot,
             agendamento.PrecoSnapshot,
             agendamento.Situacao.ToString(),
-            agendamento.Origem.ToString());
+            agendamento.Origem.ToString(),
+            agendamento.CanceladoEmUtc,
+            agendamento.CanceladoPorUsuarioId,
+            agendamento.MotivoCancelamento);
 
     private static ExcecaoAutorizacaoAplicacao AcessoNegado() =>
         new(CodigosErro.TenantNegado, "O usuário não possui permissão para esta operação.");

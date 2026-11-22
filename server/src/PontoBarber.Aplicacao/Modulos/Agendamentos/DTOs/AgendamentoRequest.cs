@@ -22,4 +22,7 @@ public sealed record AgendamentoResponse(
     int DuracaoMinutos,
     decimal Preco,
     string Situacao,
-    string Origem);
+    string Origem,
+    DateTime? CanceladoEmUtc = null,
+    string? CanceladoPorUsuarioId = null,
+    string? MotivoCancelamento = null);

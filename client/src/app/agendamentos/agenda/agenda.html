@@ -56,6 +56,7 @@
           <th scope="col">Início</th>
           <th scope="col">Compromisso</th>
           <th scope="col">Situação</th>
+          <th scope="col">Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -67,6 +68,11 @@
               <div class="text-body-secondary">{{ evento.detalhe }}</div>
             </td>
             <td>{{ evento.situacao }}</td>
+            <td>
+              @if (evento.tipo === 'agendamento') {
+                <app-button tamanho="sm" (click)="abrirDetalhe(evento.id)">Gerenciar</app-button>
+              }
+            </td>
           </tr>
         }
       </tbody>

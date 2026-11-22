@@ -7,9 +7,11 @@ import {
   type Agendamento,
   type BloqueioAgenda,
   type Disponibilidade,
+  type EventoHistorico,
   type NovoAgendamento,
   type ServicoDisponivel,
   type Slot,
+  type Sugestao,
 } from './agendamentos.models';
 
 /** Acesso aos endpoints de agendamento; preço e duração vêm do servidor. */
@@ -24,7 +26,15 @@ export class AgendamentosService {
   private readonly carregandoState = signal(false);
   private readonly erroState = signal<string | null>(null);
   private readonly sucessoState = signal<string | null>(null);
+  private readonly detalheState = signal<Agendamento | null>(null);
+  private readonly detalheIdState = signal<string | null>(null);
+  private readonly historicoState = signal<EventoHistorico[]>([]);
+  private readonly sugestoesState = signal<Sugestao[]>([]);
 
+  readonly detalhe = this.detalheState.asReadonly();
+  readonly detalheId = this.detalheIdState.asReadonly();
+  readonly historico = this.historicoState.asReadonly();
+  readonly sugestoes = this.sugestoesState.asReadonly();
   readonly agenda = this.agendaState.asReadonly();
   readonly bloqueios = this.bloqueiosState.asReadonly();
   readonly servicos = this.servicosState.asReadonly();
@@ -113,6 +123,123 @@ export class AgendamentosService {
           withCredentials: true,
         }),
       (resposta) => this.agendaState.set(resposta),
+    );
+  }
+
+  selecionarDetalhe(id: string): void {
+    this.limparMensagens();
+    this.detalheIdState.set(id);
+    this.detalheState.set(null);
+    this.historicoState.set([]);
+    this.sugestoesState.set([]);
+  }
+
+  carregarDetalhe(barbeariaId: string, id: string): void {
+    this.executar(
+      () =>
+        this.http.get<Agendamento>(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}`,
+          { withCredentials: true },
+        ),
+      (resposta) => {
+        this.detalheState.set(resposta);
+        this.carregarHistorico(barbeariaId, id);
+        this.carregarSugestoes(barbeariaId, id);
+      },
+    );
+  }
+
+  carregarHistorico(barbeariaId: string, id: string): void {
+    this.executar(
+      () =>
+        this.http.get<EventoHistorico[]>(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/historico`,
+          { withCredentials: true },
+        ),
+      (resposta) => this.historicoState.set(resposta),
+    );
+  }
+
+  carregarSugestoes(barbeariaId: string, id: string): void {
+    this.executar(
+      () =>
+        this.http.get<Sugestao[]>(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/sugestoes`,
+          { withCredentials: true },
+        ),
+      (resposta) => this.sugestoesState.set(resposta),
+    );
+  }
+
+  cancelar(barbeariaId: string, id: string, motivo: string, concluido: () => void): void {
+    this.executar(
+      () =>
+        this.http.post(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/cancelar`,
+          { motivo: motivo || null },
+          { withCredentials: true },
+        ),
+      () => {
+        this.sucessoState.set('Agendamento cancelado.');
+        concluido();
+      },
+    );
+  }
+
+  remarcar(barbeariaId: string, id: string, iniciaEmUtc: string, concluido: () => void): void {
+    this.executar(
+      () =>
+        this.http.post(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/remarcar`,
+          { iniciaEmUtc },
+          { withCredentials: true },
+        ),
+      () => {
+        this.sucessoState.set('Horário alterado.');
+        concluido();
+      },
+    );
+  }
+
+  sugerir(
+    barbeariaId: string,
+    id: string,
+    iniciaEmUtc: string,
+    motivo: string,
+    concluido: () => void,
+  ): void {
+    this.executar(
+      () =>
+        this.http.post(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/sugestoes`,
+          { iniciaEmUtc, motivo },
+          { withCredentials: true },
+        ),
+      () => {
+        this.sucessoState.set('Sugestão enviada ao cliente.');
+        concluido();
+      },
+    );
+  }
+
+  responderSugestao(
+    barbeariaId: string,
+    id: string,
+    sugestaoId: string,
+    aceitar: boolean,
+    concluido: () => void,
+  ): void {
+    this.executar(
+      () =>
+        this.http.post(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/sugestoes/${sugestaoId}/${aceitar ? 'aceitar' : 'rejeitar'}`,
+          {},
+          { withCredentials: true },
+        ),
+      () => {
+        this.sucessoState.set(aceitar ? 'Sugestão aceita.' : 'Sugestão rejeitada.');
+        concluido();
+      },
     );
   }
 

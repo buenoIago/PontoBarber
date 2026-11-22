@@ -4,6 +4,7 @@ import {
   computed,
   inject,
   OnInit,
+  output,
   signal,
 } from '@angular/core';
 
@@ -54,6 +55,8 @@ export class Agenda implements OnInit {
       ? this.selecionadoId()
       : (this.barbearias.vinculo()?.profissionalId ?? null),
   );
+
+  readonly detalheSolicitado = output<void>();
 
   readonly visao = signal<Visao>('dia');
   readonly data = signal(this.hoje());
@@ -109,6 +112,11 @@ export class Agenda implements OnInit {
     this.barbearias.listarProfissionais(barbeariaId);
     this.selecionadoId.set(this.profissionais()[0]?.id ?? null);
     this.carregar();
+  }
+
+  abrirDetalhe(id: string): void {
+    this.servico.selecionarDetalhe(id);
+    this.detalheSolicitado.emit();
   }
 
   alternar(visao: Visao): void {

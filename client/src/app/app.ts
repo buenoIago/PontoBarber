@@ -18,6 +18,8 @@ import { Profissionais } from './barbearia/profissionais/profissionais';
 import { CatalogoServicos } from './servicos/catalogo/catalogo';
 import { Agenda } from './agendamentos/agenda/agenda';
 import { AgendamentoPublico } from './agendamentos/publico/publico';
+import { DetalheAgendamento } from './agendamentos/detalhe/detalhe';
+import { MeusAgendamentos } from './agendamentos/meus/meus';
 import { Bloqueios } from './configuracoes/bloqueios/bloqueios';
 import { Disponibilidade } from './configuracoes/disponibilidade/disponibilidade';
 import { Horarios } from './configuracoes/horarios/horarios';
@@ -34,6 +36,8 @@ type Tela =
   | 'servicos'
   | 'agenda'
   | 'agendar'
+  | 'meus'
+  | 'detalhe'
   | 'horarios'
   | 'disponibilidade'
   | 'bloqueios';
@@ -52,6 +56,8 @@ type Tela =
     CatalogoServicos,
     Agenda,
     AgendamentoPublico,
+    DetalheAgendamento,
+    MeusAgendamentos,
     Horarios,
     Disponibilidade,
     Bloqueios,
@@ -63,6 +69,7 @@ export class App {
   private readonly auth = inject(AuthService);
 
   private readonly telaState = signal<Tela>('escolha');
+  private readonly origemDetalhe = signal<Tela>('agenda');
   private readonly perfilState = signal<TipoPerfil>('cliente');
 
   readonly tela = this.telaState.asReadonly();
@@ -137,6 +144,25 @@ export class App {
   abrirAgendar(): void {
     this.auth.limparErro();
     this.telaState.set('agendar');
+  }
+
+  abrirMeus(): void {
+    this.auth.limparErro();
+    this.telaState.set('meus');
+  }
+
+  abrirDetalheDaAgenda(): void {
+    this.origemDetalhe.set('agenda');
+    this.telaState.set('detalhe');
+  }
+
+  abrirDetalheDosMeus(): void {
+    this.origemDetalhe.set('meus');
+    this.telaState.set('detalhe');
+  }
+
+  voltarDeDetalhe(): void {
+    this.telaState.set(this.origemDetalhe());
   }
 
   abrirHorarios(): void {

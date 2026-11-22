@@ -27,6 +27,7 @@
     <app-button variante="outline" tamanho="sm" (click)="abrirServicos()">Serviços</app-button>
     @if (!eProfissional()) {
       <app-button variante="outline" tamanho="sm" (click)="abrirAgendar()">Agendar</app-button>
+      <app-button variante="outline" tamanho="sm" (click)="abrirMeus()">Meus agendamentos</app-button>
     }
   </nav>
 
@@ -47,10 +48,16 @@
       <app-catalogo-servicos />
     }
     @case ('agenda') {
-      <app-agenda />
+      <app-agenda (detalheSolicitado)="abrirDetalheDaAgenda()" />
     }
     @case ('agendar') {
       <app-agendamento-publico />
+    }
+    @case ('meus') {
+      <app-meus-agendamentos (detalheSolicitado)="abrirDetalheDosMeus()" />
+    }
+    @case ('detalhe') {
+      <app-detalhe-agendamento (voltar)="voltarDeDetalhe()" />
     }
     @case ('horarios') {
       <app-horarios-config />

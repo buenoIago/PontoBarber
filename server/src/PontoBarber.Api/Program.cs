@@ -36,6 +36,8 @@ builder.Services.AddScoped<GestaoDisponibilidadeSemanal>();
 builder.Services.AddScoped<GestaoBloqueios>();
 builder.Services.AddScoped<ConsultarDisponibilidade>();
 builder.Services.AddScoped<ServicoAgendamentos>();
+builder.Services.AddScoped<ValidadorHorarioAgendamento>();
+builder.Services.AddScoped<ServicoCicloVidaAgendamentos>();
 
 var loggerConsole = new LoggerConfiguration()
     .WriteTo.Sink(new SinkConsoleSeguro())

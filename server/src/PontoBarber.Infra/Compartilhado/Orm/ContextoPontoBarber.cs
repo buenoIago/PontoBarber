@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Dominio.Compartilhado;
+using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Infra.Identity;
 
 namespace PontoBarber.Infra.Compartilhado.Orm;
@@ -78,6 +79,12 @@ public class ContextoPontoBarber(
 
     private void GarantirTenantIdImutavel()
     {
+        foreach (var entry in ChangeTracker.Entries<HistoricoAgendamento>())
+        {
+            if (entry.State is EntityState.Modified or EntityState.Deleted)
+                throw new InvalidOperationException("Eventos do histórico são imutáveis.");
+        }
+
         foreach (var entry in ChangeTracker.Entries<IPertencenteTenant>())
         {
             if (entry.State == EntityState.Modified &&

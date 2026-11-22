@@ -24,6 +24,9 @@ public sealed class Agendamento : EntidadeBase<Agendamento>, IPertencenteTenant
     public string? Observacoes { get; private set; }
     public OrigemAgendamento Origem { get; private set; }
     public SituacaoAgendamento Situacao { get; private set; }
+    public DateTime? CanceladoEmUtc { get; private set; }
+    public string? CanceladoPorUsuarioId { get; private set; }
+    public string? MotivoCancelamento { get; private set; }
     public byte[] RowVersion { get; private set; } = [];
 
     public static Agendamento Criar(
@@ -84,8 +87,75 @@ public sealed class Agendamento : EntidadeBase<Agendamento>, IPertencenteTenant
             erros.Add(new ErroValidacao("duracaoSnapshot", "Informe uma duração válida."));
         if (PrecoSnapshot < 0)
             erros.Add(new ErroValidacao("precoSnapshot", "O preço não pode ser negativo."));
+        if (Situacao == SituacaoAgendamento.Cancelado &&
+            (CanceladoEmUtc is null || string.IsNullOrWhiteSpace(CanceladoPorUsuarioId)))
+            erros.Add(new ErroValidacao("cancelamento", "Autor e momento do cancelamento são obrigatórios."));
+        if (Situacao == SituacaoAgendamento.Confirmado &&
+            (CanceladoEmUtc is not null || CanceladoPorUsuarioId is not null))
+            erros.Add(new ErroValidacao("cancelamento", "Um agendamento confirmado não pode ter dados de cancelamento."));
 
         return erros;
+    }
+
+    /// <summary>
+    /// Cancela o agendamento, registrando autor, momento e motivo. Somente a
+    /// transição Confirmado → Cancelado antes do início é permitida.
+    /// </summary>
+    public void Cancelar(string autorUsuarioId, string? motivo, DateTime agoraUtc)
+    {
+        if (Situacao != SituacaoAgendamento.Confirmado)
+            throw new InvalidOperationException("Somente um agendamento confirmado pode ser cancelado.");
+        if (agoraUtc >= IniciaEmUtc)
+            throw new InvalidOperationException("Não é possível cancelar após o início do agendamento.");
+        if (string.IsNullOrWhiteSpace(autorUsuarioId))
+            throw new InvalidOperationException("O autor do cancelamento é obrigatório.");
+
+        Situacao = SituacaoAgendamento.Cancelado;
+        CanceladoEmUtc = agoraUtc;
+        CanceladoPorUsuarioId = autorUsuarioId;
+        MotivoCancelamento = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim();
+    }
+
+    /// <summary>
+    /// Move o agendamento para outro horário preservando duração, preço e
+    /// snapshots. Os dados contratados permanecem intactos.
+    /// </summary>
+    public void Remarcar(DateTime novoInicioUtc, DateTime agoraUtc)
+    {
+        GarantirPeriodoAlteravel(agoraUtc);
+        if (novoInicioUtc.Kind != DateTimeKind.Utc)
+            throw new InvalidOperationException("Informe o novo horário em UTC.");
+
+        IniciaEmUtc = novoInicioUtc;
+        TerminaEmUtc = novoInicioUtc.AddMinutes(DuracaoSnapshot);
+    }
+
+    /// <summary>
+    /// Reativa um agendamento cancelado ao aceitar uma sugestão de horário.
+    /// </summary>
+    public void Reativar(DateTime novoInicioUtc, DateTime agoraUtc)
+    {
+        if (Situacao != SituacaoAgendamento.Cancelado)
+            throw new InvalidOperationException("Somente um agendamento cancelado pode ser reativado.");
+        if (novoInicioUtc.Kind != DateTimeKind.Utc)
+            throw new InvalidOperationException("Informe o novo horário em UTC.");
+        if (agoraUtc >= novoInicioUtc)
+            throw new InvalidOperationException("Não é possível aceitar um horário que já passou.");
+
+        IniciaEmUtc = novoInicioUtc;
+        TerminaEmUtc = novoInicioUtc.AddMinutes(DuracaoSnapshot);
+        Situacao = SituacaoAgendamento.Confirmado;
+        CanceladoEmUtc = null;
+        CanceladoPorUsuarioId = null;
+        MotivoCancelamento = null;
+    }
+
+    private void GarantirPeriodoAlteravel(DateTime agoraUtc)
+    {
+        if (Situacao != SituacaoAgendamento.Confirmado)
+            throw new InvalidOperationException("Somente um agendamento confirmado pode ser remarcado.");
+        if (agoraUtc >= IniciaEmUtc)
+            throw new InvalidOperationException("Não é possível remarcar após o início do agendamento.");
     }
 
     /// <summary>
@@ -107,7 +177,10 @@ public sealed class Agendamento : EntidadeBase<Agendamento>, IPertencenteTenant
             DuracaoSnapshot != entidadeAtualizada.DuracaoSnapshot ||
             PrecoSnapshot != entidadeAtualizada.PrecoSnapshot ||
             Origem != entidadeAtualizada.Origem ||
-            Situacao != entidadeAtualizada.Situacao)
+            Situacao != entidadeAtualizada.Situacao ||
+            CanceladoEmUtc != entidadeAtualizada.CanceladoEmUtc ||
+            CanceladoPorUsuarioId != entidadeAtualizada.CanceladoPorUsuarioId ||
+            MotivoCancelamento != entidadeAtualizada.MotivoCancelamento)
             throw new InvalidOperationException("Os dados contratados de um agendamento não podem ser alterados.");
     }
 }
