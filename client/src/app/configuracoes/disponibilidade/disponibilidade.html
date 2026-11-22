@@ -1,0 +1,87 @@
+<section class="mx-auto" style="max-width: 52rem">
+  <h1 class="h3">Disponibilidade semanal</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+  @if (sucesso()) {
+    <div class="alert alert-success" role="status">Disponibilidade salva.</div>
+  }
+
+  @if (profissionais().length === 0) {
+    <app-empty-state
+      titulo="Nenhum profissional vinculado"
+      descricao="Profissionais vinculados à barbearia aparecem aqui."
+    />
+  } @else {
+    @if (eProprietario()) {
+      <app-form-field id="profissional" rotulo="Profissional" [obrigatorio]="true">
+        <select
+          id="profissional"
+          class="form-select"
+          [value]="selecionadoId() ?? ''"
+          (change)="selecionar($any($event.target).value)"
+        >
+          @for (profissional of profissionais(); track profissional.id) {
+            <option [value]="profissional.id">{{ profissional.nomeCompleto }}</option>
+          }
+        </select>
+      </app-form-field>
+    } @else {
+      <p class="text-body-secondary">Sua disponibilidade semanal.</p>
+    }
+
+    @if (carregando()) {
+      <p role="status">Carregando disponibilidade...</p>
+    } @else {
+      <app-table legenda="Janelas por dia da semana">
+        <thead>
+          <tr>
+            <th scope="col">Dia</th>
+            <th scope="col">Início</th>
+            <th scope="col">Término</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (dia of dias; track dia.numero) {
+            @let janela = formulario().find((item) => item.diaSemana === dia.numero);
+            <tr>
+              <td>{{ dia.nome }}</td>
+              @if (podeEditar()) {
+                <td>
+                  <input
+                    type="time"
+                    class="form-control form-control-sm"
+                    [attr.aria-label]="'Início de ' + dia.nome"
+                    [value]="janela?.iniciaEm ?? ''"
+                    (change)="definirHorario(dia.numero, 'iniciaEm', $any($event.target).value)"
+                  />
+                </td>
+                <td>
+                  <input
+                    type="time"
+                    class="form-control form-control-sm"
+                    [attr.aria-label]="'Término de ' + dia.nome"
+                    [value]="janela?.terminaEm ?? ''"
+                    (change)="definirHorario(dia.numero, 'terminaEm', $any($event.target).value)"
+                  />
+                </td>
+              } @else {
+                <td>{{ janela?.iniciaEm || '—' }}</td>
+                <td>{{ janela?.terminaEm || '—' }}</td>
+              }
+            </tr>
+          }
+        </tbody>
+      </app-table>
+
+      @if (podeEditar()) {
+        <div class="mt-3">
+          <app-button (click)="salvar()" [desabilitado]="carregando()"
+            >Salvar disponibilidade</app-button
+          >
+        </div>
+      }
+    }
+  }
+</section>

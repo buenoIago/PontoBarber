@@ -51,8 +51,10 @@ public sealed class RepositorioProfissionalEmOrm(ContextoPontoBarber contexto) :
         Guid barbeariaId,
         CancellationToken cancellationToken)
     {
-        // Filtro global por BarbeariaId mais predicato explícito da rota.
+        // A consulta também é usada por rotas públicas sem tenant no contexto;
+        // o predicato por BarbeariaId é explícito e garante o isolamento.
         var vinculos = await contexto.Set<VinculoProfissional>()
+            .IgnoreQueryFilters()
             .Where(vinculo => vinculo.BarbeariaId == barbeariaId && vinculo.Situacao != StatusVinculo.Removido)
             .ToListAsync(cancellationToken);
 

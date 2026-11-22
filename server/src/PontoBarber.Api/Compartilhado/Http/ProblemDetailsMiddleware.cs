@@ -52,6 +52,12 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next)
                 "Conflito",
                 conflito.Message,
                 null),
+            ExcecaoHorarioAplicacao horario => (
+                StatusCodes.Status422UnprocessableEntity,
+                horario.Codigo,
+                "Horário inválido",
+                horario.Message,
+                null),
             DbUpdateConcurrencyException => (
                 StatusCodes.Status409Conflict,
                 CodigosErro.ConcorrenciaConflito,

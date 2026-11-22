@@ -95,12 +95,26 @@ Nota da seção: a seção 5 permanece aberta enquanto a Task 5.3 depender dos s
 
 ## 6. Disponibilidade e horários
 
-- [ ] 6.1 Implementar horários gerais de funcionamento por dia da semana com validação de abertura e fechamento; verificar testes de configuração válida, período invertido e dia fechado
+- [x] 6.1 Implementar horários gerais de funcionamento por dia da semana com validação de abertura e fechamento; verificar testes de configuração válida, período invertido e dia fechado
+  - Implementado: `HorarioFuncionamento`, repositório, `GestaoHorariosFuncionamento` e `GET`/`PUT /api/v1/barbearias/{barbeariaId}/horarios-funcionamento`; exatamente sete dias por barbearia, dias fechados sem horários e fechamento posterior à abertura, com horários locais no fuso da barbearia.
+  - Testes unitários e de integração executados e aprovados: configuração válida, período invertido, dia fechado, autorização do proprietário e isolamento entre barbearias.
 - [ ] 6.2 Implementar disponibilidade semanal do profissional contida no funcionamento; verificar testes de janela válida, janela fora do funcionamento e preservação de agendamentos existentes
+  - Implementado: `DisponibilidadeSemanal`, repositório, `GestaoDisponibilidadeSemanal` e `PUT /api/v1/barbearias/{barbeariaId}/profissionais/{id}/disponibilidade`; janelas contidas no funcionamento, proprietário pode editar qualquer profissional e o barbeiro somente a própria disponibilidade. Testes unitários e de integração executados e aprovados para esses cenários.
+  - Pendente: não há entidade de agendamento antes da seção 7, portanto a preservação de agendamentos existentes após alteração de disponibilidade não pode ser verificada nesta etapa. Sem criar snapshots antecipados, a Task permanece pendente até a seção 7.
 - [ ] 6.3 Implementar bloqueios pontuais com validação de período e tratamento de conflito com agendamento existente; verificar testes dos três cenários
-- [ ] 6.4 Implementar cálculo de horários disponíveis considerando funcionamento, disponibilidade, bloqueios e agendamentos, com limite de 90 dias e fuso da barbearia; verificar testes de horário livre, fora da jornada e data além do limite
-- [ ] 6.5 Aplicar autorização das configurações por perfil; verificar testes de barbeiro tentando alterar horários gerais e bloqueio de outro profissional
-- [ ] 6.6 Implementar telas de horários, disponibilidade e bloqueios; verificar E2E e axe sem violação crítica
+  - Implementado: `BloqueioAgenda`, repositório, `GestaoBloqueios` e `GET`/`POST`/`DELETE /api/v1/barbearias/{barbeariaId}/profissionais/{id}/blocks`; período em UTC com término posterior ao início, motivo opcional, proprietário gerencia qualquer profissional da barbearia e o barbeiro somente os próprios bloqueios.
+  - Pendente: não há entidade de agendamento antes da seção 7; o tratamento de conflito com agendamento existente não pode ser implementado ou testado sem antecipar aquela seção. A Task permanece aberta até a verificação desse cenário.
+- [ ] 6.4 Implementar cálculo de horários disponíveis considerando funcionamento, disponibilidade, bloqueios e agendamentos, janela padrão de 15 dias, limite máximo de 30 dias e fuso da barbearia; verificar testes de horário livre, fora da jornada e data além do limite
+  - Decisão atualizada: a janela padrão é de 15 dias e o limite máximo absoluto é de 30 dias, medidos a partir da data atual no fuso da barbearia. Parâmetros do cliente não podem ampliar o limite.
+  - Implementado: `GET /api/v1/barbearias/{barbeariaId}/disponibilidade` (público, TDD §10.2) com `servicoId`, `profissionalId` opcional, `date` e `dias` opcional; slots gerados pela duração do serviço dentro da interseção entre funcionamento e disponibilidade, descontados os bloqueios pontuais e convertidos para UTC no fuso da barbearia.
+  - Pendente: sem entidade de agendamento antes da seção 7, os agendamentos existentes não podem ser considerados no cálculo; a Task permanece aberta até essa integração.
+- [x] 6.5 Aplicar autorização das configurações por perfil; verificar testes de barbeiro tentando alterar horários gerais e bloqueio de outro profissional
+  - Revisão concluída: horários gerais exigem proprietário para escrita e vínculo ativo para leitura; disponibilidade e bloqueios exigem proprietário ou o próprio profissional, com vínculo ativo e `BarbeariaId` da rota. Clientes e usuários sem vínculo são negados nas rotas administrativas; a consulta pública da Task 6.4 foi preservada.
+  - Correção realizada: adicionado o `GET /api/v1/barbearias/{barbeariaId}/profissionais/{id}/disponibilidade` do TDD §10.2, ausente até esta etapa, com a mesma autorização da escrita.
+  - Testes unitários e de integração executados e aprovados para todos os cenários de perfil, isolamento entre barbearias e acesso à consulta pública.
+- [x] 6.6 Implementar telas de horários, disponibilidade e bloqueios; verificar E2E e axe sem violação crítica
+  - Implementado em `client/src/app/configuracoes/`, integradas à navegação por sinais: horários gerais com edição restrita ao proprietário, disponibilidade semanal com seleção de profissional pelo proprietário e edição própria pelo barbeiro, e bloqueios com criação/remoção conforme o perfil. Exibição em UTC no formulário e no fuso da barbearia na listagem.
+  - Testes Vitest (59/59) e E2E (24/24, incluindo os dez cenários das telas e axe nas três telas) executados e aprovados em 22/11/2026. Os E2E usam interceptação da API via `page.route`, sem persistência real.
 
 ## 7. Agendamento e agenda
 

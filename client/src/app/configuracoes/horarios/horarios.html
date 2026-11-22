@@ -1,0 +1,88 @@
+<section class="mx-auto" style="max-width: 48rem">
+  <h1 class="h3">Horários de funcionamento</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+  @if (sucesso()) {
+    <div class="alert alert-success" role="status">{{ sucesso() }}</div>
+  }
+
+  @if (carregando()) {
+    <p role="status">Carregando horários...</p>
+  } @else if (horarios().length === 0) {
+    <app-empty-state
+      titulo="Nenhum horário configurado"
+      descricao="Os horários da barbearia aparecerão aqui."
+    />
+  } @else {
+    <div class="d-flex justify-content-end mb-2">
+      @if (eProprietario() && !editando()) {
+        <app-button tamanho="sm" (click)="iniciarEdicao()">Editar horários</app-button>
+      }
+    </div>
+
+    <app-table legenda="Funcionamento semanal">
+      <thead>
+        <tr>
+          <th scope="col">Dia</th>
+          <th scope="col">Abertura</th>
+          <th scope="col">Fechamento</th>
+          <th scope="col">Situação</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (dia of dias; track dia.numero) {
+          @let atual = horarios().find((item) => item.diaSemana === dia.numero);
+          <tr>
+            <td>{{ dia.nome }}</td>
+            @if (editando() && eProprietario()) {
+              @let diaEditado = rascunho().find((item) => item.diaSemana === dia.numero);
+              <td>
+                <input
+                  type="time"
+                  class="form-control form-control-sm"
+                  [attr.aria-label]="'Abertura de ' + dia.nome"
+                  [disabled]="diaEditado?.fechado ?? false"
+                  [value]="horaTela(diaEditado?.abreAs ?? null)"
+                  (change)="definirHorario(dia.numero, 'abreAs', $any($event.target).value)"
+                />
+              </td>
+              <td>
+                <input
+                  type="time"
+                  class="form-control form-control-sm"
+                  [attr.aria-label]="'Fechamento de ' + dia.nome"
+                  [disabled]="diaEditado?.fechado ?? false"
+                  [value]="horaTela(diaEditado?.fechaAs ?? null)"
+                  (change)="definirHorario(dia.numero, 'fechaAs', $any($event.target).value)"
+                />
+              </td>
+              <td>
+                <input
+                  type="checkbox"
+                  class="form-check-input"
+                  [id]="'fechado-' + dia.numero"
+                  [checked]="diaEditado?.fechado ?? false"
+                  (change)="alternarFechado(dia.numero, $any($event.target).checked)"
+                />
+                <label class="form-check-label ms-1" [for]="'fechado-' + dia.numero">Fechado</label>
+              </td>
+            } @else {
+              <td>{{ horaTela(atual?.abreAs ?? null) || '—' }}</td>
+              <td>{{ horaTela(atual?.fechaAs ?? null) || '—' }}</td>
+              <td>{{ atual?.fechado ? 'Fechado' : 'Aberto' }}</td>
+            }
+          </tr>
+        }
+      </tbody>
+    </app-table>
+
+    @if (editando() && eProprietario()) {
+      <div class="d-flex gap-2 mt-3">
+        <app-button (click)="salvar()" [desabilitado]="carregando()">Salvar</app-button>
+        <app-button variante="outline" (click)="cancelar()">Cancelar</app-button>
+      </div>
+    }
+  }
+</section>

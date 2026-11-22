@@ -1,0 +1,106 @@
+<section class="mx-auto" style="max-width: 52rem">
+  <h1 class="h3">Bloqueios da agenda</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+  @if (sucesso()) {
+    <div class="alert alert-success" role="status">{{ sucesso() }}</div>
+  }
+
+  @if (profissionais().length === 0) {
+    <app-empty-state
+      titulo="Nenhum profissional vinculado"
+      descricao="Profissionais vinculados à barbearia aparecem aqui."
+    />
+  } @else {
+    @if (eProprietario()) {
+      <app-form-field id="profissional" rotulo="Profissional" [obrigatorio]="true">
+        <select
+          id="profissional"
+          class="form-select"
+          [value]="selecionadoId() ?? ''"
+          (change)="selecionar($any($event.target).value)"
+        >
+          @for (profissional of profissionais(); track profissional.id) {
+            <option [value]="profissional.id">{{ profissional.nomeCompleto }}</option>
+          }
+        </select>
+      </app-form-field>
+    }
+
+    @if (podeEditar()) {
+      <form class="card card-body mb-3" (submit)="criar(); $event.preventDefault()">
+        <h2 class="h5">Novo bloqueio</h2>
+        <app-form-field id="bloqueio-inicio" rotulo="Início (UTC)" [obrigatorio]="true">
+          <input
+            id="bloqueio-inicio"
+            type="datetime-local"
+            class="form-control"
+            [value]="inicio()"
+            (input)="inicio.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
+        <app-form-field id="bloqueio-termino" rotulo="Término (UTC)" [obrigatorio]="true">
+          <input
+            id="bloqueio-termino"
+            type="datetime-local"
+            class="form-control"
+            [value]="termino()"
+            (input)="termino.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
+        <app-form-field id="bloqueio-motivo" rotulo="Motivo (opcional)">
+          <input
+            id="bloqueio-motivo"
+            class="form-control"
+            maxlength="300"
+            [value]="motivo()"
+            (input)="motivo.set($any($event.target).value)"
+          />
+        </app-form-field>
+        <app-button tipo="submit" [desabilitado]="carregando()">Adicionar bloqueio</app-button>
+      </form>
+    }
+
+    @if (carregando()) {
+      <p role="status">Carregando bloqueios...</p>
+    } @else if (bloqueios().length === 0) {
+      <app-empty-state
+        titulo="Nenhum bloqueio"
+        descricao="Os bloqueios deste profissional aparecerão aqui."
+      />
+    } @else {
+      <app-table legenda="Bloqueios do profissional">
+        <thead>
+          <tr>
+            <th scope="col">Início</th>
+            <th scope="col">Término</th>
+            <th scope="col">Motivo</th>
+            @if (podeEditar()) {
+              <th scope="col">Ações</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (bloqueio of bloqueios(); track bloqueio.id) {
+            <tr>
+              <td>{{ formatar(bloqueio.iniciaEmUtc) }}</td>
+              <td>{{ formatar(bloqueio.terminaEmUtc) }}</td>
+              <td>{{ bloqueio.motivo ?? '—' }}</td>
+              @if (podeEditar()) {
+                <td>
+                  <app-button variante="outline" tamanho="sm" (click)="remover(bloqueio.id)">
+                    Remover
+                  </app-button>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </app-table>
+    }
+  }
+</section>

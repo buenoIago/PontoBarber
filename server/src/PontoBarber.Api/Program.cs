@@ -9,6 +9,7 @@ using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Aplicacao.Modulos.Barbearia;
+using PontoBarber.Aplicacao.Modulos.Disponibilidade;
 using PontoBarber.Aplicacao.Modulos.Profissionais;
 using PontoBarber.Aplicacao.Modulos.Servicos;
 using PontoBarber.Infra;
@@ -29,6 +30,10 @@ builder.Services.AddScoped<ServicoBarbearia>();
 builder.Services.AddScoped<ServicoProfissional>();
 builder.Services.AddScoped<ServicoCatalogoModelo>();
 builder.Services.AddScoped<GestaoServicos>();
+builder.Services.AddScoped<GestaoHorariosFuncionamento>();
+builder.Services.AddScoped<GestaoDisponibilidadeSemanal>();
+builder.Services.AddScoped<GestaoBloqueios>();
+builder.Services.AddScoped<ConsultarDisponibilidade>();
 
 var loggerConsole = new LoggerConfiguration()
     .WriteTo.Sink(new SinkConsoleSeguro())

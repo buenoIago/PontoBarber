@@ -38,6 +38,9 @@ public static class DependencyInjection
         services.AddScoped<IBarbeariaRepositorio, RepositorioBarbeariaEmOrm>();
         services.AddScoped<IProfissionalRepositorio, RepositorioProfissionalEmOrm>();
         services.AddScoped<IServicoRepositorio, RepositorioServicoEmOrm>();
+        services.AddScoped<IHorarioFuncionamentoRepositorio, RepositorioHorarioFuncionamentoEmOrm>();
+        services.AddScoped<IDisponibilidadeSemanalRepositorio, RepositorioDisponibilidadeSemanalEmOrm>();
+        services.AddScoped<IBloqueioAgendaRepositorio, RepositorioBloqueioAgendaEmOrm>();
         services.AddDataProtection();
 
         return services;

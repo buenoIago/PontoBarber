@@ -63,6 +63,20 @@ export class BarbeariaService {
     this.barbeariaIdState.set(barbeariaId);
   }
 
+  obter(barbeariaId: string): void {
+    this.executar(
+      () =>
+        this.http.get<Barbearia>(`/api/v1/barbearias/${barbeariaId}`, {
+          withCredentials: true,
+        }),
+      (resposta) => {
+        // O código de convite só é devolvido ao proprietário (Task 4.2).
+        this.barbeariaState.set(resposta);
+        this.barbeariaIdState.set(barbeariaId);
+      },
+    );
+  }
+
   listarProfissionais(barbeariaId = this.barbeariaIdState()): void {
     if (!barbeariaId) return;
 

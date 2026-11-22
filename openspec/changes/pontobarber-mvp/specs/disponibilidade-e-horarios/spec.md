@@ -52,7 +52,7 @@ Cada profissional SHALL cadastrar e remover bloqueios com data e hora de início
 - **THEN** o agendamento existente é preservado e a criação do bloqueio é tratada conforme a validação de conflito
 
 ### Requirement: Cálculo de horários disponíveis
-O sistema SHALL calcular os horários disponíveis considerando funcionamento da barbearia, disponibilidade semanal do profissional, bloqueios e agendamentos existentes, no fuso horário da barbearia e limitado a 90 dias à frente.
+O sistema SHALL calcular os horários disponíveis considerando funcionamento da barbearia, disponibilidade semanal do profissional, bloqueios e agendamentos existentes, no fuso horário da barbearia, com janela padrão de 15 dias e limite máximo absoluto de 30 dias.
 
 #### Scenario: Horário livre
 - **WHEN** um dia está aberto, o profissional possui disponibilidade e não há bloqueio nem agendamento no intervalo
@@ -63,7 +63,7 @@ O sistema SHALL calcular os horários disponíveis considerando funcionamento da
 - **THEN** o horário não é ofertado e a confirmação é recusada com indicação específica
 
 #### Scenario: Data além do limite
-- **WHEN** a consulta solicita data superior a 90 dias à frente
+- **WHEN** a consulta solicita data além do limite máximo de 30 dias
 - **THEN** a consulta é recusada por validação
 
 ### Requirement: Autorização das configurações

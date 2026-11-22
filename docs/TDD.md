@@ -926,7 +926,7 @@ Códigos de erro estáveis:
 | --- | --- | --- | --- |
 | `servicoId` | `guid` | Sim | Serviço ativo |
 | `profissionalId` | `guid` | Não | Se ausente, retorna todos |
-| `date` | `date` | Sim | Data local da barbearia, até 90 dias à frente |
+| `date` | `date` | Sim | Data local da barbearia; janela padrão de 15 dias, limite máximo de 30 dias |
 
 **Saída:** `200 OK`.
 
@@ -1183,7 +1183,7 @@ Regras:
 - **Semana:** segunda a domingo, conforme ISO 8601.
 - **Horário de verão:** conversão por `TimeZoneInfo`, com tratamento de horários inexistentes ou ambíguos; horários inválidos são rejeitados na validação.
 - **Virada de dia:** agendamentos que cruzam a meia-noite são permitidos apenas se terminarem antes do fechamento do dia seguinte; a validação usa o intervalo UTC e o calendário local.
-- **Limite de agendamento:** até 90 dias à frente.
+- **Limite de consulta de disponibilidade:** janela padrão de 15 dias e limite máximo absoluto de 30 dias, medidos a partir da data atual no fuso da barbearia.
 - **Formato de API:** ISO 8601 com `Z` (`2026-11-20T14:30:00Z`); o frontend exibe no fuso da barbearia.
 
 ---

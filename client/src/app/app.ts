@@ -16,6 +16,9 @@ import { CadastroBarbearia } from './barbearia/cadastro-barbearia/cadastro-barbe
 import { EntrarBarbearia } from './barbearia/entrar-barbearia/entrar-barbearia';
 import { Profissionais } from './barbearia/profissionais/profissionais';
 import { CatalogoServicos } from './servicos/catalogo/catalogo';
+import { Bloqueios } from './configuracoes/bloqueios/bloqueios';
+import { Disponibilidade } from './configuracoes/disponibilidade/disponibilidade';
+import { Horarios } from './configuracoes/horarios/horarios';
 import { Button } from './shared/ui/button/button';
 
 type Tela =
@@ -26,7 +29,10 @@ type Tela =
   | 'criar-barbearia'
   | 'entrar-barbearia'
   | 'profissionais'
-  | 'servicos';
+  | 'servicos'
+  | 'horarios'
+  | 'disponibilidade'
+  | 'bloqueios';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -40,6 +46,9 @@ type Tela =
     EntrarBarbearia,
     Profissionais,
     CatalogoServicos,
+    Horarios,
+    Disponibilidade,
+    Bloqueios,
   ],
   selector: 'app-root',
   templateUrl: './app.html',
@@ -112,5 +121,20 @@ export class App {
   abrirServicos(): void {
     this.auth.limparErro();
     this.telaState.set('servicos');
+  }
+
+  abrirHorarios(): void {
+    this.auth.limparErro();
+    this.telaState.set('horarios');
+  }
+
+  abrirDisponibilidade(): void {
+    this.auth.limparErro();
+    this.telaState.set('disponibilidade');
+  }
+
+  abrirBloqueios(): void {
+    this.auth.limparErro();
+    this.telaState.set('bloqueios');
   }
 }

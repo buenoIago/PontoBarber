@@ -16,6 +16,11 @@
       <app-button variante="outline" tamanho="sm" (click)="abrirProfissionais()">
         Profissionais
       </app-button>
+      <app-button variante="outline" tamanho="sm" (click)="abrirHorarios()">Horários</app-button>
+      <app-button variante="outline" tamanho="sm" (click)="abrirDisponibilidade()">
+        Disponibilidade
+      </app-button>
+      <app-button variante="outline" tamanho="sm" (click)="abrirBloqueios()">Bloqueios</app-button>
     }
 
     <app-button variante="outline" tamanho="sm" (click)="abrirServicos()">Serviços</app-button>
@@ -36,6 +41,15 @@
     }
     @case ('servicos') {
       <app-catalogo-servicos />
+    }
+    @case ('horarios') {
+      <app-horarios-config />
+    }
+    @case ('disponibilidade') {
+      <app-disponibilidade-config />
+    }
+    @case ('bloqueios') {
+      <app-bloqueios-config />
     }
     @default {
       <app-conta />

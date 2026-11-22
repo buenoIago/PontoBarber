@@ -23,11 +23,10 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
             return;
         }
 
-        // A leitura do catálogo por clientes é permitida pela SPEC §8 e pelo
-        // TDD §10.2, mas um cliente não tem vínculo com a barbearia. Este GET
-        // é o único caso em que a resolução de tenant é deixada ao caso de uso,
-        // que filtra os serviços por BarbeariaId e por perfil.
-        if (EhConsultaDeServicos(contexto))
+        // Catálogo e consulta de horários são leituras públicas previstas na
+        // SPEC/TDD; a resolução de tenant fica a cargo do caso de uso, que
+        // filtra por BarbeariaId. Nenhuma outra rota é eximida.
+        if (EhLeituraPublicaPermitida(contexto))
         {
             await next(contexto);
             return;
@@ -63,7 +62,7 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
         await next(contexto);
     }
 
-    private static bool EhConsultaDeServicos(HttpContext contexto)
+    private static bool EhLeituraPublicaPermitida(HttpContext contexto)
     {
         if (!HttpMethods.IsGet(contexto.Request.Method))
             return false;
@@ -74,7 +73,7 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
                partes[1] == "v1" &&
                partes[2] == "barbearias" &&
                Guid.TryParse(partes[3], out _) &&
-               partes[4] == "servicos";
+               partes[4] is "servicos" or "disponibilidade";
     }
 
     private static Task NegarAcessoAsync(HttpContext contexto) =>
