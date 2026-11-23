@@ -5,6 +5,7 @@ using PontoBarber.Aplicacao.Modulos.Barbearia;
 using PontoBarber.Dominio.Compartilhado;
 using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
+using PontoBarber.Dominio.Modulos.Financeiro;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Dominio.Modulos.Servicos;
 
@@ -20,7 +21,8 @@ public sealed class ServicoAgendamentos(
     IProfissionalRepositorio profissionais,
     IServicoRepositorio servicos,
     IBarbeariaRepositorio barbearias,
-    ValidadorHorarioAgendamento validador)
+    ValidadorHorarioAgendamento validador,
+    IPagamentoRepositorio pagamentos)
 {
     public async Task<AgendamentoResponse> CriarPublicoAsync(
         Guid barbeariaId,
@@ -89,7 +91,7 @@ public sealed class ServicoAgendamentos(
 
         var agendamentos = await repositorio.ListarPorBarbeariaAsync(
             barbeariaId, inicioUtc, fimUtc, filtroProfissional, null, cancellationToken);
-        return agendamentos.Select(ParaResponse).ToList();
+        return agendamentos.Select(item => ParaResponse(item)).ToList();
     }
 
     public async Task<IReadOnlyList<AgendamentoResponse>> ListarDoClienteAsync(
@@ -106,7 +108,7 @@ public sealed class ServicoAgendamentos(
         var inicioUtc = ParaUtc(de, new TimeOnly(0, 0), fuso);
         var fimUtc = ParaUtc(ate.AddDays(1), new TimeOnly(0, 0), fuso);
         var agendamentos = await repositorio.ListarDoClienteAsync(conta.Id, inicioUtc, fimUtc, cancellationToken);
-        return agendamentos.Select(ParaResponse).ToList();
+        return agendamentos.Select(item => ParaResponse(item)).ToList();
     }
 
     public async Task<AgendamentoResponse> ObterAsync(
@@ -143,7 +145,13 @@ public sealed class ServicoAgendamentos(
             agendamento.ProfissionalId != perfil.Id)
             throw AcessoNegado();
 
-        return ParaResponse(agendamento);
+        var pagamento = await pagamentos.ObterPorAgendamentoAsync(
+            barbeariaId, agendamentoId, cancellationToken);
+        var resumo = pagamento is null
+            ? null
+            : new PagamentoResumo(
+                pagamento.Id, pagamento.Valor, pagamento.Metodo.ToString(), pagamento.RegistradoEmUtc);
+        return ParaResponse(agendamento, resumo, pagamento is null ? "Pendente" : "Pago");
     }
 
     private async Task<AgendamentoResponse> ConfirmarAsync(
@@ -229,7 +237,8 @@ public sealed class ServicoAgendamentos(
         TimeZoneInfo.ConvertTimeToUtc(
             DateTime.SpecifyKind(data.ToDateTime(hora), DateTimeKind.Unspecified), fuso);
 
-    private static AgendamentoResponse ParaResponse(Agendamento agendamento) =>
+    private static AgendamentoResponse ParaResponse(
+        Agendamento agendamento, PagamentoResumo? pagamento = null, string? situacaoPagamento = null) =>
         new(
             agendamento.Id,
             agendamento.BarbeariaId,
@@ -244,7 +253,11 @@ public sealed class ServicoAgendamentos(
             agendamento.Origem.ToString(),
             agendamento.CanceladoEmUtc,
             agendamento.CanceladoPorUsuarioId,
-            agendamento.MotivoCancelamento);
+            agendamento.MotivoCancelamento,
+            agendamento.InicioRealUtc,
+            agendamento.FimRealUtc,
+            situacaoPagamento ?? (pagamento is null ? "Pendente" : "Pago"),
+            pagamento);
 
     private static ExcecaoAutorizacaoAplicacao AcessoNegado() =>
         new(CodigosErro.TenantNegado, "O usuário não possui permissão para esta operação.");

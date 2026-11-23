@@ -148,6 +148,66 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
             return ResultadoCicloVida.Sucesso;
         }, cancellationToken);
 
+    public async Task<ResultadoCicloVida> IniciarAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        string chaveLock,
+        string autorUsuarioId,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken) =>
+        await ExecutarAsync([chaveLock], async () =>
+        {
+            var agendamento = await ObterAsync(barbeariaId, agendamentoId, cancellationToken);
+            if (agendamento is null) return ResultadoCicloVida.NaoEncontrado;
+            if (agendamento.Situacao != SituacaoAgendamento.Confirmado)
+                return ResultadoCicloVida.EstadoInvalido;
+
+            agendamento.Iniciar(agoraUtc);
+            RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.ServicoIniciado,
+                autorUsuarioId, agoraUtc, detalhes: "Início real registrado.");
+            return ResultadoCicloVida.Sucesso;
+        }, cancellationToken);
+
+    public async Task<ResultadoCicloVida> ConcluirAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        string chaveLock,
+        string autorUsuarioId,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken) =>
+        await ExecutarAsync([chaveLock], async () =>
+        {
+            var agendamento = await ObterAsync(barbeariaId, agendamentoId, cancellationToken);
+            if (agendamento is null) return ResultadoCicloVida.NaoEncontrado;
+            if (agendamento.Situacao != SituacaoAgendamento.EmAndamento)
+                return ResultadoCicloVida.EstadoInvalido;
+
+            agendamento.Concluir(agoraUtc);
+            RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.ServicoConcluido,
+                autorUsuarioId, agoraUtc, detalhes: "Fim real registrado.");
+            return ResultadoCicloVida.Sucesso;
+        }, cancellationToken);
+
+    public async Task<ResultadoCicloVida> RegistrarAusenciaAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        string chaveLock,
+        string autorUsuarioId,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken) =>
+        await ExecutarAsync([chaveLock], async () =>
+        {
+            var agendamento = await ObterAsync(barbeariaId, agendamentoId, cancellationToken);
+            if (agendamento is null) return ResultadoCicloVida.NaoEncontrado;
+            if (agendamento.Situacao != SituacaoAgendamento.Confirmado)
+                return ResultadoCicloVida.EstadoInvalido;
+
+            agendamento.RegistrarNaoComparecimentoManual(agoraUtc);
+            RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.NaoComparecimento,
+                autorUsuarioId, agoraUtc, detalhes: "Não comparecimento registrado pelo barbeiro.");
+            return ResultadoCicloVida.Sucesso;
+        }, cancellationToken);
+
     public async Task<ResultadoCicloVida> RemarcarAsync(
         Guid barbeariaId,
         Guid agendamentoId,

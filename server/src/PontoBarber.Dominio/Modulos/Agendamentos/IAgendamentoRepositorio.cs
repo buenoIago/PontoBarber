@@ -55,6 +55,30 @@ public interface IAgendamentoRepositorio
         DateTime agoraUtc,
         CancellationToken cancellationToken);
 
+    Task<ResultadoCicloVida> IniciarAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        string chaveLock,
+        string autorUsuarioId,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken);
+
+    Task<ResultadoCicloVida> ConcluirAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        string chaveLock,
+        string autorUsuarioId,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken);
+
+    Task<ResultadoCicloVida> RegistrarAusenciaAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        string chaveLock,
+        string autorUsuarioId,
+        DateTime agoraUtc,
+        CancellationToken cancellationToken);
+
     Task<ResultadoCicloVida> RemarcarAsync(
         Guid barbeariaId,
         Guid agendamentoId,

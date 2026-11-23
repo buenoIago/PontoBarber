@@ -23,7 +23,11 @@ public sealed record AgendamentoContract(
     string Origem,
     DateTime? CanceladoEmUtc,
     string? CanceladoPorUsuarioId,
-    string? MotivoCancelamento);
+    string? MotivoCancelamento,
+    DateTime? InicioRealUtc,
+    DateTime? FimRealUtc,
+    string? SituacaoPagamento,
+    PagamentoResumoContract? Pagamento);
 
 public sealed record CancelarAgendamentoContract(string? Motivo);
 
@@ -52,6 +56,22 @@ public sealed record HistoricoContract(
     DateTime? InicioAnteriorUtc,
     DateTime? NovoInicioUtc,
     string? Detalhes);
+
+public sealed record PagamentoResumoContract(
+    Guid Id,
+    decimal Valor,
+    string Metodo,
+    DateTime RegistradoEmUtc);
+
+public sealed record RegistrarPagamentoContract(decimal Valor, string Metodo);
+
+public sealed record PagamentoContract(
+    Guid Id,
+    Guid AgendamentoId,
+    decimal Valor,
+    string Metodo,
+    DateTime RegistradoEmUtc,
+    string SituacaoPagamento);
 
 public sealed record CancelamentoContract(
     Guid AgendamentoId,
@@ -86,7 +106,17 @@ internal static class AgendamentoContracts
             resposta.Origem,
             resposta.CanceladoEmUtc,
             resposta.CanceladoPorUsuarioId,
-            resposta.MotivoCancelamento);
+            resposta.MotivoCancelamento,
+            resposta.InicioRealUtc,
+            resposta.FimRealUtc,
+            resposta.SituacaoPagamento,
+            resposta.Pagamento is null
+                ? null
+                : new PagamentoResumoContract(
+                    resposta.Pagamento.Id,
+                    resposta.Pagamento.Valor,
+                    resposta.Pagamento.Metodo,
+                    resposta.Pagamento.RegistradoEmUtc));
 
     public static SugestaoContract DaResponse(SugestaoResponse resposta) =>
         new(
@@ -111,6 +141,15 @@ internal static class AgendamentoContracts
             resposta.InicioAnteriorUtc,
             resposta.NovoInicioUtc,
             resposta.Detalhes);
+
+    public static PagamentoContract DaResponse(PagamentoResponse resposta) =>
+        new(
+            resposta.Id,
+            resposta.AgendamentoId,
+            resposta.Valor,
+            resposta.Metodo,
+            resposta.RegistradoEmUtc,
+            resposta.SituacaoPagamento);
 
     public static CancelamentoContract DaResponse(CancelamentoResponse resposta) =>
         new(

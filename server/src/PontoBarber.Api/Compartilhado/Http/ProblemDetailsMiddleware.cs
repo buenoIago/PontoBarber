@@ -55,6 +55,12 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next)
                 "Não encontrado",
                 naoEncontrado.Message,
                 null),
+            ExcecaoIdempotenciaAplicacao idempotencia => (
+                StatusCodes.Status400BadRequest,
+                idempotencia.Codigo,
+                "Idempotência inválida",
+                idempotencia.Message,
+                null),
             ExcecaoConflitoAplicacao conflito => (
                 StatusCodes.Status409Conflict,
                 conflito.Codigo,

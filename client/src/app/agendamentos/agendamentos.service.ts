@@ -126,6 +126,73 @@ export class AgendamentosService {
     );
   }
 
+  iniciar(barbeariaId: string, id: string, concluido: () => void): void {
+    this.executar(
+      () =>
+        this.http.post(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/iniciar`,
+          {},
+          { withCredentials: true },
+        ),
+      () => {
+        this.sucessoState.set('Atendimento iniciado.');
+        concluido();
+      },
+    );
+  }
+
+  concluir(barbeariaId: string, id: string, concluido: () => void): void {
+    this.executar(
+      () =>
+        this.http.post(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/concluir`,
+          {},
+          { withCredentials: true },
+        ),
+      () => {
+        this.sucessoState.set('Atendimento concluído.');
+        concluido();
+      },
+    );
+  }
+
+  registrarAusencia(barbeariaId: string, id: string, concluido: () => void): void {
+    this.executar(
+      () =>
+        this.http.post(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/ausencia`,
+          {},
+          { withCredentials: true },
+        ),
+      () => {
+        this.sucessoState.set('Não comparecimento registrado.');
+        concluido();
+      },
+    );
+  }
+
+  registrarPagamento(
+    barbeariaId: string,
+    id: string,
+    valor: number,
+    metodo: string,
+    concluido: () => void,
+  ): void {
+    const chave = crypto.randomUUID();
+    this.executar(
+      () =>
+        this.http.post(
+          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}/pagamento`,
+          { valor, metodo },
+          { withCredentials: true, headers: { 'Idempotency-Chave': chave } },
+        ),
+      () => {
+        this.sucessoState.set('Pagamento registrado.');
+        concluido();
+      },
+    );
+  }
+
   selecionarDetalhe(id: string): void {
     this.limparMensagens();
     this.detalheIdState.set(id);

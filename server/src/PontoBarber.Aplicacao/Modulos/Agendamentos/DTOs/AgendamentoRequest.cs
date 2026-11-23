@@ -25,4 +25,23 @@ public sealed record AgendamentoResponse(
     string Origem,
     DateTime? CanceladoEmUtc = null,
     string? CanceladoPorUsuarioId = null,
-    string? MotivoCancelamento = null);
+    string? MotivoCancelamento = null,
+    DateTime? InicioRealUtc = null,
+    DateTime? FimRealUtc = null,
+    string? SituacaoPagamento = null,
+    PagamentoResumo? Pagamento = null);
+
+/// <summary>Resumo financeiro exibido junto ao atendimento.</summary>
+public sealed record PagamentoResumo(
+    Guid Id,
+    decimal Valor,
+    string Metodo,
+    DateTime RegistradoEmUtc);
+
+public sealed record PagamentoResponse(
+    Guid Id,
+    Guid AgendamentoId,
+    decimal Valor,
+    string Metodo,
+    DateTime RegistradoEmUtc,
+    string SituacaoPagamento);

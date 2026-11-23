@@ -12,7 +12,8 @@ namespace PontoBarber.Api.Modulos.Agendamentos;
 [Route("api/v1/barbearias/{barbeariaId:guid}/agendamentos")]
 public sealed class AgendamentoController(
     ServicoAgendamentos servico,
-    ServicoCicloVidaAgendamentos cicloVida) : ControllerBase
+    ServicoCicloVidaAgendamentos cicloVida,
+    ServicoAtendimentos atendimentos) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = ConfiguracaoAuth.PolíticaProfissional)]
@@ -188,6 +189,62 @@ public sealed class AgendamentoController(
 
         var resposta = await cicloVida.ListarHistoricoAsync(barbeariaId, id, usuarioId, cancellationToken);
         return Results.Ok(resposta.Select(AgendamentoContracts.DaResponse).ToList());
+    }
+
+    [HttpPost("{id:guid}/iniciar")]
+    [Authorize(Policy = ConfiguracaoAuth.PolíticaProfissional)]
+    public async Task<IResult> Iniciar(
+        Guid barbeariaId, Guid id, CancellationToken cancellationToken)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null) return NaoAutenticado();
+
+        return Results.Ok(AgendamentoContracts.DaResponse(
+            await atendimentos.IniciarAsync(barbeariaId, id, usuarioId, cancellationToken)));
+    }
+
+    [HttpPost("{id:guid}/concluir")]
+    [Authorize(Policy = ConfiguracaoAuth.PolíticaProfissional)]
+    public async Task<IResult> Concluir(
+        Guid barbeariaId, Guid id, CancellationToken cancellationToken)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null) return NaoAutenticado();
+
+        return Results.Ok(AgendamentoContracts.DaResponse(
+            await atendimentos.ConcluirAsync(barbeariaId, id, usuarioId, cancellationToken)));
+    }
+
+    [HttpPost("{id:guid}/ausencia")]
+    [Authorize(Policy = ConfiguracaoAuth.PolíticaProfissional)]
+    public async Task<IResult> RegistrarAusencia(
+        Guid barbeariaId, Guid id, CancellationToken cancellationToken)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null) return NaoAutenticado();
+
+        return Results.Ok(AgendamentoContracts.DaResponse(
+            await atendimentos.RegistrarAusenciaAsync(barbeariaId, id, usuarioId, cancellationToken)));
+    }
+
+    [HttpPost("{id:guid}/pagamento")]
+    [Authorize(Policy = ConfiguracaoAuth.PolíticaProfissional)]
+    public async Task<IResult> RegistrarPagamento(
+        Guid barbeariaId,
+        Guid id,
+        [FromBody] RegistrarPagamentoContract contrato,
+        CancellationToken cancellationToken)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null) return NaoAutenticado();
+
+        var chave = Request.Headers["Idempotency-Chave"].FirstOrDefault();
+        return Results.Created(
+            $"/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/pagamento",
+            AgendamentoContracts.DaResponse(await atendimentos.RegistrarPagamentoAsync(
+                barbeariaId, id,
+                new RegistrarPagamentoRequest(contrato.Valor, contrato.Metodo),
+                chave, usuarioId, cancellationToken)));
     }
 
     private string? ObterUsuarioId() => User.FindFirstValue(ClaimTypes.NameIdentifier);

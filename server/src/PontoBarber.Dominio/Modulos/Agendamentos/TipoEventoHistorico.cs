@@ -11,5 +11,8 @@ public enum TipoEventoHistorico
     SugestaoAceita = 5,
     SugestaoRejeitada = 6,
     SugestaoExpirada = 7,
-    NaoComparecimento = 8
+    NaoComparecimento = 8,
+    ServicoIniciado = 9,
+    ServicoConcluido = 10,
+    PagamentoRegistrado = 11
 }

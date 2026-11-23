@@ -41,6 +41,7 @@ builder.Services.AddScoped<ConsultarDisponibilidade>();
 builder.Services.AddScoped<ServicoAgendamentos>();
 builder.Services.AddScoped<ValidadorHorarioAgendamento>();
 builder.Services.AddScoped<ServicoCicloVidaAgendamentos>();
+builder.Services.AddScoped<ServicoAtendimentos>();
 builder.Services.AddScoped<ServicoExecucaoJobs>();
 builder.Services.AddScoped<ExpirarSugestoesProcesso>();
 builder.Services.AddScoped<FecharVencidosProcesso>();

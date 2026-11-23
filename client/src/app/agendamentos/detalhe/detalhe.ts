@@ -37,6 +37,7 @@ export class DetalheAgendamento implements OnInit {
   readonly sucesso = this.servico.sucesso;
   readonly fuso = computed(() => this.barbearias.barbearia()?.fusoHorarioId);
   readonly eCliente = computed(() => this.auth.conta()?.tipo === 'Customer');
+  readonly eBarbeiro = computed(() => this.barbearias.vinculo()?.cargo === 'Barbeiro');
 
   readonly dataHorario = signal('');
   readonly horario = signal('');
@@ -44,6 +45,24 @@ export class DetalheAgendamento implements OnInit {
   readonly motivoSugestao = signal('');
   readonly confirmandoCancelamento = signal(false);
   readonly agora = signal(Date.now());
+
+  readonly valorPagamento = signal(0);
+  readonly metodoPagamento = signal('Pix');
+
+  readonly podeIniciar = computed(
+    () => this.eBarbeiro() && this.detalhe()?.situacao === 'Confirmado',
+  );
+  readonly podeConcluir = computed(
+    () => this.eBarbeiro() && this.detalhe()?.situacao === 'EmAndamento',
+  );
+  readonly podeRegistrarAusencia = computed(
+    () => this.eBarbeiro() && this.detalhe()?.situacao === 'Confirmado',
+  );
+  readonly podePagar = computed(
+    () => this.eBarbeiro() &&
+      this.detalhe()?.situacaoPagamento === 'Pendente' &&
+      !['Cancelado', 'NaoCompareceu'].includes(this.detalhe()?.situacao ?? ''),
+  );
 
   readonly pendentes = computed(() =>
     this.sugestoes().filter((sugestao) =>
@@ -98,6 +117,40 @@ export class DetalheAgendamento implements OnInit {
     );
   }
 
+  iniciar(): void {
+    const barbeariaId = this.barbearias.barbeariaId();
+    const id = this.detalhe()?.id;
+    if (!barbeariaId || !id) return;
+
+    this.servico.iniciar(barbeariaId, id, () => this.recarregar());
+  }
+
+  concluir(): void {
+    const barbeariaId = this.barbearias.barbeariaId();
+    const id = this.detalhe()?.id;
+    if (!barbeariaId || !id) return;
+
+    this.servico.concluir(barbeariaId, id, () => this.recarregar());
+  }
+
+  registrarAusencia(): void {
+    const barbeariaId = this.barbearias.barbeariaId();
+    const id = this.detalhe()?.id;
+    if (!barbeariaId || !id) return;
+
+    this.servico.registrarAusencia(barbeariaId, id, () => this.recarregar());
+  }
+
+  pagar(): void {
+    const barbeariaId = this.barbearias.barbeariaId();
+    const id = this.detalhe()?.id;
+    if (!barbeariaId || !id || this.valorPagamento() < 0) return;
+
+    this.servico.registrarPagamento(
+      barbeariaId, id, this.valorPagamento(), this.metodoPagamento(), () => this.recarregar(),
+    );
+  }
+
   responder(sugestaoId: string, aceitar: boolean): void {
     const barbeariaId = this.barbearias.barbeariaId();
     const id = this.detalhe()?.id;
@@ -127,6 +180,10 @@ export class DetalheAgendamento implements OnInit {
       SugestaoAceita: 'Sugestão aceita',
       SugestaoRejeitada: 'Sugestão rejeitada',
       SugestaoExpirada: 'Sugestão expirada',
+      NaoComparecimento: 'Não comparecimento',
+      ServicoIniciado: 'Atendimento iniciado',
+      ServicoConcluido: 'Atendimento concluído',
+      PagamentoRegistrado: 'Pagamento registrado',
     };
     return rotulos[tipo] ?? tipo;
   }

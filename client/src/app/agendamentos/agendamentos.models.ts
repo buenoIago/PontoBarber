@@ -15,6 +15,17 @@ export interface Agendamento {
   canceladoEmUtc?: string | null;
   canceladoPorUsuarioId?: string | null;
   motivoCancelamento?: string | null;
+  inicioRealUtc?: string | null;
+  fimRealUtc?: string | null;
+  situacaoPagamento?: string | null;
+  pagamento?: PagamentoResumo | null;
+}
+
+export interface PagamentoResumo {
+  id: string;
+  valor: number;
+  metodo: string;
+  registradoEmUtc: string;
 }
 
 export interface BloqueioAgenda {

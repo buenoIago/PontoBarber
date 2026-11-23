@@ -345,7 +345,9 @@ public sealed class ServicoCicloVidaAgendamentos(
             agendamento.Origem.ToString(),
             agendamento.CanceladoEmUtc,
             agendamento.CanceladoPorUsuarioId,
-            agendamento.MotivoCancelamento);
+            agendamento.MotivoCancelamento,
+            agendamento.InicioRealUtc,
+            agendamento.FimRealUtc);
 
     private static SugestaoResponse ParaResponse(SugestaoHorario sugestao) =>
         new(

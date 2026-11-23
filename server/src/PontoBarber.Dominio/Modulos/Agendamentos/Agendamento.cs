@@ -27,6 +27,8 @@ public sealed class Agendamento : EntidadeBase<Agendamento>, IPertencenteTenant
     public DateTime? CanceladoEmUtc { get; private set; }
     public string? CanceladoPorUsuarioId { get; private set; }
     public string? MotivoCancelamento { get; private set; }
+    public DateTime? InicioRealUtc { get; private set; }
+    public DateTime? FimRealUtc { get; private set; }
     public byte[] RowVersion { get; private set; } = [];
 
     public static Agendamento Criar(
@@ -93,6 +95,12 @@ public sealed class Agendamento : EntidadeBase<Agendamento>, IPertencenteTenant
         if (Situacao == SituacaoAgendamento.Confirmado &&
             (CanceladoEmUtc is not null || CanceladoPorUsuarioId is not null))
             erros.Add(new ErroValidacao("cancelamento", "Um agendamento confirmado não pode ter dados de cancelamento."));
+        if (InicioRealUtc is not null && InicioRealUtc.Value.Kind != DateTimeKind.Utc)
+            erros.Add(new ErroValidacao("inicioRealUtc", "Informe o início real em UTC."));
+        if (FimRealUtc is not null && FimRealUtc.Value.Kind != DateTimeKind.Utc)
+            erros.Add(new ErroValidacao("fimRealUtc", "Informe o fim real em UTC."));
+        if (InicioRealUtc is not null && FimRealUtc is not null && FimRealUtc <= InicioRealUtc)
+            erros.Add(new ErroValidacao("fimRealUtc", "O fim real deve ser posterior ao início real."));
 
         return erros;
     }
@@ -136,12 +144,60 @@ public sealed class Agendamento : EntidadeBase<Agendamento>, IPertencenteTenant
     /// </summary>
     public void RegistrarNaoComparecimento(DateTime agoraUtc)
     {
-        if (Situacao != SituacaoAgendamento.Confirmado)
-            throw new InvalidOperationException("Somente um agendamento confirmado pode virar não comparecimento.");
         if (agoraUtc < IniciaEmUtc.AddHours(2))
             throw new InvalidOperationException("O agendamento ainda não venceu para não comparecimento.");
 
+        AplicarNaoComparecimento();
+    }
+
+    /// <summary>
+    /// Registro manual pelo barbeiro (RF-ATD-008): usa a mesma transição de
+    /// domínio do job, sem duplicar regra, mas sem exigir o prazo de 2 horas.
+    /// </summary>
+    public void RegistrarNaoComparecimentoManual(DateTime agoraUtc)
+    {
+        if (agoraUtc.Kind != DateTimeKind.Utc)
+            throw new InvalidOperationException("Informe o momento em UTC.");
+
+        AplicarNaoComparecimento();
+    }
+
+    private void AplicarNaoComparecimento()
+    {
+        if (Situacao != SituacaoAgendamento.Confirmado)
+            throw new InvalidOperationException("Somente um agendamento confirmado pode virar não comparecimento.");
+
         Situacao = SituacaoAgendamento.NaoCompareceu;
+    }
+
+    /// <summary>Inicia o atendimento registrando o horário real em UTC.</summary>
+    public void Iniciar(DateTime agoraUtc)
+    {
+        if (Situacao != SituacaoAgendamento.Confirmado)
+            throw new InvalidOperationException("Somente um agendamento confirmado pode ser iniciado.");
+        if (agoraUtc.Kind != DateTimeKind.Utc)
+            throw new InvalidOperationException("Informe o início em UTC.");
+        if (InicioRealUtc is not null)
+            throw new InvalidOperationException("O atendimento já foi iniciado.");
+
+        InicioRealUtc = agoraUtc;
+        Situacao = SituacaoAgendamento.EmAndamento;
+    }
+
+    /// <summary>Conclui somente um atendimento em andamento.</summary>
+    public void Concluir(DateTime agoraUtc)
+    {
+        if (Situacao != SituacaoAgendamento.EmAndamento)
+            throw new InvalidOperationException("Somente um atendimento em andamento pode ser concluído.");
+        if (agoraUtc.Kind != DateTimeKind.Utc)
+            throw new InvalidOperationException("Informe o fim em UTC.");
+        if (InicioRealUtc is null)
+            throw new InvalidOperationException("Não é possível concluir sem início registrado.");
+        if (agoraUtc < InicioRealUtc)
+            throw new InvalidOperationException("O fim não pode ser anterior ao início real.");
+
+        FimRealUtc = agoraUtc;
+        Situacao = SituacaoAgendamento.Concluido;
     }
 
     /// <summary>
@@ -194,7 +250,9 @@ public sealed class Agendamento : EntidadeBase<Agendamento>, IPertencenteTenant
             Situacao != entidadeAtualizada.Situacao ||
             CanceladoEmUtc != entidadeAtualizada.CanceladoEmUtc ||
             CanceladoPorUsuarioId != entidadeAtualizada.CanceladoPorUsuarioId ||
-            MotivoCancelamento != entidadeAtualizada.MotivoCancelamento)
+            MotivoCancelamento != entidadeAtualizada.MotivoCancelamento ||
+            InicioRealUtc != entidadeAtualizada.InicioRealUtc ||
+            FimRealUtc != entidadeAtualizada.FimRealUtc)
             throw new InvalidOperationException("Os dados contratados de um agendamento não podem ser alterados.");
     }
 }

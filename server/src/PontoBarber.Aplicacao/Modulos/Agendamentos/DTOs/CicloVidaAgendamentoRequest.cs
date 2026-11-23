@@ -6,6 +6,8 @@ public sealed record RemarcarAgendamentoRequest(DateTime IniciaEmUtc);
 
 public sealed record SugerirHorarioRequest(DateTime IniciaEmUtc, string Motivo);
 
+public sealed record RegistrarPagamentoRequest(decimal Valor, string Metodo);
+
 public sealed record SugestaoResponse(
     Guid Id,
     Guid AgendamentoId,

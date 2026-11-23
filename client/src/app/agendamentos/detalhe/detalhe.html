@@ -17,21 +17,101 @@
       <div class="card-body">
         <h2 class="h5">{{ agendamento.nomeServico }}</h2>
         <p class="mb-1"><strong>Início:</strong> {{ formatar(agendamento.iniciaEmUtc) }}</p>
-        <p class="mb-1"><strong>Término:</strong> {{ formatar(agendamento.terminaEmUtc) }}</p>
+        <p class="mb-1"><strong>Término previsto:</strong> {{ formatar(agendamento.terminaEmUtc) }}</p>
         <p class="mb-1"><strong>Valor:</strong> R$ {{ agendamento.preco.toFixed(2) }}</p>
         <p>
           <strong>Situação:</strong>
-          <span [class]="'badge ' + (agendamento.situacao === 'Cancelado' ? 'text-bg-danger' : 'text-bg-success')">
+          <span [class]="'badge ' + (agendamento.situacao === 'Cancelado' || agendamento.situacao === 'NaoCompareceu' ? 'text-bg-danger' : agendamento.situacao === 'EmAndamento' ? 'text-bg-warning' : agendamento.situacao === 'Concluido' ? 'text-bg-primary' : 'text-bg-success')">
             {{ agendamento.situacao }}
           </span>
         </p>
+        @if (agendamento.inicioRealUtc) {
+          <p class="mb-1"><strong>Início real:</strong> {{ formatar(agendamento.inicioRealUtc) }}</p>
+        }
+        @if (agendamento.fimRealUtc) {
+          <p class="mb-1"><strong>Fim real:</strong> {{ formatar(agendamento.fimRealUtc) }}</p>
+        }
+        <p>
+          <strong>Pagamento:</strong>
+          <span [class]="'badge ' + (agendamento.situacaoPagamento === 'Pago' ? 'text-bg-success' : 'text-bg-secondary')">
+            {{ agendamento.situacaoPagamento || 'Pendente' }}
+          </span>
+        </p>
+        @if (agendamento.pagamento; as pagamento) {
+          <p class="text-body-secondary mb-1">
+            R$ {{ pagamento.valor.toFixed(2) }} · {{ pagamento.metodo }} · {{ formatar(pagamento.registradoEmUtc) }}
+          </p>
+        } @else if (agendamento.situacao === 'Concluido') {
+          <p class="text-body-secondary">Atendimento finalizado sem pagamento registrado.</p>
+        }
         @if (agendamento.situacao === 'Cancelado') {
           <p class="text-body-secondary mb-0">
             Cancelado em {{ formatar(agendamento.canceladoEmUtc) }} — {{ agendamento.motivoCancelamento || 'sem motivo' }}
           </p>
+        } @else if (agendamento.situacao === 'NaoCompareceu') {
+          <p class="text-body-secondary mb-0">O cliente não compareceu. Este estado é distinto de cancelamento.</p>
         }
       </div>
     </div>
+
+    @if (eBarbeiro()) {
+      <h2 class="h5 mt-3">Atendimento</h2>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        @if (podeIniciar()) {
+          <app-button tamanho="sm" (click)="iniciar()">Iniciar atendimento</app-button>
+          <app-button variante="outline" tamanho="sm" (click)="registrarAusencia()">
+            Marcar não comparecimento
+          </app-button>
+        }
+        @if (podeConcluir()) {
+          <app-button tamanho="sm" (click)="concluir()">Concluir atendimento</app-button>
+        }
+        @if (!podeIniciar() && !podeConcluir()) {
+          <p class="text-body-secondary">Nenhuma ação de atendimento disponível para o estado atual.</p>
+        }
+      </div>
+
+      @if (podePagar()) {
+        <h2 class="h5">Registrar pagamento</h2>
+        <div class="row g-2 align-items-end">
+          <div class="col-sm-4">
+            <app-form-field id="pagamento-valor" rotulo="Valor" [obrigatorio]="true">
+              <input
+                id="pagamento-valor"
+                type="number"
+                min="0"
+                step="0.01"
+                class="form-control"
+                [value]="valorPagamento()"
+                (input)="valorPagamento.set(+$any($event.target).value)"
+                required
+              />
+            </app-form-field>
+          </div>
+          <div class="col-sm-4">
+            <app-form-field id="pagamento-metodo" rotulo="Forma de pagamento" [obrigatorio]="true">
+              <select
+                id="pagamento-metodo"
+                class="form-select"
+                [value]="metodoPagamento()"
+                (change)="metodoPagamento.set($any($event.target).value)"
+                required
+              >
+                <option value="Cash">Dinheiro</option>
+                <option value="Pix">Pix</option>
+                <option value="DebitCard">Cartão de débito</option>
+                <option value="CreditCard">Cartão de crédito</option>
+              </select>
+            </app-form-field>
+          </div>
+          <div class="col-sm-4">
+            <app-button tamanho="sm" [desabilitado]="valorPagamento() < 0" (click)="pagar()">
+              Registrar pagamento
+            </app-button>
+          </div>
+        </div>
+      }
+    }
 
     @if (eCliente()) {
       <h2 class="h5">Sugestões recebidas</h2>

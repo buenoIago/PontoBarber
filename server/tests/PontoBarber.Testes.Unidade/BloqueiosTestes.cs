@@ -209,6 +209,21 @@ public sealed class BloqueiosTestes
             Guid barbeariaId, Guid agendamentoId, CancellationToken cancellationToken) =>
             Task.FromResult<Agendamento?>(null);
 
+        public Task<ResultadoCicloVida> IniciarAsync(
+            Guid barbeariaId, Guid agendamentoId, string chaveLock, string autorUsuarioId,
+            DateTime agoraUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(ResultadoCicloVida.Sucesso);
+
+        public Task<ResultadoCicloVida> ConcluirAsync(
+            Guid barbeariaId, Guid agendamentoId, string chaveLock, string autorUsuarioId,
+            DateTime agoraUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(ResultadoCicloVida.Sucesso);
+
+        public Task<ResultadoCicloVida> RegistrarAusenciaAsync(
+            Guid barbeariaId, Guid agendamentoId, string chaveLock, string autorUsuarioId,
+            DateTime agoraUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(ResultadoCicloVida.Sucesso);
+
         public Task<ResultadoCicloVida> CancelarAsync(
             Guid barbeariaId, Guid agendamentoId, string chaveLock, string autorUsuarioId,
             string? motivo, DateTime agoraUtc, CancellationToken cancellationToken) =>

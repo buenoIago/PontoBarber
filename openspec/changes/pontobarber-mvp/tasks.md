@@ -184,10 +184,19 @@ Nota da seção: a dependência da Task 5.3 quanto aos snapshots históricos foi
 
 ## 10. Atendimento e pagamentos
 
-- [ ] 10.1 Implementar início e fim do atendimento com registro automático dos horários reais e recusa para status inválido; verificar testes de início válido, início em cancelado, fim válido e fim sem início
-- [ ] 10.2 Implementar não comparecimento como status distinto de cancelamento, impedindo início e fim; verificar testes dos três cenários
-- [ ] 10.3 Implementar registro de pagamento com valor e forma permitidos, situação independente do atendimento e recusa de duplicidade; verificar testes de pagamento válido, valor inválido, forma inválida, duplicidade e atendimento finalizado sem pagamento
-- [ ] 10.4 Implementar telas de atendimento e pagamento; verificar E2E do ciclo completo e axe sem violação crítica
+- [x] 10.1 Implementar início e fim do atendimento com registro automático dos horários reais e recusa para status inválido; verificar testes de início válido, início em cancelado, fim válido e fim sem início
+  - Implementado: `Agendamento.Iniciar`/`Concluir` com `InicioRealUtc`/`FimRealUtc` em UTC, transições Confirmado → EmAndamento → Concluido com `sp_getapplock` por profissional/data e eventos `ServicoIniciado`/`ServicoConcluido` no histórico append-only, na mesma transação. Início somente no dia do agendamento no fuso da barbearia (TDD §5.5.3); somente o barbeiro da própria agenda (proprietário, outro barbeiro e cliente recusados no backend).
+  - Testes unitários e de integração com persistência real executados e aprovados: início e fim válidos com horários reais, início em cancelado e em não comparecimento, início duplicado, fim sem início, fim duplicado, autorização por perfil e isolamento entre barbearias.
+- [x] 10.2 Implementar não comparecimento como status distinto de cancelamento, impedindo início e fim; verificar testes dos três cenários
+  - Implementado: `NaoCompareceu` permanece distinto de `Cancelado` e é reutilizado da seção 9. `RegistrarNaoComparecimentoManual` usa a mesma transição de domínio do job, sem duplicar regra, e o endpoint `POST .../ausencia` registra o evento `NaoComparecimento` com autor e momento. Estado vencido não é convertido em cancelamento; início, conclusão e pagamento são recusados.
+  - Testes executados e aprovados: estado preservado como distinto, tentativas de início/fim/pagamento recusadas, histórico preservado e nenhuma duplicação de evento.
+- [x] 10.3 Implementar registro de pagamento com valor e forma permitidos, situação independente do atendimento e recusa de duplicidade; verificar testes de pagamento válido, valor inválido, forma inválida, duplicidade e atendimento finalizado sem pagamento
+  - Implementado: entidade `Pagamento` em `Dominio/Financeiro` (`Financeiro`), `FormaPagamento` com `Cash`/`Pix`/`DebitCard`/`CreditCard`, valor não negativo com até duas casas, registro em UTC e autor. `IPagamentoRepositorio` grava pagamento, `RegistroIdempotencia` e evento `PagamentoRegistrado` em uma única transação, com índice único `UX_Payments_Appointment` por agendamento. Cabecalho `Idempotency-Chave` obrigatório (24 h): repetição com o mesmo hash devolve a resposta original e hash divergente retorna 409. Estado financeiro é independente: concluir não cria pagamento e pagar não altera o atendimento; cancelados e não comparecidos não admitem pagamento.
+  - Testes de integração com persistência real executados e aprovados: pagamento válido e idempotente, valor negativo, forma inválida, chave ausente, duplicidade, atendimento finalizado sem pagamento, estado inalterado após pagamento recusado, estado incompatível e isolamento por barbearia.
+  - Observação: pagamentos parciais ou múltiplas formas dependem da questão em aberto ABT-007; a V1.0 mantém um pagamento por atendimento conforme TDD §8.3.
+- [x] 10.4 Implementar telas de atendimento e pagamento; verificar E2E do ciclo completo e axe sem violação crítica
+  - Implementado: `client/src/app/agendamentos/detalhe/` estendido com ações por perfil e estado, confirmação de cancelamento, início, conclusão, marcação de não comparecimento, formulário de pagamento com valor/forma, exibição dos horários reais, do pagamento (valor, forma e momento) e do aviso de atendimento finalizado sem pagamento. Navegação por signals, fuso da barbearia e autorização mantida no backend.
+  - Testes Vitest (82/82) e E2E (44/44, incluindo seis cenários de atendimento e axe) executados e aprovados. Os E2E usam interceptação da API via `page.route`; integridade e autorização foram verificadas nos testes de integração.
 
 ## 11. Clientes
 
