@@ -12,6 +12,7 @@ import { Cadastro } from './auth/cadastro/cadastro';
 import { Conta } from './auth/conta/conta';
 import { EscolhaPerfil, type TipoPerfil } from './auth/escolha-perfil/escolha-perfil';
 import { Login } from './auth/login/login';
+import { BarbeariaService } from './barbearia/barbearia.service';
 import { CadastroBarbearia } from './barbearia/cadastro-barbearia/cadastro-barbearia';
 import { EntrarBarbearia } from './barbearia/entrar-barbearia/entrar-barbearia';
 import { Profissionais } from './barbearia/profissionais/profissionais';
@@ -20,6 +21,7 @@ import { Agenda } from './agendamentos/agenda/agenda';
 import { AgendamentoPublico } from './agendamentos/publico/publico';
 import { DetalheAgendamento } from './agendamentos/detalhe/detalhe';
 import { MeusAgendamentos } from './agendamentos/meus/meus';
+import { Clientes } from './clientes/clientes';
 import { Bloqueios } from './configuracoes/bloqueios/bloqueios';
 import { Disponibilidade } from './configuracoes/disponibilidade/disponibilidade';
 import { Horarios } from './configuracoes/horarios/horarios';
@@ -38,6 +40,7 @@ type Tela =
   | 'agendar'
   | 'meus'
   | 'detalhe'
+  | 'clientes'
   | 'horarios'
   | 'disponibilidade'
   | 'bloqueios';
@@ -58,6 +61,7 @@ type Tela =
     AgendamentoPublico,
     DetalheAgendamento,
     MeusAgendamentos,
+    Clientes,
     Horarios,
     Disponibilidade,
     Bloqueios,
@@ -67,6 +71,7 @@ type Tela =
 })
 export class App {
   private readonly auth = inject(AuthService);
+  private readonly barbearias = inject(BarbeariaService);
 
   private readonly telaState = signal<Tela>('escolha');
   private readonly origemDetalhe = signal<Tela>('agenda');
@@ -79,6 +84,9 @@ export class App {
 
   readonly exibirConta = computed(() => this.conta() !== null);
   readonly eProfissional = computed(() => this.conta()?.tipo === 'Professional');
+  readonly eProprietario = computed(
+    () => this.eProfissional() && this.barbearias.barbearia()?.codigoConvite != null,
+  );
 
   constructor() {
     this.auth.carregarConta();
@@ -144,6 +152,11 @@ export class App {
   abrirAgendar(): void {
     this.auth.limparErro();
     this.telaState.set('agendar');
+  }
+
+  abrirClientes(): void {
+    this.auth.limparErro();
+    this.telaState.set('clientes');
   }
 
   abrirMeus(): void {

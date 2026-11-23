@@ -53,8 +53,8 @@ describe('Conta', () => {
   it('should post logout and change-password requests', async () => {
     const elemento = await criar();
 
-    const botoes = elemento.querySelectorAll<HTMLButtonElement>('app-button button');
-    botoes[1].click();
+    const botoes = [...elemento.querySelectorAll<HTMLButtonElement>('app-button button')];
+    botoes.find((botao) => botao.textContent?.trim() === 'Sair')!.click();
     await fixture.whenStable();
     expect(http.expectOne('/api/v1/auth/logout').request.method).toBe('POST');
 
@@ -70,9 +70,39 @@ describe('Conta', () => {
     }
     await fixture.whenStable();
 
-    elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
+    elemento.querySelector<HTMLFormElement>('form#formulario-senha')?.dispatchEvent(new Event('submit'));
     await fixture.whenStable();
     expect(http.expectOne('/api/v1/auth/change-password').request.method).toBe('POST');
+    http.verify();
+  });
+
+  it('should update the customer profile through the API', async () => {
+    const elemento = await criar();
+
+    for (const [id, valor] of Object.entries({
+      'perfil-nome': 'Nome Novo',
+      'perfil-email': 'novo@exemplo.com',
+      'perfil-telefone': '11888887777',
+    })) {
+      const campo = elemento.querySelector<HTMLInputElement>(`input#${id}`)!;
+      campo.value = valor;
+      campo.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    await fixture.whenStable();
+
+    elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    const req = http.expectOne('/api/v1/me/customer-profile');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      nomeCompleto: 'Nome Novo',
+      email: 'novo@exemplo.com',
+      telefone: '11888887777',
+    });
+    req.flush({ id: '1', nomeCompleto: 'Nome Novo', email: 'novo@exemplo.com', telefone: '11888887777' });
+    await fixture.whenStable();
+    expect(elemento.textContent).toContain('Dados atualizados.');
     http.verify();
   });
 

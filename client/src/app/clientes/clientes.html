@@ -1,0 +1,86 @@
+<section class="mx-auto" style="max-width: 52rem">
+  <h1 class="h3">Clientes</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+
+  <form class="row g-2 align-items-end mb-3" (submit)="pesquisar(); $event.preventDefault()">
+    <div class="col-sm-8">
+      <app-form-field id="clientes-busca" rotulo="Pesquisar por nome ou e-mail">
+        <input
+          id="clientes-busca"
+          class="form-control"
+          maxlength="120"
+          [value]="busca()"
+          (input)="busca.set($any($event.target).value)"
+          placeholder="Nome ou e-mail"
+        />
+      </app-form-field>
+    </div>
+    <div class="col-sm-4">
+      <app-button tipo="submit" [desabilitado]="carregando()">Pesquisar</app-button>
+    </div>
+  </form>
+
+  @if (carregando()) {
+    <p role="status">Carregando clientes...</p>
+  } @else if (itens().length === 0) {
+    <app-empty-state
+      titulo="Nenhum cliente encontrado"
+      descricao="A relação é formada por clientes com agendamentos nesta barbearia."
+    />
+  } @else {
+    <app-table legenda="Clientes com agendamentos na barbearia">
+      <thead>
+        <tr>
+          <th scope="col">Nome</th>
+          <th scope="col">E-mail</th>
+          <th scope="col">Telefone</th>
+          <th scope="col">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (cliente of itens(); track cliente.id) {
+          <tr>
+            <td>{{ cliente.nomeCompleto }}</td>
+            <td>{{ cliente.email }}</td>
+            <td>{{ cliente.telefone || '—' }}</td>
+            <td>
+              <app-button tamanho="sm" (click)="ver(cliente.id)">Consultar</app-button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </app-table>
+
+    <div class="d-flex align-items-center justify-content-between mt-3">
+      <app-button variante="outline" tamanho="sm" [desabilitado]="pagina() === 1" (click)="anterior()">
+        Anterior
+      </app-button>
+      <span>Página {{ pagina() }} · {{ total() }} cliente(s)</span>
+      <app-button
+        variante="outline"
+        tamanho="sm"
+        [desabilitado]="pagina() * 20 >= total()"
+        (click)="proxima()"
+      >
+        Próxima
+      </app-button>
+    </div>
+  }
+
+  @if (selecionado(); as cliente) {
+    <h2 class="h5 mt-4">Dados do cliente</h2>
+    <div class="card">
+      <div class="card-body">
+        <p class="mb-1"><strong>Nome:</strong> {{ cliente.nomeCompleto }}</p>
+        <p class="mb-1"><strong>E-mail:</strong> {{ cliente.email }}</p>
+        <p class="mb-0"><strong>Telefone:</strong> {{ cliente.telefone || 'Não informado' }}</p>
+      </div>
+    </div>
+    <p class="text-body-secondary mt-2">
+      Estes dados são administrados pelo próprio cliente. Não há ações de cadastro, edição ou exclusão aqui.
+    </p>
+  }
+</section>

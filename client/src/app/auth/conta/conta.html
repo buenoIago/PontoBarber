@@ -16,9 +16,56 @@
       <dd class="col-sm-8">{{ usuario.tipo }}</dd>
     </dl>
 
+    @if (sucesso()) {
+      <div class="alert alert-success" role="status">{{ sucesso() }}</div>
+    }
+
+    @if (eCliente()) {
+      <h2 class="h5 mt-4">Editar dados pessoais</h2>
+      <form (submit)="salvarDados(); $event.preventDefault()">
+        <app-form-field id="perfil-nome" rotulo="Nome" [obrigatorio]="true">
+          <input
+            id="perfil-nome"
+            class="form-control"
+            minlength="3"
+            maxlength="120"
+            [value]="nome()"
+            (input)="nome.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
+
+        <app-form-field id="perfil-email" rotulo="E-mail" [obrigatorio]="true">
+          <input
+            id="perfil-email"
+            type="email"
+            class="form-control"
+            maxlength="256"
+            [value]="email()"
+            (input)="email.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
+
+        <app-form-field id="perfil-telefone" rotulo="Telefone">
+          <input
+            id="perfil-telefone"
+            class="form-control"
+            maxlength="20"
+            [value]="telefone()"
+            (input)="telefone.set($any($event.target).value)"
+          />
+        </app-form-field>
+
+        <div class="d-grid">
+          <app-button tipo="submit" [desabilitado]="carregando()">Salvar dados</app-button>
+        </div>
+      </form>
+    }
+
     <h2 class="h5 mt-4">Alterar senha</h2>
 
-    <form (submit)="alterarSenha(); $event.preventDefault()">
+    <form id="formulario-senha" (submit)="alterarSenha(); $event.preventDefault()">
       <app-form-field id="senhaAtual" rotulo="Senha atual" [obrigatorio]="true">
         <input
           id="senhaAtual"

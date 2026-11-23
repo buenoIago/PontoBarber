@@ -5,6 +5,7 @@ import { finalize } from 'rxjs';
 import { ErroApi } from '../core/http/erro-api';
 import {
   AlteracaoSenha,
+  AtualizacaoPerfilCliente,
   ContaUsuario,
   Login,
   RegistroCliente,
@@ -19,10 +20,12 @@ export class AuthService {
   private readonly contaState = signal<ContaUsuario | null>(null);
   private readonly carregandoState = signal(false);
   private readonly erroState = signal<string | null>(null);
+  private readonly sucessoState = signal<string | null>(null);
 
   readonly conta = this.contaState.asReadonly();
   readonly carregando = this.carregandoState.asReadonly();
   readonly erro = this.erroState.asReadonly();
+  readonly sucesso = this.sucessoState.asReadonly();
 
   carregarConta(): void {
     this.executar(
@@ -59,6 +62,23 @@ export class AuthService {
     );
   }
 
+  atualizarPerfilCliente(dados: AtualizacaoPerfilCliente): void {
+    this.executar(
+      () =>
+        this.http.put<{ nomeCompleto: string; email: string; telefone: string | null }>(
+          '/api/v1/me/customer-profile',
+          dados,
+          { withCredentials: true },
+        ),
+      (conta) => {
+        this.contaState.update((atual) =>
+          atual ? { ...atual, nomeCompleto: conta.nomeCompleto, email: conta.email, telefone: conta.telefone } : atual,
+        );
+        this.sucessoState.set('Dados atualizados.');
+      },
+    );
+  }
+
   alterarSenha(dados: AlteracaoSenha): void {
     this.executar(
       () => this.http.post('/api/v1/auth/change-password', dados, { withCredentials: true }),
@@ -75,6 +95,7 @@ export class AuthService {
     sucesso: (resposta: T) => void,
   ): void {
     this.erroState.set(null);
+    this.sucessoState.set(null);
     this.carregandoState.set(true);
 
     operacao()

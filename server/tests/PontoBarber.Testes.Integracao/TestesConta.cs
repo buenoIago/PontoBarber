@@ -200,6 +200,10 @@ public sealed class TestesConta
 
         public Task EncerrarSessaoAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task<ResultadoAtualizacaoPerfil> AtualizarPerfilAsync(
+            string usuarioId, string nomeCompleto, string email, string? telefone,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(ResultadoAtualizacaoPerfil.Sucesso);
         public Task<ResultadoAlteracaoSenha> AlterarSenhaAsync(
             string usuarioId,
             string senhaAtual,

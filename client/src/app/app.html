@@ -22,6 +22,9 @@
       </app-button>
       <app-button variante="outline" tamanho="sm" (click)="abrirBloqueios()">Bloqueios</app-button>
       <app-button variante="outline" tamanho="sm" (click)="abrirAgenda()">Agenda</app-button>
+      @if (eProprietario()) {
+        <app-button variante="outline" tamanho="sm" (click)="abrirClientes()">Clientes</app-button>
+      }
     }
 
     <app-button variante="outline" tamanho="sm" (click)="abrirServicos()">Serviços</app-button>
@@ -58,6 +61,9 @@
     }
     @case ('detalhe') {
       <app-detalhe-agendamento (voltar)="voltarDeDetalhe()" />
+    }
+    @case ('clientes') {
+      <app-clientes />
     }
     @case ('horarios') {
       <app-horarios-config />

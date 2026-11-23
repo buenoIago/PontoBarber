@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
+using PontoBarber.Dominio.Modulos.Clientes;
 using PontoBarber.Dominio.Modulos.Financeiro;
 using PontoBarber.Dominio.Modulos.Idempotencia;
 using PontoBarber.Dominio.Modulos.Jobs;
@@ -14,6 +15,7 @@ using PontoBarber.Infra.Compartilhado.Orm;
 using PontoBarber.Infra.Identity;
 using PontoBarber.Infra.Modulos.Agendamentos;
 using PontoBarber.Infra.Modulos.Barbearia;
+using PontoBarber.Infra.Modulos.Clientes;
 using PontoBarber.Infra.Modulos.Financeiro;
 using PontoBarber.Infra.Modulos.Idempotencia;
 using PontoBarber.Infra.Modulos.Jobs;
@@ -53,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<IExecucaoJobRepositorio, RepositorioExecucaoJobEmOrm>();
         services.AddScoped<IRegistroIdempotenciaRepositorio, RepositorioRegistroIdempotenciaEmOrm>();
         services.AddScoped<IPagamentoRepositorio, RepositorioPagamentoEmOrm>();
+        services.AddScoped<IClienteRepositorio, RepositorioClienteEmOrm>();
         services.AddDataProtection();
 
         return services;

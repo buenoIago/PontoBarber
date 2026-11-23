@@ -337,6 +337,10 @@ public sealed class GestaoProfissionaisTestes
 
         public Task EncerrarSessaoAsync(CancellationToken ct) => Task.CompletedTask;
 
+        public Task<ResultadoAtualizacaoPerfil> AtualizarPerfilAsync(
+            string usuarioId, string nomeCompleto, string email, string? telefone,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(ResultadoAtualizacaoPerfil.Sucesso);
         public Task<ResultadoAlteracaoSenha> AlterarSenhaAsync(
             string usuarioId, string senhaAtual, string novaSenha, CancellationToken ct) =>
             Task.FromResult(ResultadoAlteracaoSenha.Sucesso);

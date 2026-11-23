@@ -200,11 +200,21 @@ Nota da seção: a dependência da Task 5.3 quanto aos snapshots históricos foi
 
 ## 11. Clientes
 
-- [ ] 11.1 Implementar relação do cliente por agendamentos atuais ou históricos; verificar testes de cliente com agendamento aparecendo e cliente sem agendamento ausente
-- [ ] 11.2 Implementar listagem, pesquisa e consulta de clientes restritas ao proprietário; verificar testes de pesquisa, barbeiro sem acesso e cliente de outra barbearia
-- [ ] 11.3 Implementar consulta e edição dos próprios dados pelo cliente com validação de e-mail duplicado; verificar testes de edição válida, acesso a outro cliente e preservação do histórico
-- [ ] 11.4 Garantir ausência de cadastro, edição ou exclusão de clientes pelo estabelecimento; verificar testes de que as operações não estão expostas na API
-- [ ] 11.5 Implementar telas de clientes para o proprietário e de perfil para o cliente; verificar E2E e axe sem violação crítica
+- [x] 11.1 Implementar relação do cliente por agendamentos atuais ou históricos; verificar testes de cliente com agendamento aparecendo e cliente sem agendamento ausente
+  - Implementado: `IClienteRepositorio`/`RepositorioClienteEmOrm` derivam a relação de `Agendamento.ClienteId` (id do usuário do Identity), com `DISTINCT` no banco. Não existe `PerfilCliente` duplicado nem cadastro manual. A identidade é reutilizada diretamente, preservando agendamentos concluídos, cancelados e com não comparecimento.
+  - Testes de integração com persistência real executados e aprovados: cliente com agendamento atual e histórico aparece, sem agendamento não aparece, vários agendamentos não duplicam e cliente exclusivo de outra barbearia não aparece.
+- [x] 11.2 Implementar listagem, pesquisa e consulta de clientes restritas ao proprietário; verificar testes de pesquisa, barbeiro sem acesso e cliente de outra barbearia
+  - Implementado: `GET /api/v1/barbearias/{barbeariaId}/customers` e `GET .../customers/{id}` com paginação (padrão 20, máximo 100) e busca por prefixo de nome/e-mail executadas no banco. `ServicoClientes.ExigirProprietarioAsync` exige vínculo ativo com cargo de proprietário; filtro global de tenant e predicado explícito de `BarbeariaId` aplicados em todas as consultas.
+  - Testes executados e aprovados: listagem e busca por nome/e-mail, consulta de cliente relacionado, barbeiro e cliente recusados, proprietário de outra barbearia recusado e isolamento entre tenants.
+- [x] 11.3 Implementar consulta e edição dos próprios dados pelo cliente com validação de e-mail duplicado; verificar testes de edição válida, acesso a outro cliente e preservação do histórico
+  - Implementado: `GET`/`PUT /api/v1/me/customer-profile` com identidade obtida do contexto autenticado. `DadosPerfilCliente` valida nome (3–120), e-mail e telefone (≤20); somente nome, e-mail e telefone são editáveis. `AdaptadorIdentidade.AtualizarPerfilAsync` usa `UserManager`, verifica duplicidade antes de `SetEmailAsync` e mantém a unicidade do índice do Identity. A edição não toca snapshots nem horários dos agendamentos.
+  - Testes executados e aprovados: consulta do próprio perfil, edição válida, e-mail duplicado (`409`), validação sem perda dos dados anteriores, campos protegidos enviados no corpo sem efeito e histórico/snapshots preservados.
+- [x] 11.4 Garantir ausência de cadastro, edição ou exclusão de clientes pelo estabelecimento; verificar testes de que as operações não estão expostas na API
+  - Implementado e verificado: `ClientesController` expõe somente `GET`; não existem endpoints, contratos ou serviços administrativos de criação, edição, exclusão ou reativação de clientes. A edição permanece exclusiva do próprio cliente na Task 11.3.
+  - Teste de integração executado e aprovado: `POST`, `PUT`, `PATCH` e `DELETE` em `/customers` retornam `405 Method Not Allowed` (ou `404`), sem remover a identidade ou o histórico.
+- [x] 11.5 Implementar telas de clientes para o proprietário e de perfil para o cliente; verificar E2E e axe sem violação crítica
+  - Implementado: `client/src/app/clientes/` com listagem paginada, busca por nome/e-mail, consulta de detalhes e estados de carregamento/erro/vazio, sem ações administrativas; formulário de edição integrado em `auth/conta/` somente para o perfil cliente. Navegação por signals, sem Angular Router; autorização real permanece no backend.
+  - Testes Vitest (87/87) e E2E (50/50, incluindo seis cenários de clientes e axe) executados e aprovados. Os E2E usam interceptação da API via `page.route`; integridade e autorização foram verificadas nos testes de integração.
 
 ## 12. Dashboard
 

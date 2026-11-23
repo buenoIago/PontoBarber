@@ -14,6 +14,13 @@ public interface IIdentidade
 
     Task EncerrarSessaoAsync(CancellationToken cancellationToken);
 
+    Task<ResultadoAtualizacaoPerfil> AtualizarPerfilAsync(
+        string usuarioId,
+        string nomeCompleto,
+        string email,
+        string? telefone,
+        CancellationToken cancellationToken);
+
     Task<ResultadoAlteracaoSenha> AlterarSenhaAsync(
         string usuarioId,
         string senhaAtual,
@@ -49,4 +56,12 @@ public enum ResultadoAlteracaoSenha
     SenhaAtualIncorreta,
     SenhaNovaInvalida,
     UsuarioNaoEncontrado
+}
+
+public enum ResultadoAtualizacaoPerfil
+{
+    Sucesso,
+    UsuarioNaoEncontrado,
+    EmailDuplicado,
+    Falha
 }

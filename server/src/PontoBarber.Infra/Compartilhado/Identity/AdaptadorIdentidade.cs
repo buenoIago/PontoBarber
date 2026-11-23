@@ -104,6 +104,42 @@ public sealed class AdaptadorIdentidade(
             usuario.UserType ?? string.Empty);
     }
 
+    public async Task<ResultadoAtualizacaoPerfil> AtualizarPerfilAsync(
+        string usuarioId,
+        string nomeCompleto,
+        string email,
+        string? telefone,
+        CancellationToken cancellationToken)
+    {
+        var usuario = await usuarios.FindByIdAsync(usuarioId);
+        if (usuario is null)
+            return ResultadoAtualizacaoPerfil.UsuarioNaoEncontrado;
+
+        if (!string.Equals(usuario.Email, email, StringComparison.OrdinalIgnoreCase))
+        {
+            var existente = await usuarios.FindByEmailAsync(email);
+            if (existente is not null && existente.Id != usuario.Id)
+                return ResultadoAtualizacaoPerfil.EmailDuplicado;
+
+            var resultadoEmail = await usuarios.SetEmailAsync(usuario, email);
+            if (!resultadoEmail.Succeeded)
+                return resultadoEmail.Errors.Any(erro => _codigosEmailDuplicado.Contains(erro.Code))
+                    ? ResultadoAtualizacaoPerfil.EmailDuplicado
+                    : ResultadoAtualizacaoPerfil.Falha;
+        }
+
+        usuario.FullName = nomeCompleto;
+        usuario.PhoneNumber = telefone;
+        var resultado = await usuarios.UpdateAsync(usuario);
+
+        if (resultado.Succeeded)
+            return ResultadoAtualizacaoPerfil.Sucesso;
+
+        return resultado.Errors.Any(erro => _codigosEmailDuplicado.Contains(erro.Code))
+            ? ResultadoAtualizacaoPerfil.EmailDuplicado
+            : ResultadoAtualizacaoPerfil.Falha;
+    }
+
     public async Task EncerrarSessaoAsync(CancellationToken cancellationToken) =>
         await entradas.SignOutAsync();
 

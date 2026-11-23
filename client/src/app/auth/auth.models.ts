@@ -17,6 +17,12 @@ export interface RegistroCliente {
 
 export type RegistroProfissional = RegistroCliente;
 
+export interface AtualizacaoPerfilCliente {
+  nomeCompleto: string;
+  email: string;
+  telefone: string | null;
+}
+
 export interface Login {
   email: string;
   senha: string;
