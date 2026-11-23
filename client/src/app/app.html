@@ -21,6 +21,7 @@
         Disponibilidade
       </app-button>
       <app-button variante="outline" tamanho="sm" (click)="abrirBloqueios()">Bloqueios</app-button>
+      <app-button variante="outline" tamanho="sm" (click)="abrirDashboard()">Dashboard</app-button>
       <app-button variante="outline" tamanho="sm" (click)="abrirAgenda()">Agenda</app-button>
       @if (eProprietario()) {
         <app-button variante="outline" tamanho="sm" (click)="abrirClientes()">Clientes</app-button>
@@ -39,7 +40,7 @@
       <app-conta />
     }
     @case ('criar-barbearia') {
-      <app-cadastro-barbearia (criada)="abrirProfissionais()" />
+      <app-cadastro-barbearia (criada)="abrirDashboard()" />
     }
     @case ('entrar-barbearia') {
       <app-entrar-barbearia (entrou)="abrirProfissionais()" />
@@ -64,6 +65,9 @@
     }
     @case ('clientes') {
       <app-clientes />
+    }
+    @case ('dashboard') {
+      <app-dashboard />
     }
     @case ('horarios') {
       <app-horarios-config />

@@ -1,0 +1,84 @@
+<section class="mx-auto" style="max-width: 60rem">
+  <h1 class="h3">Dashboard</h1>
+
+  @if (erro()) {
+    <div class="alert alert-danger" role="alert">{{ erro() }}</div>
+  }
+
+  @if (carregando()) {
+    <p role="status">Carregando indicadores...</p>
+  }
+
+  @if (resumo(); as dados) {
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-lg-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h6 text-body-secondary">Hoje</h2>
+            <p class="h3 mb-0">{{ dados.hoje }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h6 text-body-secondary">Esta semana</h2>
+            <p class="h3 mb-0">{{ dados.estaSemana }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h6 text-body-secondary">Cancelamentos</h2>
+            <p class="h3 mb-0">{{ dados.cancelamentos }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h6 text-body-secondary">Recebido no mês</h2>
+            <p class="h3 mb-0">{{ formatarValor(dados.recebidoNoMes) }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="h5">Próximos agendamentos</h2>
+    @if (dados.proximos.length === 0) {
+      <app-empty-state
+        titulo="Nenhum agendamento futuro"
+        descricao="Não há compromissos futuros nesta barbearia."
+      />
+    } @else {
+      <app-table legenda="Próximos agendamentos">
+        <thead>
+          <tr>
+            <th scope="col">Horário</th>
+            <th scope="col">Cliente</th>
+            <th scope="col">Profissional</th>
+            <th scope="col">Situação</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of dados.proximos; track item.id) {
+            <tr>
+              <td>{{ formatarData(item.iniciaEmUtc) }}</td>
+              <td>{{ item.nomeCliente }}</td>
+              <td>{{ item.nomeProfissional }}</td>
+              <td>{{ rotuloSituacao(item.situacao) }}</td>
+            </tr>
+          }
+        </tbody>
+      </app-table>
+    }
+  } @else {
+    @if (!carregando()) {
+      <app-empty-state
+        titulo="Indicadores indisponíveis"
+        descricao="Não foi possível carregar o dashboard desta barbearia."
+      />
+    }
+  }
+</section>

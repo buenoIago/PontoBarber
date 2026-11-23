@@ -22,6 +22,7 @@ import { AgendamentoPublico } from './agendamentos/publico/publico';
 import { DetalheAgendamento } from './agendamentos/detalhe/detalhe';
 import { MeusAgendamentos } from './agendamentos/meus/meus';
 import { Clientes } from './clientes/clientes';
+import { Dashboard } from './dashboard/dashboard';
 import { Bloqueios } from './configuracoes/bloqueios/bloqueios';
 import { Disponibilidade } from './configuracoes/disponibilidade/disponibilidade';
 import { Horarios } from './configuracoes/horarios/horarios';
@@ -41,6 +42,7 @@ type Tela =
   | 'meus'
   | 'detalhe'
   | 'clientes'
+  | 'dashboard'
   | 'horarios'
   | 'disponibilidade'
   | 'bloqueios';
@@ -62,6 +64,7 @@ type Tela =
     DetalheAgendamento,
     MeusAgendamentos,
     Clientes,
+    Dashboard,
     Horarios,
     Disponibilidade,
     Bloqueios,
@@ -152,6 +155,11 @@ export class App {
   abrirAgendar(): void {
     this.auth.limparErro();
     this.telaState.set('agendar');
+  }
+
+  abrirDashboard(): void {
+    this.auth.limparErro();
+    this.telaState.set('dashboard');
   }
 
   abrirClientes(): void {

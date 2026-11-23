@@ -218,11 +218,21 @@ Nota da seção: a dependência da Task 5.3 quanto aos snapshots históricos foi
 
 ## 12. Dashboard
 
-- [ ] 12.1 Implementar consulta agregada dos indicadores Hoje, Esta semana, Cancelamentos e Recebido no mês no fuso da barbearia; verificar testes de período, de semana ISO e de cálculo na virada do dia
-- [ ] 12.2 Garantir que cancelamentos não entram em recebimentos e que indicadores sem dados retornam zero; verificar testes específicos
-- [ ] 12.3 Implementar lista de próximos agendamentos com horário, cliente, profissional e situação; verificar testes de lista preenchida e vazia
-- [ ] 12.4 Aplicar isolamento por barbearia e autorização de proprietário; verificar testes com dois proprietários e com barbeiro tentando acessar
-- [ ] 12.5 Implementar dashboard como primeira tela após a configuração inicial; verificar E2E de acesso e axe sem violação crítica
+- [x] 12.1 Implementar consulta agregada dos indicadores Hoje, Esta semana, Cancelamentos e Recebido no mês no fuso da barbearia; verificar testes de período, de semana ISO e de cálculo na virada do dia
+  - Implementado: `PeriodosDashboard` calcula intervalos semiabertos no fuso IANA da barbearia e os converte para UTC (semana ISO de segunda a domingo, inclusive na virada de ano); `IDashboardRepositorio`/`RepositorioDashboardEmOrm` agregam diretamente no banco, sem tabela de saldo nem cache. Critérios da PRD: Hoje = agendamentos da data atual; Esta semana = da semana atual; Cancelamentos = cancelados no mês atual (`CanceladoEmUtc`); Recebido no mês = soma de pagamentos registrados no mês.
+  - Testes unitários executados e aprovados: conversão de meia-noite local para UTC, semana ISO em dia útil e domingo, virada de ano e limites de mês.
+- [x] 12.2 Garantir que cancelamentos não entram em recebimentos e que indicadores sem dados retornam zero; verificar testes específicos
+  - Implementado: o indicador financeiro soma exclusivamente `Pagamento.Valor` de registros do mês; cancelamentos e snapshots de serviço não são contabilizados. `SUM` nullable é convertido para `0m` e contagens retornam `0`, nunca `null`.
+  - Testes de integração com persistência real executados e aprovados: pagamentos do mês somados (80 + 50), pagamento de mês anterior e de outra barbearia ignorados, cancelado sem pagamento não gerando recebimento e dashboard vazio com todos os indicadores em zero.
+- [x] 12.3 Implementar lista de próximos agendamentos com horário, cliente, profissional e situação; verificar testes de lista preenchida e vazia
+  - Implementado: `GET .../dashboard` retorna até 10 próximos agendamentos confirmados, ordenados por início, com horário em UTC, nome do cliente (Identity), nome do profissional e situação; a apresentação usa o fuso da barbearia.
+  - Testes executados e aprovados: lista preenchida com dados completos e lista vazia tratada com estado de ausência na interface.
+- [x] 12.4 Aplicar isolamento por barbearia e autorização de proprietário; verificar testes com dois proprietários e com barbeiro tentando acessar
+  - Implementado: `ServicoDashboard` exige vínculo ativo com cargo de proprietário; todas as consultas usam o filtro global de tenant e predicado explícito de `BarbeariaId`. A barbearia vem da rota autenticada, nunca do corpo da requisição.
+  - Testes de integração executados e aprovados: proprietário autorizado, barbeiro e cliente recusados (`403`), proprietário de outra barbearia recusado e nenhum dado cruzado entre tenants.
+- [x] 12.5 Implementar dashboard como primeira tela após a configuração inicial; verificar E2E de acesso e axe sem violação crítica
+  - Implementado: `client/src/app/dashboard/` com quatro indicadores, tabela de próximos agendamentos, estados de carregamento/erro/vazio e formatação no fuso da barbearia; botão de navegação para o proprietário e direcionamento ao dashboard ao concluir a configuração inicial, sem alterar o restante do fluxo.
+  - Testes Vitest (92/92) e E2E (55/55, incluindo cinco cenários do dashboard e axe) executados e aprovados. Os E2E usam interceptação da API via `page.route`; autorização e agregação foram verificadas nos testes de integração.
 
 ## 13. Notificações internas
 
