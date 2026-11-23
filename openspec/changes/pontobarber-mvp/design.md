@@ -57,6 +57,14 @@ ASP.NET Core Identity com cookie persistente `HttpOnly`, `Secure`, `SameSite=Lax
 - **Por quê:** decisões ADR-005 e ADR-016 já aprovadas; cookie evita token em storage e o antiforgery cobre a superfície restante.
 - **Alternativa descartada:** JWT em `localStorage`. Risco de XSS e reimplementação de revogação.
 
+Implementação do OTP (Tasks 3.2–3.4):
+
+- Uma linha por e-mail em `CodigosOtp` (`UX_CodigosOtp_Email`); o código nunca é persistido em texto puro, apenas `salt` e `HMAC-SHA256`. A chave HMAC vem de `Seguranca:OtpHmacChave` ou de um valor estável por processo.
+- Consumo atômico com `sp_getapplock` e `ExecuteUpdate` condicional, impedindo que dois logins usem o mesmo código; falhas e expiração retornam `401` genérica (`auth.invalid_credentials`).
+- Limites: 5 tentativas inválidas e 3 reenvios por janela de 5 minutos, com intervalo mínimo de 60 segundos. Reenvio substitui o código anterior; após expiração o contador é renovado.
+- Envio desacoplado por `IEnviadorEmail`: SMTP local (Mailpit) em Development e implementação em memória nos testes; o provedor de produção continua pendente em ABT-018.
+- Contas de clientes pré-existentes mantêm dados e hash de senha. `Customer` não autentica por senha e não altera senha; entra por OTP com o e-mail atual, sem recadastro.
+
 ### 4. Reserva de horário com lock por profissional/data e índice único
 
 Confirmação em transação: lock de aplicação `pb:schedule:{tenantId}:{profissionalId}:{yyyyMMdd}` no fuso da barbearia, revalidação de disponibilidade, verificação de sobreposição e índice único para duplicidade exata. O mesmo caminho serve ao agendamento público, ao manual e à remarcação.

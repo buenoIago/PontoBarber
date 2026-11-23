@@ -9,9 +9,10 @@ import { Login } from './login';
 
 @Component({
   imports: [Login],
-  template: `<app-login (voltar)="voltar.set(true)" />`,
+  template: `<app-login [perfil]="perfil()" (voltar)="voltar.set(true)" />`,
 })
 class Host {
+  readonly perfil = signal<'cliente' | 'profissional'>('profissional');
   readonly voltar = signal(false);
 }
 
@@ -35,7 +36,7 @@ describe('Login', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('should post the typed credentials and load the account', async () => {
+  it('should post professional credentials and load the account', async () => {
     const elemento = await criar();
     const email = elemento.querySelector<HTMLInputElement>('input#login-email')!;
     const senha = elemento.querySelector<HTMLInputElement>('input#login-senha')!;
@@ -55,6 +56,27 @@ describe('Login', () => {
     expect(login.request.body).toEqual({ email: 'usuario@exemplo.com', senha: 'Senha123' });
     login.flush(null);
     http.expectOne('/api/v1/auth/me').flush(null);
+    http.verify();
+  });
+
+  it('should only ask for the e-mail when the profile is customer', async () => {
+    const elemento = await criar();
+    fixture.componentInstance.perfil.set('cliente');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(elemento.querySelector('input#login-senha')).toBeNull();
+    const email = elemento.querySelector<HTMLInputElement>('input#login-email')!;
+    email.value = 'cliente@exemplo.com';
+    email.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+
+    elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    const solicitacao = http.expectOne('/api/v1/auth/otp/request');
+    expect(solicitacao.request.body).toEqual({ email: 'cliente@exemplo.com' });
+    solicitacao.flush(null, { status: 202, statusText: 'Accepted' });
     http.verify();
   });
 

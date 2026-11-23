@@ -295,6 +295,7 @@ public sealed class TestesAutorizacaoConfiguracoes
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    ["Email:Modo"] = "Memoria",
                     ["ConnectionStrings:DefaultConnection"] = conexao
                 })));
     }
@@ -322,16 +323,7 @@ public sealed class TestesAutorizacaoConfiguracoes
 
     private static async Task RegistrarClienteEEntrarAsync(HttpClient cliente)
     {
-        var email = $"cliente-{Guid.NewGuid():N}@exemplo.com";
-        const string senha = "Senha123";
-        var cadastro = await EnviarComAntiforgeryAsync(
-            cliente, HttpMethod.Post, "/api/v1/auth/register/customer",
-            new { nomeCompleto = "Cliente Teste", email, telefone = "11999999999", senha, confirmarSenha = senha });
-        Assert.AreEqual(HttpStatusCode.Created, cadastro.StatusCode);
-
-        var login = await EnviarComAntiforgeryAsync(
-            cliente, HttpMethod.Post, "/api/v1/auth/login", new { email, senha });
-        Assert.AreEqual(HttpStatusCode.NoContent, login.StatusCode);
+        await AuthTestHelper.RegistrarEEntrarClienteAsync(cliente);
     }
 
     private static async Task<(Guid Id, string CodigoConvite)> CriarBarbeariaAsync(HttpClient cliente)

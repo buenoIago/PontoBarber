@@ -57,6 +57,7 @@ public sealed class TestesRestauracao
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    ["Email:Modo"] = "Memoria",
                     ["ConnectionStrings:DefaultConnection"] = construtorBanco.ToString(),
                     ["Jobs:IntervaloMinutos"] = "60"
                 })));

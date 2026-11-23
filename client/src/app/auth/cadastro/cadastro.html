@@ -43,36 +43,47 @@
       />
     </app-form-field>
 
-    <app-form-field id="senha" rotulo="Senha" [obrigatorio]="true">
-      <input
-        id="senha"
-        name="senha"
-        type="password"
-        class="form-control"
-        autocomplete="new-password"
-        [value]="senha()"
-        (input)="senha.set($any($event.target).value)"
-        required
-      />
-    </app-form-field>
+    @if (eProfissional()) {
+      <app-form-field id="senha" rotulo="Senha" [obrigatorio]="true">
+        <input
+          id="senha"
+          name="senha"
+          type="password"
+          class="form-control"
+          autocomplete="new-password"
+          [value]="senha()"
+          (input)="senha.set($any($event.target).value)"
+          required
+        />
+      </app-form-field>
 
-    <app-form-field id="confirmarSenha" rotulo="Confirmar senha" [obrigatorio]="true">
-      <input
-        id="confirmarSenha"
-        name="confirmarSenha"
-        type="password"
-        class="form-control"
-        autocomplete="new-password"
-        [value]="confirmarSenha()"
-        (input)="confirmarSenha.set($any($event.target).value)"
-        required
-      />
-    </app-form-field>
+      <app-form-field id="confirmarSenha" rotulo="Confirmar senha" [obrigatorio]="true">
+        <input
+          id="confirmarSenha"
+          name="confirmarSenha"
+          type="password"
+          class="form-control"
+          autocomplete="new-password"
+          [value]="confirmarSenha()"
+          (input)="confirmarSenha.set($any($event.target).value)"
+          required
+        />
+      </app-form-field>
+    } @else {
+      <p class="text-body-secondary">
+        Clientes entram com um código de 6 dígitos enviado por e-mail, sem senha.
+      </p>
+    }
 
     <div class="d-grid">
       <app-button tipo="submit">Cadastrar</app-button>
     </div>
   </form>
+
+  <p class="mt-3">
+    Já possui conta?
+    <button type="button" class="btn btn-link p-0" (click)="entrar.emit()">Entrar</button>
+  </p>
 
   <button type="button" class="btn btn-link mt-3" (click)="voltar.emit()">Voltar</button>
 </section>

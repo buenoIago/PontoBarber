@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
 
@@ -12,7 +13,7 @@ public sealed class AuthController(ServicoConta servicoConta) : ControllerBase
 {
     [HttpPost("register/customer")]
     public async Task<IResult> CadastrarCliente(
-        [FromBody] RegistroRequest request,
+        [FromBody] RegistroClienteRequest request,
         CancellationToken cancellationToken)
     {
         await servicoConta.CadastrarClienteAsync(request, cancellationToken);
@@ -21,11 +22,30 @@ public sealed class AuthController(ServicoConta servicoConta) : ControllerBase
 
     [HttpPost("register/professional")]
     public async Task<IResult> CadastrarBarbeiro(
-        [FromBody] RegistroRequest request,
+        [FromBody] RegistroProfissionalRequest request,
         CancellationToken cancellationToken)
     {
         await servicoConta.CadastrarBarbeiroAsync(request, cancellationToken);
         return Results.StatusCode(StatusCodes.Status201Created);
+    }
+
+    [HttpPost("otp/request")]
+    public async Task<IResult> SolicitarOtp(
+        [FromBody] SolicitarOtpRequest request,
+        CancellationToken cancellationToken)
+    {
+        await servicoConta.SolicitarOtpAsync(request, cancellationToken);
+        // Resposta genérica: não revela se o e-mail possui conta.
+        return Results.Accepted(value: new { mensagem = "Se a conta existir, um código foi enviado." });
+    }
+
+    [HttpPost("otp/verify")]
+    public async Task<IResult> VerificarOtp(
+        [FromBody] VerificarOtpRequest request,
+        CancellationToken cancellationToken)
+    {
+        await servicoConta.VerificarOtpAsync(request, cancellationToken);
+        return Results.NoContent();
     }
 
     [HttpPost("login")]

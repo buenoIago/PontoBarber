@@ -319,6 +319,7 @@ public sealed class TestesProcessosPeriodicos
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    ["Email:Modo"] = "Memoria",
                     ["ConnectionStrings:DefaultConnection"] = conexao,
                     ["Jobs:IntervaloMinutos"] = "60"
                 })));

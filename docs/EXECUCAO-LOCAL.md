@@ -114,6 +114,31 @@ curl.exe -s -o NUL -w '%{http_code}\n' http://localhost:5116/health/ready
 
 Esperado: `200` para ambos quando o banco responde. Sem connection string ou com banco indisponível, `/health/ready` retorna `503` e `/health/live` continua `200`.
 
+## 4.1 E-mail local (Mailpit) para o OTP de clientes
+
+No desenvolvimento, o código OTP de clientes é enviado por SMTP para o Mailpit. Ele não é usado em produção e não exige credenciais no repositório:
+
+```powershell
+docker run -d --name pb-mailpit -p 1025:1025 -p 8025:8025 \
+  axllent/mailpit:latest
+```
+
+- SMTP: `localhost:1025` (configurado em `appsettings.Development.json`).
+- Interface web: `http://localhost:8025`.
+- Remetente: `nao-responder@pontobarber.local` (configurável por `Email:From`).
+- Para parar/remover: `docker rm -f pb-mailpit`.
+
+O ambiente de produção **não** herda essa configuração: sem `Email:Smtp:Host`, o envio falha com erro explícito até que o provedor definitivo seja decidido (ABT-018). Os testes automatizados usam `Email:Modo=Memoria` e nunca falam com SMTP.
+
+Contrato OTP (Task 3.3):
+
+| Método | Rota | Resposta |
+| --- | --- | --- |
+| `POST` | `/api/v1/auth/otp/request` | `202` genérica, com ou sem conta existente |
+| `POST` | `/api/v1/auth/otp/verify` | `204` com cookie de sessão; `401` genérica para código inválido, expirado, usado ou após excesso de tentativas |
+
+O código tem 6 dígitos, expira em 5 minutos, é armazenado apenas como `salt + HMAC-SHA256`, é válido uma única vez e nunca aparece em logs ou respostas HTTP. Reenvios são limitados a 3 por janela de validade, com intervalo mínimo de 60 segundos; novo envio invalida o código anterior.
+
 ## 5. Execução da imagem Docker da API
 
 ```powershell
@@ -155,6 +180,7 @@ Mapeamentos implementados:
 | Situação | HTTP | `code` |
 | --- | --- | --- |
 | `ExcecaoValidacaoAplicacao` | 400 | `validation.failed` |
+| `ExcecaoAutenticacaoAplicacao` (OTP inválido/expirado/usado) | 401 | `auth.invalid_credentials` |
 | `ExcecaoConflitoAplicacao` | 409 | `conflito.Codigo` |
 | `DbUpdateConcurrencyException` | 409 | `concurrency.conflict` |
 | Exceção não tratada | 500 | `internal.error` |

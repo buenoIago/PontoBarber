@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -31,15 +32,15 @@ public sealed class TestesConta
     };
 
     [TestMethod]
-    public async Task CadastroCliente_ComConfirmacaoDivergente_Retorna400ComErroPorCampo()
+    public async Task CadastroProfissional_ComConfirmacaoDivergente_Retorna400ComErroPorCampo()
     {
         using var fabrica = new WebApplicationFactory<Program>();
         using var cliente = fabrica.CreateClient(_opcoesCliente);
 
-        var resposta = await PostAsync(cliente, "/api/v1/auth/register/customer", new
+        var resposta = await PostAsync(cliente, "/api/v1/auth/register/professional", new
         {
-            nomeCompleto = "Cliente Teste",
-            email = "cliente-divergente@exemplo.com",
+            nomeCompleto = "Profissional Teste",
+            email = "profissional-divergente@exemplo.com",
             telefone = "11999999999",
             senha = "Senha123",
             confirmarSenha = "Senha456"
@@ -55,12 +56,14 @@ public sealed class TestesConta
     public async Task ServicoConta_DefineTipoNoServidorENaoConfianteNoRequest()
     {
         var identidade = new IdentidadeMemoria();
-        var servico = new ServicoConta(identidade);
-        var request = new RegistroRequest(
-            "Nome", "cliente@exemplo.com", "11999999999", "Senha123", "Senha123");
+        var servico = new ServicoConta(
+            identidade, new CodigoOtpFake(), new EnviadorEmailFake(), new HmacProviderFake());
+        var cliente = new RegistroClienteRequest("Nome", "cliente@exemplo.com", "11999999999");
+        var profissional = new RegistroProfissionalRequest(
+            "Nome", "barbeiro@exemplo.com", "11999999999", "Senha123", "Senha123");
 
-        await servico.CadastrarClienteAsync(request, CancellationToken.None);
-        await servico.CadastrarBarbeiroAsync(request with { Email = "barbeiro@exemplo.com" }, CancellationToken.None);
+        await servico.CadastrarClienteAsync(cliente, CancellationToken.None);
+        await servico.CadastrarBarbeiroAsync(profissional, CancellationToken.None);
 
         CollectionAssert.AreEqual(
             new[] { ServicoConta.TipoCliente, ServicoConta.TipoBarbeiro },
@@ -81,9 +84,7 @@ public sealed class TestesConta
         {
             nomeCompleto = "",
             email = "",
-            telefone = "",
-            senha = "",
-            confirmarSenha = ""
+            telefone = ""
         });
 
         Assert.AreEqual(HttpStatusCode.BadRequest, resposta.StatusCode);
@@ -98,7 +99,7 @@ public sealed class TestesConta
         using var cliente = fabrica.CreateClient(_opcoesCliente);
         var email = "cliente-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
 
-        var resposta = await PostAsync(cliente, "/api/v1/auth/register/customer", Registro(email));
+        var resposta = await PostAsync(cliente, "/api/v1/auth/register/customer", RegistroCliente(email));
 
         Assert.AreEqual(HttpStatusCode.Created, resposta.StatusCode);
         var usuario = await ObterUsuarioAsync(fabrica, email);
@@ -112,7 +113,7 @@ public sealed class TestesConta
         using var cliente = fabrica.CreateClient(_opcoesCliente);
         var email = "barbeiro-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
 
-        var resposta = await PostAsync(cliente, "/api/v1/auth/register/professional", Registro(email));
+        var resposta = await PostAsync(cliente, "/api/v1/auth/register/professional", RegistroProfissional(email));
 
         Assert.AreEqual(HttpStatusCode.Created, resposta.StatusCode);
         var usuario = await ObterUsuarioAsync(fabrica, email);
@@ -126,8 +127,8 @@ public sealed class TestesConta
         using var cliente = fabrica.CreateClient(_opcoesCliente);
         var email = "duplicado-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
 
-        var primeiro = await PostAsync(cliente, "/api/v1/auth/register/customer", Registro(email));
-        var segundo = await PostAsync(cliente, "/api/v1/auth/register/customer", Registro(email));
+        var primeiro = await PostAsync(cliente, "/api/v1/auth/register/customer", RegistroCliente(email));
+        var segundo = await PostAsync(cliente, "/api/v1/auth/register/customer", RegistroCliente(email));
 
         Assert.AreEqual(HttpStatusCode.Created, primeiro.StatusCode);
         Assert.AreEqual(HttpStatusCode.Conflict, segundo.StatusCode);
@@ -162,7 +163,7 @@ public sealed class TestesConta
 
         Assert.AreEqual(
             HttpStatusCode.Created,
-            (await PostAsync(cliente, "/api/v1/auth/register/customer", Registro(email))).StatusCode);
+            (await PostAsync(cliente, "/api/v1/auth/register/professional", RegistroProfissional(email))).StatusCode);
 
         for (var tentativa = 1; tentativa <= 5; tentativa++)
         {
@@ -174,6 +175,62 @@ public sealed class TestesConta
         var corpo = await LerCorpoAsync(
             await PostAsync(cliente, "/api/v1/auth/login", new { email, senha = "Senha123" }));
         Assert.AreEqual(CodigosErro.AutenticacaoBloqueada, corpo.GetProperty("code").GetString());
+    }
+
+    [TestMethod]
+    public async Task LoginCliente_ComSenha_Retorna401MesmoComContaAntiga()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        using var cliente = fabrica.CreateClient(_opcoesCliente);
+        var email = "cliente-senha-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
+
+        // Conta antiga: criada com senha, como no contrato anterior.
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var usuarios = escopo.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+            var antiga = new Usuario
+            {
+                UserName = email,
+                Email = email,
+                FullName = "Cliente Antigo",
+                PhoneNumber = "11999999999",
+                UserType = ServicoConta.TipoCliente
+            };
+            Assert.IsTrue((await usuarios.CreateAsync(antiga, "Senha123")).Succeeded);
+        }
+
+        var hashAntes = (await ObterUsuarioAsync(fabrica, email)).PasswordHash;
+
+        Assert.AreEqual(HttpStatusCode.Unauthorized, (await PostAsync(
+            cliente, "/api/v1/auth/login", new { email, senha = "Senha123" })).StatusCode);
+
+        // A conta antiga continua utilizável por OTP, sem recadastro nem alteração do hash.
+        await AuthTestHelper.LoginClienteAsync(cliente, email);
+        Assert.AreEqual(HttpStatusCode.OK, (await cliente.GetAsync("/api/v1/auth/me")).StatusCode);
+        Assert.AreEqual(hashAntes, (await ObterUsuarioAsync(fabrica, email)).PasswordHash);
+    }
+
+    private sealed class CodigoOtpFake : PontoBarber.Dominio.Modulos.Auth.ICodigoOtpRepositorio
+    {
+        public Task<PontoBarber.Dominio.Modulos.Auth.CodigoOtp?> ObterAsync(string email, CancellationToken ct) =>
+            Task.FromResult<PontoBarber.Dominio.Modulos.Auth.CodigoOtp?>(null);
+        public Task SalvarAsync(PontoBarber.Dominio.Modulos.Auth.CodigoOtp codigo, CancellationToken ct) =>
+            Task.CompletedTask;
+        public Task<bool> RegistrarTentativaInvalidaAsync(Guid codigoId, CancellationToken ct) =>
+            Task.FromResult(false);
+        public Task<bool> ConsumirAsync(Guid codigoId, DateTime agoraUtc, CancellationToken ct) =>
+            Task.FromResult(false);
+    }
+
+    private sealed class EnviadorEmailFake : PontoBarber.Aplicacao.Modulos.Auth.IEnviadorEmail
+    {
+        public Task EnviarAsync(string destinatario, string assunto, string corpo, CancellationToken ct) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class HmacProviderFake : PontoBarber.Aplicacao.Modulos.Auth.IOtpHmacProvider
+    {
+        public byte[] Chave { get; } = new byte[32];
     }
 
     private sealed class IdentidadeMemoria : IIdentidade
@@ -204,6 +261,18 @@ public sealed class TestesConta
             string usuarioId, string nomeCompleto, string email, string? telefone,
             CancellationToken cancellationToken) =>
             Task.FromResult(ResultadoAtualizacaoPerfil.Sucesso);
+        public Task<string> CriarClienteAsync(DadosRegistroCliente dados, CancellationToken ct)
+        {
+            Tipos.Add(ServicoConta.TipoCliente);
+            return Task.FromResult(Guid.NewGuid().ToString());
+        }
+
+        public Task AutenticarSemSenhaAsync(string usuarioId, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task<DadosConta?> ObterContaPorEmailAsync(string email, CancellationToken ct) =>
+            Task.FromResult<DadosConta?>(null);
+
         public Task<ResultadoAlteracaoSenha> AlterarSenhaAsync(
             string usuarioId,
             string senhaAtual,
@@ -212,7 +281,14 @@ public sealed class TestesConta
             Task.FromResult(ResultadoAlteracaoSenha.Sucesso);
     }
 
-    private static object Registro(string email) => new
+    private static object RegistroCliente(string email) => new
+    {
+        nomeCompleto = "Nome Teste",
+        email,
+        telefone = "11999999999"
+    };
+
+    private static object RegistroProfissional(string email) => new
     {
         nomeCompleto = "Nome Teste",
         email,
@@ -232,6 +308,7 @@ public sealed class TestesConta
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    ["Email:Modo"] = "Memoria",
                     ["ConnectionStrings:DefaultConnection"] = conexao
                 })));
 

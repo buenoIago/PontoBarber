@@ -187,11 +187,7 @@ public sealed class TestesDashboard
 
     private static async Task RegistrarClienteAsync(HttpClient cliente)
     {
-        var email = $"cliente-{Guid.NewGuid():N}@exemplo.com";
-        const string senha = "Senha123";
-        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/register/customer",
-            new { nomeCompleto = "Cliente Dashboard", email, telefone = "11999999999", senha, confirmarSenha = senha });
-        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/login", new { email, senha });
+        await AuthTestHelper.RegistrarEEntrarClienteAsync(cliente, "Cliente Dashboard");
     }
 
     private static async Task<(Guid Id, string Codigo)> CriarBarbeariaAsync(HttpClient cliente, string nome)
@@ -251,6 +247,7 @@ public sealed class TestesDashboard
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    ["Email:Modo"] = "Memoria",
                     ["ConnectionStrings:DefaultConnection"] = conexao,
                     ["Jobs:IntervaloMinutos"] = "60"
                 })));

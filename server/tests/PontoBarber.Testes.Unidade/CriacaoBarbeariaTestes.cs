@@ -317,6 +317,14 @@ public sealed class CriacaoBarbeariaTestes
             string usuarioId, string nomeCompleto, string email, string? telefone,
             CancellationToken cancellationToken) =>
             Task.FromResult(ResultadoAtualizacaoPerfil.Sucesso);
+        public Task<string> CriarClienteAsync(DadosRegistroCliente dados, CancellationToken ct) =>
+            Task.FromResult(string.Empty);
+
+        public Task AutenticarSemSenhaAsync(string usuarioId, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task<PontoBarber.Aplicacao.Auth.DadosConta?> ObterContaPorEmailAsync(string email, CancellationToken ct) =>
+            Task.FromResult<PontoBarber.Aplicacao.Auth.DadosConta?>(null);
         public Task<ResultadoAlteracaoSenha> AlterarSenhaAsync(
             string usuarioId,
             string senhaAtual,

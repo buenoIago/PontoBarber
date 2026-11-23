@@ -8,28 +8,42 @@ test('escolha de perfil exibe as opções de cliente e profissional', async ({ p
   await expect(page.getByRole('button', { name: 'Sou profissional' })).toBeVisible();
 });
 
-test('fluxo de cadastro de cliente envia o formulário', async ({ page }) => {
+test('cadastro de cliente não solicita senha', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Sou cliente' }).click();
 
   await expect(page.getByRole('heading', { name: 'Criar conta' })).toBeVisible();
+  await expect(page.locator('input#senha')).toHaveCount(0);
+  await expect(page.locator('input#confirmarSenha')).toHaveCount(0);
 
   await page.locator('input#nome').fill('Cliente E2E');
   await page.locator('input#email').fill('cliente-e2e@exemplo.com');
   await page.locator('input#telefone').fill('11999999999');
-  await page.locator('input#senha').fill('Senha123');
-  await page.locator('input#confirmarSenha').fill('Senha123');
 
   await page.getByRole('button', { name: 'Cadastrar' }).click();
   await expect(page.locator('.alert')).toBeVisible();
 });
 
-test('fluxo de login compartilhado envia credenciais', async ({ page }) => {
+test('login de cliente solicita código por e-mail', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Entrar' }).click();
 
   await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
+  await expect(page.locator('input#login-senha')).toHaveCount(0);
 
+  await page.locator('input#login-email').fill('usuario@exemplo.com');
+  await page.getByRole('button', { name: 'Enviar código' }).click();
+
+  await expect(page.locator('.alert')).toBeVisible();
+});
+
+test('login profissional mantém e-mail e senha', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Sou profissional' }).click();
+  await expect(page.getByRole('heading', { name: 'Criar conta' })).toBeVisible();
+  await page.getByRole('button', { name: 'Entrar' }).click();
+
+  await expect(page.locator('input#login-senha')).toBeVisible();
   await page.locator('input#login-email').fill('usuario@exemplo.com');
   await page.locator('input#login-senha').fill('Senha123');
   await page.getByRole('button', { name: 'Entrar', exact: true }).last().click();

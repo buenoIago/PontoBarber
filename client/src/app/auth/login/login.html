@@ -1,6 +1,14 @@
 <section class="mx-auto" style="max-width: 32rem">
   <h1 class="h3">Entrar</h1>
 
+  <p class="text-body-secondary">
+    @if (eCliente()) {
+      Informe seu e-mail para receber um código de acesso.
+    } @else {
+      Informe seu e-mail e senha de profissional.
+    }
+  </p>
+
   <form (submit)="entrar(); $event.preventDefault()">
     <app-form-field id="login-email" rotulo="E-mail" [obrigatorio]="true">
       <input
@@ -15,21 +23,23 @@
       />
     </app-form-field>
 
-    <app-form-field id="login-senha" rotulo="Senha" [obrigatorio]="true">
-      <input
-        id="login-senha"
-        name="senha"
-        type="password"
-        class="form-control"
-        autocomplete="current-password"
-        [value]="senha()"
-        (input)="alterarSenha($event)"
-        required
-      />
-    </app-form-field>
+    @if (!eCliente()) {
+      <app-form-field id="login-senha" rotulo="Senha" [obrigatorio]="true">
+        <input
+          id="login-senha"
+          name="senha"
+          type="password"
+          class="form-control"
+          autocomplete="current-password"
+          [value]="senha()"
+          (input)="alterarSenha($event)"
+          required
+        />
+      </app-form-field>
+    }
 
     <div class="d-grid">
-      <app-button tipo="submit">Entrar</app-button>
+      <app-button tipo="submit">{{ eCliente() ? 'Enviar código' : 'Entrar' }}</app-button>
     </div>
   </form>
 

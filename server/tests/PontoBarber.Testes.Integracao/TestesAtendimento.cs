@@ -331,13 +331,7 @@ public sealed class TestesAtendimento
 
     private static async Task RegistrarClienteAsync(HttpClient cliente)
     {
-        var email = $"cliente-{Guid.NewGuid():N}@exemplo.com";
-        const string senha = "Senha123";
-        Assert.AreEqual(HttpStatusCode.Created, (await EnviarAsync(
-            cliente, HttpMethod.Post, "/api/v1/auth/register/customer",
-            new { nomeCompleto = "Cliente", email, telefone = "11999999999", senha, confirmarSenha = senha })).StatusCode);
-        Assert.AreEqual(HttpStatusCode.NoContent, (await EnviarAsync(
-            cliente, HttpMethod.Post, "/api/v1/auth/login", new { email, senha })).StatusCode);
+        await AuthTestHelper.RegistrarEEntrarClienteAsync(cliente, "Cliente");
     }
 
     private static async Task<(Guid Id, string CodigoConvite)> CriarBarbeariaAsync(HttpClient cliente)
@@ -399,6 +393,7 @@ public sealed class TestesAtendimento
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    ["Email:Modo"] = "Memoria",
                     ["ConnectionStrings:DefaultConnection"] = conexao,
                     ["Jobs:IntervaloMinutos"] = "60"
                 })));

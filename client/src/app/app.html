@@ -6,7 +6,10 @@
   <nav aria-label="Navegação principal" class="container py-3 d-flex gap-2 flex-wrap">
     <app-button variante="outline" tamanho="sm" (click)="abrirConta()">Minha conta</app-button>
     <app-button variante="outline" tamanho="sm" (click)="abrirNotificacoes()">
-      Notificações @if (naoLidas() > 0) { ({{ naoLidas() }}) }
+      Notificações
+      @if (naoLidas() > 0) {
+        ({{ naoLidas() }})
+      }
     </app-button>
 
     @if (eProfissional()) {
@@ -34,7 +37,9 @@
     <app-button variante="outline" tamanho="sm" (click)="abrirServicos()">Serviços</app-button>
     @if (!eProfissional()) {
       <app-button variante="outline" tamanho="sm" (click)="abrirAgendar()">Agendar</app-button>
-      <app-button variante="outline" tamanho="sm" (click)="abrirMeus()">Meus agendamentos</app-button>
+      <app-button variante="outline" tamanho="sm" (click)="abrirMeus()"
+        >Meus agendamentos</app-button
+      >
     }
   </nav>
 
@@ -94,10 +99,13 @@
       <app-escolha-perfil (selecionado)="escolherPerfil($event)" (entrar)="abrirLogin()" />
     }
     @case ('cadastro') {
-      <app-cadastro [perfil]="perfil()" (voltar)="abrirEscolha()" />
+      <app-cadastro [perfil]="perfil()" (entrar)="abrirLogin()" (voltar)="abrirEscolha()" />
     }
     @case ('login') {
-      <app-login (voltar)="abrirEscolha()" />
+      <app-login [perfil]="perfil()" (voltar)="abrirEscolha()" />
+    }
+    @case ('otp') {
+      <app-verificacao-otp (voltar)="abrirLogin()" />
     }
   }
 }

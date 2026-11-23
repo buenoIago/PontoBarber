@@ -18,7 +18,7 @@ describe('Conta', () => {
   let fixture: ComponentFixture<Host>;
   let http: HttpTestingController;
 
-  async function criar(): Promise<HTMLElement> {
+  async function criar(tipo = 'Customer'): Promise<HTMLElement> {
     await TestBed.configureTestingModule({
       imports: [Host],
       providers: [
@@ -36,7 +36,7 @@ describe('Conta', () => {
       nomeCompleto: 'Nome Teste',
       email: 'usuario@exemplo.com',
       telefone: '11999999999',
-      tipo: 'Customer',
+      tipo,
     });
     await fixture.whenStable();
     return fixture.nativeElement as HTMLElement;
@@ -50,14 +50,20 @@ describe('Conta', () => {
     http.verify();
   });
 
-  it('should post logout and change-password requests', async () => {
+  it('should not offer password change to customers', async () => {
     const elemento = await criar();
+    expect(elemento.querySelector('form#formulario-senha')).toBeNull();
+    expect(elemento.textContent).not.toContain('Alterar senha');
 
     const botoes = [...elemento.querySelectorAll<HTMLButtonElement>('app-button button')];
     botoes.find((botao) => botao.textContent?.trim() === 'Sair')!.click();
     await fixture.whenStable();
     expect(http.expectOne('/api/v1/auth/logout').request.method).toBe('POST');
+    http.verify();
+  });
 
+  it('should let professionals change their password', async () => {
+    const elemento = await criar('Professional');
     const valores: Record<string, string> = {
       senhaAtual: 'Senha123',
       novaSenha: 'NovaSenha123',
@@ -70,9 +76,13 @@ describe('Conta', () => {
     }
     await fixture.whenStable();
 
-    elemento.querySelector<HTMLFormElement>('form#formulario-senha')?.dispatchEvent(new Event('submit'));
+    elemento
+      .querySelector<HTMLFormElement>('form#formulario-senha')
+      ?.dispatchEvent(new Event('submit'));
     await fixture.whenStable();
-    expect(http.expectOne('/api/v1/auth/change-password').request.method).toBe('POST');
+    const alteracao = http.expectOne('/api/v1/auth/change-password');
+    expect(alteracao.request.method).toBe('POST');
+    expect(alteracao.request.body).toEqual(valores);
     http.verify();
   });
 
@@ -100,7 +110,12 @@ describe('Conta', () => {
       email: 'novo@exemplo.com',
       telefone: '11888887777',
     });
-    req.flush({ id: '1', nomeCompleto: 'Nome Novo', email: 'novo@exemplo.com', telefone: '11888887777' });
+    req.flush({
+      id: '1',
+      nomeCompleto: 'Nome Novo',
+      email: 'novo@exemplo.com',
+      telefone: '11888887777',
+    });
     await fixture.whenStable();
     expect(elemento.textContent).toContain('Dados atualizados.');
     http.verify();

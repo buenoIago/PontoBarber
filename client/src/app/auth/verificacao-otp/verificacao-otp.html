@@ -1,0 +1,43 @@
+<section class="mx-auto" style="max-width: 32rem">
+  <h1 class="h3">Confirmar código</h1>
+
+  @if (email(); as destinatario) {
+    <p class="text-body-secondary">
+      Enviamos um código de 6 dígitos para <strong>{{ destinatario }}</strong>. Ele expira em 5
+      minutos. Se não recebeu, solicite outro.
+    </p>
+
+    <form (submit)="verificar(); $event.preventDefault()">
+      <app-form-field id="otp-codigo" rotulo="Código de acesso" [obrigatorio]="true">
+        <input
+          id="otp-codigo"
+          name="codigo"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          class="form-control"
+          placeholder="000000"
+          [value]="codigo()"
+          (input)="alterarCodigo($event)"
+          required
+        />
+      </app-form-field>
+
+      <div class="d-grid">
+        <app-button tipo="submit" [desabilitado]="carregando() || codigo().length !== 6">
+          Confirmar
+        </app-button>
+      </div>
+    </form>
+
+    <div class="d-grid mt-3">
+      <app-button variante="outline" [desabilitado]="carregando()" (click)="reenviar()">
+        Reenviar código
+      </app-button>
+    </div>
+  }
+
+  <button type="button" class="btn btn-link mt-3" (click)="cancelar()">Voltar</button>
+</section>

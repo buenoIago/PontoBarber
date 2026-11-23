@@ -775,7 +775,9 @@ Códigos de erro estáveis:
 | --- | --- | --- | --- | --- |
 | `POST` | `/api/v1/auth/register/customer` | Cadastrar cliente | Anônimo | RF-AUTH-002 |
 | `POST` | `/api/v1/auth/register/professional` | Cadastrar barbeiro | Anônimo | RF-AUTH-003 |
-| `POST` | `/api/v1/auth/login` | Autenticar e emitir cookie | Anônimo | RF-AUTH-004 |
+| `POST` | `/api/v1/auth/login` | Autenticar profissional e emitir cookie | Anônimo | RF-AUTH-004 |
+| `POST` | `/api/v1/auth/otp/request` | Solicitar código OTP de cliente (`202` genérica) | Anônimo | RF-AUTH-004 |
+| `POST` | `/api/v1/auth/otp/verify` | Validar OTP e emitir cookie de cliente | Anônimo | RF-AUTH-004 |
 | `POST` | `/api/v1/auth/logout` | Encerrar sessão | Autenticado | RF-AUTH-004 |
 | `GET` | `/api/v1/auth/me` | Perfil, vínculos e permissões | Autenticado | RF-AUTH-001, RF-AUTH-007 |
 | `PUT` | `/api/v1/auth/me` | Atualizar próprios dados | Autenticado | RF-CLI-005, RF-CLI-006 |
@@ -1044,8 +1046,8 @@ Implementação: eventos de domínio coletados no `DbContext` e despachados por 
 | Bloqueio | 5 tentativas inválidas → 5 minutos; 10 tentativas → 30 minutos |
 | Política de senha | Mínimo 8 caracteres, ao menos uma letra e um número; sem exigência de rotação |
 | CSRF | Antiforgery token com cookie `__Host-pb.csrf` e header `X-CSRF-TOKEN` |
-| Código OTP do cliente | 6 dígitos, válido por 5 minutos, armazenado de forma segura e utilizável uma única vez; limites de tentativas de validação e de reenvio |
-| Canal do OTP | Somente e-mail na V1.0; WhatsApp e SMS ficam como possibilidades futuras |
+| Código OTP do cliente | 6 dígitos, válido por 5 minutos, armazenado somente como `salt + HMAC-SHA256` (uma linha por e-mail), utilizável uma única vez via `sp_getapplock` + `ExecuteUpdate` atômico; até 5 tentativas inválidas e 3 reenvios por janela, com intervalo mínimo de 60 s |
+| Canal do OTP | Somente e-mail na V1.0; WhatsApp e SMS ficam como possibilidades futuras. No desenvolvimento, SMTP local via Mailpit (`localhost:1025`); provedor de produção pendente (ABT-018) |
 | Identidade do cliente | Global na plataforma, sem vínculo obrigatório com barbearia; escolha da barbearia no momento do agendamento |
 | CORS | Sem CORS: SPA e API são servidas na mesma origem pelo ASP.NET Core (ADR-033) |
 
@@ -1057,6 +1059,7 @@ Regras complementares:
 - O logout encerra a sessão imediatamente; a política de 60 dias é exclusiva de clientes e a de 30 dias é compartilhada por barbeiros e proprietários.
 - A resposta de login é sempre genérica para credenciais inválidas; a solicitação e a validação do OTP não revelam se o e-mail já possui conta.
 - Código OTP expirado, já utilizado ou inválido recebe a mesma resposta genérica; novos códigos invalidem os anteriores.
+- Contas de clientes já existentes são preservadas, inclusive o hash de senha antigo; a autenticação e a alteração de senha por senha são negadas a `Customer`, que entra apenas por OTP com o e-mail já cadastrado.
 - O telefone do cliente não é exigido para autenticação.
 - Sessões de usuários desativados são invalidadas na próxima validação de `SeloSeguranca`.
 - O identificador do tenant ativo não é confiado ao cookie; vem da rota e é validado por vínculo.

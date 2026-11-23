@@ -52,12 +52,62 @@ public sealed class AdaptadorIdentidade(
         return usuario.Id;
     }
 
+    public async Task<string> CriarClienteAsync(
+        DadosRegistroCliente dados,
+        CancellationToken cancellationToken)
+    {
+        // Conta existente (inclusive cliente antigo com senha): não alterar
+        // dados nem hash. O cliente já pode solicitar OTP com este e-mail.
+        if (await usuarios.FindByEmailAsync(dados.Email) is not null)
+            throw new Aplicacao.Compartilhado.ExcecaoConflitoAplicacao(
+                Aplicacao.Compartilhado.CodigosErro.ValidacaoFalhou,
+                "Este e-mail já está cadastrado.");
+
+        var usuario = new Usuario
+        {
+            UserName = dados.Email,
+            Email = dados.Email,
+            PhoneNumber = dados.Telefone,
+            FullName = dados.NomeCompleto,
+            UserType = "Customer"
+        };
+
+        // Sem senha: o Identity mantém PasswordHash nulo.
+        var resultado = await usuarios.CreateAsync(usuario);
+        if (!resultado.Succeeded)
+        {
+            var codigo = resultado.Errors.Select(erro => erro.Code).ToArray();
+            if (codigo.Intersect(_codigosEmailDuplicado).Any())
+                throw new Aplicacao.Compartilhado.ExcecaoConflitoAplicacao(
+                    Aplicacao.Compartilhado.CodigosErro.ValidacaoFalhou,
+                    "Este e-mail já está cadastrado.");
+
+            throw new Aplicacao.Compartilhado.ExcecaoValidacaoAplicacao(
+                codigo.ToDictionary(c => c, _ => _mensagemErroCadastro));
+        }
+
+        return usuario.Id;
+    }
+
+    public async Task AutenticarSemSenhaAsync(string usuarioId, CancellationToken cancellationToken)
+    {
+        var usuario = await usuarios.FindByIdAsync(usuarioId)
+            ?? throw new Aplicacao.Compartilhado.ExcecaoValidacaoAplicacao(
+                new Dictionary<string, string[]> { ["usuario"] = ["Conta não encontrada."] });
+
+        await entradas.SignInAsync(usuario, isPersistent: true);
+    }
+
     public async Task<ResultadoAutenticacao> AutenticarAsync(
         string email,
         string senha,
         CancellationToken cancellationToken)
     {
         var usuario = await usuarios.FindByEmailAsync(email);
+        // Clientes não possuem senha: resposta genérica, sem revelar o motivo.
+        if (usuario is not null && usuario.UserType == "Customer")
+            return ResultadoAutenticacao.CredenciaisInvalidas;
+
         if (usuario is null || await usuarios.IsLockedOutAsync(usuario))
             return usuario is null ? ResultadoAutenticacao.CredenciaisInvalidas : ResultadoAutenticacao.Bloqueado;
 
@@ -140,6 +190,19 @@ public sealed class AdaptadorIdentidade(
             : ResultadoAtualizacaoPerfil.Falha;
     }
 
+    public async Task<DadosConta?> ObterContaPorEmailAsync(
+        string email, CancellationToken cancellationToken)
+    {
+        var usuario = await usuarios.FindByEmailAsync(email);
+        if (usuario is null) return null;
+        return new DadosConta(
+            usuario.Id,
+            usuario.FullName,
+            usuario.Email ?? string.Empty,
+            usuario.PhoneNumber,
+            usuario.UserType ?? string.Empty);
+    }
+
     public async Task EncerrarSessaoAsync(CancellationToken cancellationToken) =>
         await entradas.SignOutAsync();
 
@@ -152,6 +215,8 @@ public sealed class AdaptadorIdentidade(
         var usuario = await usuarios.FindByIdAsync(usuarioId);
         if (usuario is null)
             return ResultadoAlteracaoSenha.UsuarioNaoEncontrado;
+        if (usuario.UserType == "Customer")
+            return ResultadoAlteracaoSenha.PerfilSemSenha;
 
         var resultado = await usuarios.ChangePasswordAsync(usuario, senhaAtual, novaSenha);
 

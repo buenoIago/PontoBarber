@@ -55,6 +55,12 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next)
                 "Não encontrado",
                 naoEncontrado.Message,
                 null),
+            ExcecaoAutenticacaoAplicacao autenticacao => (
+                StatusCodes.Status401Unauthorized,
+                autenticacao.Codigo,
+                "Não autenticado",
+                autenticacao.Message,
+                null),
             ExcecaoIdempotenciaAplicacao idempotencia => (
                 StatusCodes.Status400BadRequest,
                 idempotencia.Codigo,

@@ -225,11 +225,7 @@ public sealed class TestesNotificacoes
 
     private static async Task RegistrarClienteAsync(HttpClient cliente, string prefixo)
     {
-        var email = $"{prefixo}@exemplo.com";
-        const string senha = "Senha123";
-        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/register/customer",
-            new { nomeCompleto = prefixo, email, telefone = "11999999999", senha, confirmarSenha = senha });
-        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/login", new { email, senha });
+        await AuthTestHelper.RegistrarEEntrarClienteAsync(cliente, prefixo, $"{prefixo}@exemplo.com");
     }
 
     private static async Task<(Guid Id, string Codigo)> CriarBarbeariaAsync(HttpClient cliente)
@@ -291,6 +287,7 @@ public sealed class TestesNotificacoes
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    ["Email:Modo"] = "Memoria",
                     ["ConnectionStrings:DefaultConnection"] = conexao,
                     ["Jobs:IntervaloMinutos"] = "60"
                 })));

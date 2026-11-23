@@ -44,24 +44,71 @@ describe('AuthService', () => {
     http.verify();
   });
 
-  it('should post registration to the proper flow endpoint', () => {
+  it('should post each profile registration to its own endpoint', () => {
     configurar();
-    const dados = {
+    const cliente = {
       nomeCompleto: 'Nome',
       email: 'novo@exemplo.com',
       telefone: '11999999999',
+    };
+    const profissional = {
+      ...cliente,
       senha: 'Senha123',
       confirmarSenha: 'Senha123',
     };
 
-    servico.cadastrarCliente(dados);
-    responder('POST', '/api/v1/auth/register/customer');
-    http.expectOne('/api/v1/auth/me').flush({});
+    servico.cadastrarCliente(cliente);
+    const cadastroCliente = http.expectOne('/api/v1/auth/register/customer');
+    expect(cadastroCliente.request.body).toEqual(cliente);
+    cadastroCliente.flush(null, { status: 201, statusText: 'Created' });
 
-    servico.cadastrarProfissional(dados);
-    responder('POST', '/api/v1/auth/register/professional');
-    http.expectOne('/api/v1/auth/me').flush({});
+    servico.cadastrarProfissional(profissional);
+    const cadastroProfissional = http.expectOne('/api/v1/auth/register/professional');
+    expect(cadastroProfissional.request.body).toEqual(profissional);
+    cadastroProfissional.flush(null, { status: 201, statusText: 'Created' });
 
+    http.verify();
+  });
+
+  it('should request and verify the customer OTP through dedicated endpoints', () => {
+    configurar();
+
+    servico.solicitarCodigo('cliente@exemplo.com');
+    const solicitacao = http.expectOne('/api/v1/auth/otp/request');
+    expect(solicitacao.request.body).toEqual({ email: 'cliente@exemplo.com' });
+    solicitacao.flush(null, { status: 202, statusText: 'Accepted' });
+    expect(servico.emailOtp()).toBe('cliente@exemplo.com');
+
+    servico.verificarCodigo({ email: 'cliente@exemplo.com', codigo: '123456' });
+    const verificacao = http.expectOne('/api/v1/auth/otp/verify');
+    expect(verificacao.request.body).toEqual({ email: 'cliente@exemplo.com', codigo: '123456' });
+    verificacao.flush(null, { status: 204, statusText: 'No Content' });
+    http.expectOne('/api/v1/auth/me').flush({
+      id: '1',
+      nomeCompleto: 'Nome',
+      email: 'cliente@exemplo.com',
+      telefone: null,
+      tipo: 'Customer',
+    });
+
+    expect(servico.emailOtp()).toBeNull();
+    expect(servico.conta()?.tipo).toBe('Customer');
+    http.verify();
+  });
+
+  it('should not open the OTP step when the request fails', () => {
+    configurar();
+
+    servico.solicitarCodigo('inexistente@exemplo.com');
+    http
+      .expectOne('/api/v1/auth/otp/request')
+      .flush(
+        { title: 'Erro', status: 500, detail: 'Falha', code: 'erro.interno', traceId: 't' },
+        { status: 500, statusText: 'Internal Server Error' },
+      );
+
+    expect(servico.emailOtp()).toBeNull();
+    expect(servico.erro()).toContain('Falha');
     http.verify();
   });
 

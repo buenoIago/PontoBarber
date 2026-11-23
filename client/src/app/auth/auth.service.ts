@@ -10,6 +10,7 @@ import {
   Login,
   RegistroCliente,
   RegistroProfissional,
+  VerificarOtp,
 } from './auth.models';
 
 /** Estado da sessão e acesso aos endpoints de autenticação. Sessão por cookie. */
@@ -21,11 +22,14 @@ export class AuthService {
   private readonly carregandoState = signal(false);
   private readonly erroState = signal<string | null>(null);
   private readonly sucessoState = signal<string | null>(null);
+  private readonly emailOtpState = signal<string | null>(null);
 
   readonly conta = this.contaState.asReadonly();
   readonly carregando = this.carregandoState.asReadonly();
   readonly erro = this.erroState.asReadonly();
   readonly sucesso = this.sucessoState.asReadonly();
+  /** E-mail que recebeu o código; não nulo enquanto a etapa OTP está aberta. */
+  readonly emailOtp = this.emailOtpState.asReadonly();
 
   carregarConta(): void {
     this.executar(
@@ -37,14 +41,14 @@ export class AuthService {
   cadastrarCliente(dados: RegistroCliente): void {
     this.executar(
       () => this.http.post('/api/v1/auth/register/customer', dados, { withCredentials: true }),
-      () => this.carregarConta(),
+      () => this.sucessoState.set('Cadastro realizado. Solicite o código de acesso por e-mail.'),
     );
   }
 
   cadastrarProfissional(dados: RegistroProfissional): void {
     this.executar(
       () => this.http.post('/api/v1/auth/register/professional', dados, { withCredentials: true }),
-      () => this.carregarConta(),
+      () => this.sucessoState.set('Cadastro realizado. Entre com seu e-mail e senha.'),
     );
   }
 
@@ -53,6 +57,33 @@ export class AuthService {
       () => this.http.post('/api/v1/auth/login', dados, { withCredentials: true }),
       () => this.carregarConta(),
     );
+  }
+
+  /** Solicita o OTP. A resposta é genérica, mesmo se o e-mail não existir. */
+  solicitarCodigo(email: string): void {
+    this.emailOtpState.set(null);
+    this.executar(
+      () => this.http.post('/api/v1/auth/otp/request', { email }, { withCredentials: true }),
+      () => {
+        this.emailOtpState.set(email);
+        this.sucessoState.set('Se a conta existir, um código foi enviado por e-mail.');
+      },
+    );
+  }
+
+  /** Valida o código e abre a sessão pelo cookie existente. */
+  verificarCodigo(dados: VerificarOtp): void {
+    this.executar(
+      () => this.http.post('/api/v1/auth/otp/verify', dados, { withCredentials: true }),
+      () => {
+        this.emailOtpState.set(null);
+        this.carregarConta();
+      },
+    );
+  }
+
+  cancelarOtp(): void {
+    this.emailOtpState.set(null);
   }
 
   sair(): void {
@@ -72,7 +103,14 @@ export class AuthService {
         ),
       (conta) => {
         this.contaState.update((atual) =>
-          atual ? { ...atual, nomeCompleto: conta.nomeCompleto, email: conta.email, telefone: conta.telefone } : atual,
+          atual
+            ? {
+                ...atual,
+                nomeCompleto: conta.nomeCompleto,
+                email: conta.email,
+                telefone: conta.telefone,
+              }
+            : atual,
         );
         this.sucessoState.set('Dados atualizados.');
       },

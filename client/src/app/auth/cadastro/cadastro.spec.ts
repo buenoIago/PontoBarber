@@ -9,9 +9,10 @@ import { Cadastro } from './cadastro';
 
 @Component({
   imports: [Cadastro],
-  template: ` <app-cadastro perfil="cliente" (voltar)="voltar.set(true)" /> `,
+  template: ` <app-cadastro [perfil]="perfil()" (voltar)="voltar.set(true)" /> `,
 })
 class Host {
+  readonly perfil = signal<'cliente' | 'profissional'>('cliente');
   readonly voltar = signal(false);
 }
 
@@ -35,14 +36,16 @@ describe('Cadastro', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  async function preencher(elemento: HTMLElement): Promise<void> {
+  async function preencher(elemento: HTMLElement, profissional = false): Promise<void> {
     const valores: Record<string, string> = {
       nome: 'Nome Teste',
       email: 'novo@exemplo.com',
       telefone: '11999999999',
-      senha: 'Senha123',
-      confirmarSenha: 'Senha123',
     };
+    if (profissional) {
+      valores['senha'] = 'Senha123';
+      valores['confirmarSenha'] = 'Senha123';
+    }
 
     for (const [id, valor] of Object.entries(valores)) {
       const campo = elemento.querySelector<HTMLInputElement>(`input#${id}`)!;
@@ -53,8 +56,10 @@ describe('Cadastro', () => {
     await fixture.whenStable();
   }
 
-  it('should post to the customer endpoint with the typed data', async () => {
+  it('should register a customer without password fields', async () => {
     const elemento = await criar();
+    expect(elemento.querySelector('input#senha')).toBeNull();
+    expect(elemento.querySelector('input#confirmarSenha')).toBeNull();
     await preencher(elemento);
 
     elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
@@ -62,15 +67,40 @@ describe('Cadastro', () => {
 
     const requisicao = http.expectOne('/api/v1/auth/register/customer');
     expect(requisicao.request.method).toBe('POST');
-    expect(requisicao.request.body.email).toBe('novo@exemplo.com');
+    expect(requisicao.request.body).toEqual({
+      nomeCompleto: 'Nome Teste',
+      email: 'novo@exemplo.com',
+      telefone: '11999999999',
+    });
     requisicao.flush(null, { status: 201, statusText: 'Created' });
-    http.expectOne('/api/v1/auth/me').flush(null);
+    http.verify();
+  });
+
+  it('should keep password fields for professionals', async () => {
+    const elemento = await criar();
+    fixture.componentInstance.perfil.set('profissional');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(elemento.querySelector('input#senha')).not.toBeNull();
+    expect(elemento.querySelector('input#confirmarSenha')).not.toBeNull();
+    await preencher(elemento, true);
+
+    elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    const requisicao = http.expectOne('/api/v1/auth/register/professional');
+    expect(requisicao.request.body.senha).toBe('Senha123');
+    requisicao.flush(null, { status: 201, statusText: 'Created' });
     http.verify();
   });
 
   it('should emit voltar when requested', async () => {
     const elemento = await criar();
-    elemento.querySelector<HTMLButtonElement>('button.btn-link')?.click();
+    const botaoVoltar = [...elemento.querySelectorAll<HTMLButtonElement>('button.btn-link')].find(
+      (botao) => botao.textContent?.trim() === 'Voltar',
+    );
+    botaoVoltar?.click();
     await fixture.whenStable();
     expect(fixture.componentInstance.voltar()).toBe(true);
   });

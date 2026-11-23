@@ -8,9 +8,17 @@ public interface IIdentidade
 {
     Task<string> CriarUsuarioAsync(DadosRegistro dados, string tipoUsuario, CancellationToken cancellationToken);
 
+    /// <summary>Cria cliente sem senha; e-mail duplicado gera conflito, sem alterar contas existentes.</summary>
+    Task<string> CriarClienteAsync(DadosRegistroCliente dados, CancellationToken cancellationToken);
+
     Task<ResultadoAutenticacao> AutenticarAsync(string email, string senha, CancellationToken cancellationToken);
 
+    /// <summary>Inicia sessão por cookie após validação do OTP.</summary>
+    Task AutenticarSemSenhaAsync(string usuarioId, CancellationToken cancellationToken);
+
     Task<DadosConta?> ObterContaAsync(string usuarioId, CancellationToken cancellationToken);
+
+    Task<DadosConta?> ObterContaPorEmailAsync(string email, CancellationToken cancellationToken);
 
     Task EncerrarSessaoAsync(CancellationToken cancellationToken);
 
@@ -34,6 +42,11 @@ public sealed record DadosRegistro(
     string Telefone,
     string Senha);
 
+public sealed record DadosRegistroCliente(
+    string NomeCompleto,
+    string Email,
+    string Telefone);
+
 public sealed record DadosConta(
     string Id,
     string NomeCompleto,
@@ -55,7 +68,8 @@ public enum ResultadoAlteracaoSenha
     Sucesso,
     SenhaAtualIncorreta,
     SenhaNovaInvalida,
-    UsuarioNaoEncontrado
+    UsuarioNaoEncontrado,
+    PerfilSemSenha
 }
 
 public enum ResultadoAtualizacaoPerfil

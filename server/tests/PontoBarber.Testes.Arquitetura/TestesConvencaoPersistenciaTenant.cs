@@ -9,7 +9,8 @@ namespace PontoBarber.Testes.Arquitetura;
 public class TestesConvencaoPersistenciaTenant
 {
     // Exceções registradas no TDD §8.1 e §11: identidades e perfis globais,
-    // a raiz do tenant (cujo Id é o BarbeariaId) e registros operacionais.
+    // a raiz do tenant (cujo Id é o BarbeariaId), registros operacionais e o
+    // OTP de cliente (índice único por e-mail, fora do escopo de barbearia).
     private static readonly HashSet<string> _entidadesGlobais = new(StringComparer.Ordinal)
     {
         "User",
@@ -21,7 +22,8 @@ public class TestesConvencaoPersistenciaTenant
         // Nomes concretos adotados no projeto para os mesmos registros
         // operacionais globais do TDD §8.1 (sem BarbeariaId por definição).
         "RegistroIdempotencia",
-        "ExecucaoJob"
+        "ExecucaoJob",
+        "CodigoOtp"
     };
 
     [TestMethod]

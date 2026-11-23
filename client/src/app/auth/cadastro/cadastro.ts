@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, input, output, signal } fro
 
 import { Button } from '../../shared/ui/button/button';
 import { FormField } from '../../shared/ui/form-field/form-field';
+import type { RegistroCliente, RegistroProfissional } from '../auth.models';
 import { AuthService } from '../auth.service';
 import type { TipoPerfil } from '../escolha-perfil/escolha-perfil';
 
@@ -16,6 +17,7 @@ export class Cadastro {
 
   readonly perfil = input.required<TipoPerfil>();
   readonly voltar = output<void>();
+  readonly entrar = output<void>();
 
   readonly nomeCompleto = signal('');
   readonly email = signal('');
@@ -23,16 +25,26 @@ export class Cadastro {
   readonly senha = signal('');
   readonly confirmarSenha = signal('');
 
-  enviar(): void {
-    const dados = {
-      nomeCompleto: this.nomeCompleto(),
-      email: this.email(),
-      telefone: this.telefone(),
-      senha: this.senha(),
-      confirmarSenha: this.confirmarSenha(),
-    };
+  readonly eProfissional = () => this.perfil() === 'profissional';
 
-    if (this.perfil() === 'cliente') this.auth.cadastrarCliente(dados);
-    else this.auth.cadastrarProfissional(dados);
+  enviar(): void {
+    if (this.eProfissional()) {
+      const dados: RegistroProfissional = {
+        nomeCompleto: this.nomeCompleto().trim(),
+        email: this.email().trim(),
+        telefone: this.telefone().trim(),
+        senha: this.senha(),
+        confirmarSenha: this.confirmarSenha(),
+      };
+      this.auth.cadastrarProfissional(dados);
+      return;
+    }
+
+    const dados: RegistroCliente = {
+      nomeCompleto: this.nomeCompleto().trim(),
+      email: this.email().trim(),
+      telefone: this.telefone().trim(),
+    };
+    this.auth.cadastrarCliente(dados);
   }
 }

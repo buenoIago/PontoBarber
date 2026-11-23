@@ -63,49 +63,51 @@
       </form>
     }
 
-    <h2 class="h5 mt-4">Alterar senha</h2>
+    @if (!eCliente()) {
+      <h2 class="h5 mt-4">Alterar senha</h2>
 
-    <form id="formulario-senha" (submit)="alterarSenha(); $event.preventDefault()">
-      <app-form-field id="senhaAtual" rotulo="Senha atual" [obrigatorio]="true">
-        <input
-          id="senhaAtual"
-          type="password"
-          class="form-control"
-          autocomplete="current-password"
-          [value]="senhaAtual()"
-          (input)="senhaAtual.set($any($event.target).value)"
-          required
-        />
-      </app-form-field>
+      <form id="formulario-senha" (submit)="alterarSenha(); $event.preventDefault()">
+        <app-form-field id="senhaAtual" rotulo="Senha atual" [obrigatorio]="true">
+          <input
+            id="senhaAtual"
+            type="password"
+            class="form-control"
+            autocomplete="current-password"
+            [value]="senhaAtual()"
+            (input)="senhaAtual.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
 
-      <app-form-field id="novaSenha" rotulo="Nova senha" [obrigatorio]="true">
-        <input
-          id="novaSenha"
-          type="password"
-          class="form-control"
-          autocomplete="new-password"
-          [value]="novaSenha()"
-          (input)="novaSenha.set($any($event.target).value)"
-          required
-        />
-      </app-form-field>
+        <app-form-field id="novaSenha" rotulo="Nova senha" [obrigatorio]="true">
+          <input
+            id="novaSenha"
+            type="password"
+            class="form-control"
+            autocomplete="new-password"
+            [value]="novaSenha()"
+            (input)="novaSenha.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
 
-      <app-form-field id="confirmarNovaSenha" rotulo="Confirmar nova senha" [obrigatorio]="true">
-        <input
-          id="confirmarNovaSenha"
-          type="password"
-          class="form-control"
-          autocomplete="new-password"
-          [value]="confirmarNovaSenha()"
-          (input)="confirmarNovaSenha.set($any($event.target).value)"
-          required
-        />
-      </app-form-field>
+        <app-form-field id="confirmarNovaSenha" rotulo="Confirmar nova senha" [obrigatorio]="true">
+          <input
+            id="confirmarNovaSenha"
+            type="password"
+            class="form-control"
+            autocomplete="new-password"
+            [value]="confirmarNovaSenha()"
+            (input)="confirmarNovaSenha.set($any($event.target).value)"
+            required
+          />
+        </app-form-field>
 
-      <div class="d-grid">
-        <app-button tipo="submit">Salvar senha</app-button>
-      </div>
-    </form>
+        <div class="d-grid">
+          <app-button tipo="submit">Salvar senha</app-button>
+        </div>
+      </form>
+    }
 
     <div class="d-grid mt-3">
       <app-button variante="outline" (click)="sair()">Sair</app-button>

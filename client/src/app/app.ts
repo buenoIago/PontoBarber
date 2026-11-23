@@ -5,6 +5,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 
 import { AuthService } from './auth/auth.service';
@@ -12,6 +13,7 @@ import { Cadastro } from './auth/cadastro/cadastro';
 import { Conta } from './auth/conta/conta';
 import { EscolhaPerfil, type TipoPerfil } from './auth/escolha-perfil/escolha-perfil';
 import { Login } from './auth/login/login';
+import { VerificacaoOtp } from './auth/verificacao-otp/verificacao-otp';
 import { BarbeariaService } from './barbearia/barbearia.service';
 import { CadastroBarbearia } from './barbearia/cadastro-barbearia/cadastro-barbearia';
 import { EntrarBarbearia } from './barbearia/entrar-barbearia/entrar-barbearia';
@@ -34,6 +36,7 @@ type Tela =
   | 'escolha'
   | 'cadastro'
   | 'login'
+  | 'otp'
   | 'conta'
   | 'criar-barbearia'
   | 'entrar-barbearia'
@@ -58,6 +61,7 @@ type Tela =
     Conta,
     EscolhaPerfil,
     Login,
+    VerificacaoOtp,
     CadastroBarbearia,
     EntrarBarbearia,
     Profissionais,
@@ -107,8 +111,15 @@ export class App {
       }
       this.notificacoes.iniciarPolling();
       const atual = this.telaState();
-      if (atual === 'escolha' || atual === 'cadastro' || atual === 'login')
+      if (atual === 'escolha' || atual === 'cadastro' || atual === 'login' || atual === 'otp')
         this.telaState.set('conta');
+    });
+
+    // A transição só acontece após a confirmação do envio pelo backend:
+    // respostas de erro não abrem a tela de código.
+    effect(() => {
+      if (!this.auth.emailOtp()) return;
+      if (untracked(() => this.telaState()) === 'login') this.telaState.set('otp');
     });
   }
 
@@ -125,6 +136,7 @@ export class App {
 
   abrirLogin(): void {
     this.auth.limparErro();
+    this.auth.cancelarOtp();
     this.telaState.set('login');
   }
 

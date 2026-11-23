@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PontoBarber.Aplicacao.Auth;
+using PontoBarber.Aplicacao.Modulos.Auth;
 using PontoBarber.Dominio.Modulos.Agendamentos;
+using PontoBarber.Dominio.Modulos.Auth;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Clientes;
 using PontoBarber.Dominio.Modulos.Dashboard;
@@ -16,6 +18,7 @@ using PontoBarber.Infra.Compartilhado.Identity;
 using PontoBarber.Infra.Compartilhado.Orm;
 using PontoBarber.Infra.Identity;
 using PontoBarber.Infra.Modulos.Agendamentos;
+using PontoBarber.Infra.Modulos.Auth;
 using PontoBarber.Infra.Modulos.Barbearia;
 using PontoBarber.Infra.Modulos.Clientes;
 using PontoBarber.Infra.Modulos.Dashboard;
@@ -33,7 +36,8 @@ namespace PontoBarber.Infra;
 /// </summary>
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
+    public static IServiceCollection AddInfrastructureServices(
+        this IServiceCollection services, IConfiguration configuration)
     {
         services.AddDbContext<ContextoPontoBarber>((servicos, options) =>
         {
@@ -49,6 +53,18 @@ public static class DependencyInjection
         // com os stores no ContextoPontoBarber — o mesmo contexto do domínio.
         services.AddIdentityPontoBarber();
         services.AddScoped<IIdentidade, AdaptadorIdentidade>();
+        services.AddScoped<ICodigoOtpRepositorio, RepositorioCodigoOtpEmOrm>();
+        services.AddSingleton<IOtpHmacProvider, OtpHmacProvider>();
+        // A decisão é tomada na resolução: WebApplicationFactory aplica
+        // ConfigureAppConfiguration depois que este método é chamado.
+        services.AddSingleton<IEnviadorEmail>(provedor =>
+        {
+            var configuracao = provedor.GetRequiredService<IConfiguration>();
+            return string.Equals(
+                configuracao["Email:Modo"], "Memoria", StringComparison.OrdinalIgnoreCase)
+                ? new EnviadorEmailMemoria()
+                : new EnviadorEmailSmtp(configuracao);
+        });
         services.AddScoped<IBarbeariaRepositorio, RepositorioBarbeariaEmOrm>();
         services.AddScoped<IProfissionalRepositorio, RepositorioProfissionalEmOrm>();
         services.AddScoped<IServicoRepositorio, RepositorioServicoEmOrm>();

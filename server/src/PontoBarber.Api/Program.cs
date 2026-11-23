@@ -76,7 +76,7 @@ builder.Host.UseSerilog((contexto, servicos, configuracao) =>
         .WriteTo.Sink(new RedacaoLogEventSink(loggerConsole));
 });
 
-builder.Services.AddInfrastructureServices();
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
 builder.Services.AddHealthChecks()
     .AddCheck("vivacidade", () => HealthCheckResult.Healthy(), tags: ["live"])
