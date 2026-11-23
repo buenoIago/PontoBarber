@@ -23,6 +23,8 @@ import { DetalheAgendamento } from './agendamentos/detalhe/detalhe';
 import { MeusAgendamentos } from './agendamentos/meus/meus';
 import { Clientes } from './clientes/clientes';
 import { Dashboard } from './dashboard/dashboard';
+import { Notificacoes } from './notificacoes/notificacoes';
+import { NotificacoesService } from './notificacoes/notificacoes.service';
 import { Bloqueios } from './configuracoes/bloqueios/bloqueios';
 import { Disponibilidade } from './configuracoes/disponibilidade/disponibilidade';
 import { Horarios } from './configuracoes/horarios/horarios';
@@ -43,6 +45,7 @@ type Tela =
   | 'detalhe'
   | 'clientes'
   | 'dashboard'
+  | 'notificacoes'
   | 'horarios'
   | 'disponibilidade'
   | 'bloqueios';
@@ -65,6 +68,7 @@ type Tela =
     MeusAgendamentos,
     Clientes,
     Dashboard,
+    Notificacoes,
     Horarios,
     Disponibilidade,
     Bloqueios,
@@ -75,6 +79,9 @@ type Tela =
 export class App {
   private readonly auth = inject(AuthService);
   private readonly barbearias = inject(BarbeariaService);
+  private readonly notificacoes = inject(NotificacoesService);
+
+  readonly naoLidas = this.notificacoes.naoLidas;
 
   private readonly telaState = signal<Tela>('escolha');
   private readonly origemDetalhe = signal<Tela>('agenda');
@@ -94,7 +101,11 @@ export class App {
   constructor() {
     this.auth.carregarConta();
     effect(() => {
-      if (!this.exibirConta()) return;
+      if (!this.exibirConta()) {
+        this.notificacoes.pararPolling();
+        return;
+      }
+      this.notificacoes.iniciarPolling();
       const atual = this.telaState();
       if (atual === 'escolha' || atual === 'cadastro' || atual === 'login')
         this.telaState.set('conta');
@@ -155,6 +166,11 @@ export class App {
   abrirAgendar(): void {
     this.auth.limparErro();
     this.telaState.set('agendar');
+  }
+
+  abrirNotificacoes(): void {
+    this.auth.limparErro();
+    this.telaState.set('notificacoes');
   }
 
   abrirDashboard(): void {

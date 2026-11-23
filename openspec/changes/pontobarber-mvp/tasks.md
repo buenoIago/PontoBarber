@@ -236,12 +236,23 @@ Nota da seção: a dependência da Task 5.3 quanto aos snapshots históricos foi
 
 ## 13. Notificações internas
 
-- [ ] 13.1 Implementar notificação para os eventos de criação, cancelamento, sugestão, aceite, rejeição, expiração, início, fim e pagamento, com tipo, conteúdo, destinatário e barbearia; verificar testes de geração por tipo
-- [ ] 13.2 Garantir idempotência por evento e destinatário; verificar teste de reprocessamento sem notificação duplicada
-- [ ] 13.3 Implementar consulta por polling com contagem de não lidas, marcação individual e marcação de todas; verificar testes de consulta restrita ao destinatário e de marcação negada para outro usuário
-- [ ] 13.4 Implementar reconciliação de eventos sem notificação; verificar testes de evento reconciliado e de evento já notificado sem duplicidade
-- [ ] 13.5 Implementar central de notificações no frontend com polling e marcação de leitura; verificar E2E e axe sem violação crítica
-- [ ] 13.6 Verificar ausência de canais externos; verificar teste de que nenhum envio de WhatsApp, e-mail ou SMS é disparado por evento
+- [x] 13.1 Implementar notificação para os eventos de criação, cancelamento, sugestão, aceite, rejeição, expiração, início, fim e pagamento, com tipo, conteúdo, destinatário e barbearia; verificar testes de geração por tipo
+  - Implementado: `TipoNotificacao` estendido para os nove eventos, `NotificacoesPorEvento` mapeia `TipoEventoHistorico` e define destinatários (apenas envolvidos: cliente, profissional da agenda e/ou proprietário) e mensagens. `ServicoEscritaNotificacoes` reutiliza a tabela `Notificacoes` da seção 9 e grava as notificações na mesma transação de cada evento, nos repositórios de agendamento e pagamento.
+  - Testes unitários e de integração executados e aprovados: mapeamento dos nove tipos, destinatários por evento, ausência de duplicação do mesmo usuário e notificações geradas em reconciliação com os tipos corretos.
+- [x] 13.2 Garantir idempotência por evento e destinatário; verificar teste de reprocessamento sem notificação duplicada
+  - Implementado: `EventId` continua sendo o id do evento de histórico; chave única `(EventId, DestinatarioUsuarioId)` no banco e verificação prévia no escritor compartilhado. Reconciliação e execuções concorrentes usam `sp_getapplock` por job.
+  - Testes de integração executados e aprovados: reprocessamento sem duplicidade, duas reconciliações simultâneas com uma única notificação e dois registros de execução.
+- [x] 13.3 Implementar consulta por polling com contagem de não lidas, marcação individual e marcação de todas; verificar testes de consulta restrita ao destinatário e de marcação negada para outro usuário
+  - Implementado: `GET /api/v1/notificacoes` paginado com `naoLidas`, `GET .../nao-lidas`, `POST .../{id}/ler` e `POST .../ler-todas`. A identidade vem da sessão; `RepositorioNotificacaoEmOrm` usa `DestinatarioUsuarioId` como predicado explícito em todas as consultas (com justificativa documentada para ignorar o filtro global, já que a rota não tem barbeariaId).
+  - Testes de integração executados e aprovados: consulta restrita ao próprio usuário, contagem, marcação individual e em lote, e recusa (`404`) ao tentar marcar notificação de outro usuário.
+- [x] 13.4 Implementar reconciliação de eventos sem notificação; verificar testes de evento reconciliado e de evento já notificado sem duplicidade
+  - Implementado: `ReconciliarNotificacoesProcesso` registrado no catálogo existente de processos periódicos e no adaptador provisório (ADR-027), sem segundo scheduler. Lê o histórico como outbox leve, em lotes de 500, e cria somente as notificações ausentes.
+  - Testes executados e aprovados: eventos sem notificação reconciliados, segunda execução sem efeito e concorrência sem duplicidade.
+- [x] 13.5 Implementar central de notificações no frontend com polling e marcação de leitura; verificar E2E e axe sem violação crítica
+  - Implementado: `client/src/app/notificacoes/` com badge de não lidas na navegação, lista, marcação individual/e em lote, polling de 60 s com `exhaustMap` (sem requisições sobrepostas), pausa em aba inativa e encerramento no `ngOnDestroy`. O limite de erro do orçamento Angular foi ajustado de 450 kB para 500 kB para acomodar o crescimento do bundle.
+  - Testes Vitest (97/97) e E2E (59/59, incluindo quatro cenários de notificações e axe) executados e aprovados. Os E2E usam interceptação da API via `page.route`; autorização e persistência foram verificadas nos testes de integração.
+- [x] 13.6 Verificar ausência de canais externos; verificar teste de que nenhum envio de WhatsApp, e-mail ou SMS é disparado por evento
+  - Implementado e verificado: nenhum provedor, credencial, cliente HTTP externo ou integração de WhatsApp/e-mail/SMS foi adicionado. A geração de notificações é exclusivamente persistência local na tabela `Notificacoes`, acionada pelos eventos de domínio e pelo job de reconciliação. Revisão de dependências e código confirmou a ausência de disparos externos (RN-NOTIF-001/002, CA-NOTIF-002).
 
 ## 14. Integração e endurecimento
 

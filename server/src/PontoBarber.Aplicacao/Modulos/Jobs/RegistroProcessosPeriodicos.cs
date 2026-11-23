@@ -9,10 +9,11 @@ namespace PontoBarber.Aplicacao.Modulos.Jobs;
 public sealed class RegistroProcessosPeriodicos(
     ExpirarSugestoesProcesso expirarSugestoes,
     FecharVencidosProcesso fecharVencidos,
-    ExpurgarIdempotenciaProcesso expurgarIdempotencia)
+    ExpurgarIdempotenciaProcesso expurgarIdempotencia,
+    ReconciliarNotificacoesProcesso reconciliarNotificacoes)
 {
     public IReadOnlyList<IProcessoPeriodico> Processos { get; } =
-        [expirarSugestoes, fecharVencidos, expurgarIdempotencia];
+        [expirarSugestoes, fecharVencidos, expurgarIdempotencia, reconciliarNotificacoes];
 
     public IProcessoPeriodico? Obter(string nome) =>
         Processos.FirstOrDefault(processo =>

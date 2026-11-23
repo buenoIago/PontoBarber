@@ -9,6 +9,7 @@ using PontoBarber.Dominio.Modulos.Dashboard;
 using PontoBarber.Dominio.Modulos.Financeiro;
 using PontoBarber.Dominio.Modulos.Idempotencia;
 using PontoBarber.Dominio.Modulos.Jobs;
+using PontoBarber.Dominio.Modulos.Notificacoes;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Dominio.Modulos.Servicos;
 using PontoBarber.Infra.Compartilhado.Identity;
@@ -21,6 +22,7 @@ using PontoBarber.Infra.Modulos.Dashboard;
 using PontoBarber.Infra.Modulos.Financeiro;
 using PontoBarber.Infra.Modulos.Idempotencia;
 using PontoBarber.Infra.Modulos.Jobs;
+using PontoBarber.Infra.Modulos.Notificacoes;
 using PontoBarber.Infra.Modulos.Profissionais;
 using PontoBarber.Infra.Modulos.Servicos;
 
@@ -59,6 +61,9 @@ public static class DependencyInjection
         services.AddScoped<IPagamentoRepositorio, RepositorioPagamentoEmOrm>();
         services.AddScoped<IClienteRepositorio, RepositorioClienteEmOrm>();
         services.AddScoped<IDashboardRepositorio, RepositorioDashboardEmOrm>();
+        services.AddScoped<INotificacaoRepositorio, RepositorioNotificacaoEmOrm>();
+        services.AddScoped<IReconciliacaoNotificacoes, RepositorioReconciliacaoNotificacoes>();
+        services.AddScoped<ServicoEscritaNotificacoes>();
         services.AddDataProtection();
 
         return services;

@@ -2,11 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Financeiro;
 using PontoBarber.Dominio.Modulos.Idempotencia;
+using PontoBarber.Dominio.Modulos.Notificacoes;
 using PontoBarber.Infra.Compartilhado.Orm;
+using PontoBarber.Infra.Modulos.Notificacoes;
 
 namespace PontoBarber.Infra.Modulos.Financeiro;
 
-public sealed class RepositorioPagamentoEmOrm(ContextoPontoBarber contexto) : IPagamentoRepositorio
+public sealed class RepositorioPagamentoEmOrm(
+    ContextoPontoBarber contexto,
+    ServicoEscritaNotificacoes notificacoes) : IPagamentoRepositorio
 {
     public Task<Pagamento?> ObterPorAgendamentoAsync(
         Guid barbeariaId, Guid agendamentoId, CancellationToken cancellationToken) =>
@@ -43,13 +47,21 @@ public sealed class RepositorioPagamentoEmOrm(ContextoPontoBarber contexto) : IP
         {
             contexto.Set<Pagamento>().Add(pagamento);
             contexto.Set<RegistroIdempotencia>().Add(registro);
-            contexto.Set<HistoricoAgendamento>().Add(HistoricoAgendamento.Criar(
+            var evento = HistoricoAgendamento.Criar(
                 pagamento.BarbeariaId,
                 pagamento.AgendamentoId,
                 TipoEventoHistorico.PagamentoRegistrado,
                 autorUsuarioId,
                 pagamento.RegistradoEmUtc,
-                detalhes: $"Valor {pagamento.Valor:F2}; forma {pagamento.Metodo}."));
+                detalhes: $"Valor {pagamento.Valor:F2}; forma {pagamento.Metodo}.");
+            contexto.Set<HistoricoAgendamento>().Add(evento);
+            await notificacoes.AdicionarAsync(
+                pagamento.BarbeariaId,
+                pagamento.AgendamentoId,
+                evento.Id,
+                TipoNotificacao.PagamentoRegistrado,
+                pagamento.RegistradoEmUtc,
+                cancellationToken);
             await contexto.SaveChangesAsync(cancellationToken);
             await transacao.CommitAsync(cancellationToken);
             return ResultadoPagamento.Sucesso;

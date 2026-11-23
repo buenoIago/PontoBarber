@@ -50,6 +50,17 @@ public sealed class Notificacao : EntidadeBase<Notificacao>, IPertencenteTenant
         return notificacao;
     }
 
+    /// <summary>Marca como lida. Idempotente e restrita ao próprio destinatário.</summary>
+    public void MarcarComoLida(string destinatarioUsuarioId, DateTime lidoEmUtc)
+    {
+        if (!string.Equals(DestinatarioUsuarioId, destinatarioUsuarioId, StringComparison.Ordinal))
+            throw new InvalidOperationException("A notificação pertence a outro usuário.");
+        if (lidoEmUtc.Kind != DateTimeKind.Utc)
+            throw new InvalidOperationException("Informe o momento em UTC.");
+
+        LidoEmUtc ??= lidoEmUtc;
+    }
+
     public override IReadOnlyList<ErroValidacao> Validar()
     {
         var erros = new List<ErroValidacao>();

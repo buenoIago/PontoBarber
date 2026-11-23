@@ -6,10 +6,13 @@ using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Notificacoes;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Infra.Compartilhado.Orm;
+using PontoBarber.Infra.Modulos.Notificacoes;
 
 namespace PontoBarber.Infra.Modulos.Agendamentos;
 
-public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : IAgendamentoRepositorio
+public sealed class RepositorioAgendamentoEmOrm(
+    ContextoPontoBarber contexto,
+    ServicoEscritaNotificacoes notificacoes) : IAgendamentoRepositorio
 {
     public async Task<ResultadoConfirmacao> ConfirmarAsync(
         Agendamento agendamento,
@@ -43,10 +46,12 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
 
             var agora = DateTime.UtcNow;
             contexto.Set<Agendamento>().Add(agendamento);
-            RegistrarEvento(agendamento.BarbeariaId, agendamento.Id, TipoEventoHistorico.Criacao, null, agora,
+            var evento = RegistrarEvento(agendamento.BarbeariaId, agendamento.Id, TipoEventoHistorico.Criacao, null, agora,
                 detalhes: $"Origem: {agendamento.Origem}. Snapshot: {agendamento.NomeServicoSnapshot}.");
             RegistrarEvento(agendamento.BarbeariaId, agendamento.Id, TipoEventoHistorico.Confirmacao, null, agora,
                 novoInicioUtc: agendamento.IniciaEmUtc, detalhes: "Confirmação automática na criação.");
+            await NotificarAsync(agendamento.BarbeariaId, agendamento.Id, evento.Id,
+                TipoEventoHistorico.Criacao, agora, cancellationToken);
 
             await contexto.SaveChangesAsync(cancellationToken);
             await LiberarLocksAsync(conexao, transacaoDb, [chaveLock], cancellationToken);
@@ -143,8 +148,10 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
 
             var inicioAnterior = agendamento.IniciaEmUtc;
             agendamento.Cancelar(autorUsuarioId, motivo, agoraUtc);
-            RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.Cancelamento, autorUsuarioId,
+            var evento = RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.Cancelamento, autorUsuarioId,
                 agoraUtc, inicioAnterior, detalhes: motivo);
+            await NotificarAsync(barbeariaId, agendamentoId, evento.Id,
+                TipoEventoHistorico.Cancelamento, agoraUtc, cancellationToken);
             return ResultadoCicloVida.Sucesso;
         }, cancellationToken);
 
@@ -163,8 +170,10 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
                 return ResultadoCicloVida.EstadoInvalido;
 
             agendamento.Iniciar(agoraUtc);
-            RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.ServicoIniciado,
+            var evento = RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.ServicoIniciado,
                 autorUsuarioId, agoraUtc, detalhes: "Início real registrado.");
+            await NotificarAsync(barbeariaId, agendamentoId, evento.Id,
+                TipoEventoHistorico.ServicoIniciado, agoraUtc, cancellationToken);
             return ResultadoCicloVida.Sucesso;
         }, cancellationToken);
 
@@ -183,8 +192,10 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
                 return ResultadoCicloVida.EstadoInvalido;
 
             agendamento.Concluir(agoraUtc);
-            RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.ServicoConcluido,
+            var evento = RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.ServicoConcluido,
                 autorUsuarioId, agoraUtc, detalhes: "Fim real registrado.");
+            await NotificarAsync(barbeariaId, agendamentoId, evento.Id,
+                TipoEventoHistorico.ServicoConcluido, agoraUtc, cancellationToken);
             return ResultadoCicloVida.Sucesso;
         }, cancellationToken);
 
@@ -276,8 +287,10 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
 
             RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.Cancelamento, autorUsuarioId,
                 agoraUtc, inicioAnterior, detalhes: motivo);
-            RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.SugestaoCriada, autorUsuarioId,
+            var evento = RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.SugestaoCriada, autorUsuarioId,
                 agoraUtc, detalhes: $"Válida até {sugestao.ExpiraEmUtc:O}. Motivo: {motivo}");
+            await NotificarAsync(barbeariaId, agendamentoId, evento.Id,
+                TipoEventoHistorico.SugestaoCriada, agoraUtc, cancellationToken);
             return ResultadoCicloVida.Sucesso;
         }, cancellationToken);
 
@@ -316,14 +329,18 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
 
                 agendamento.Reativar(sugestao.InicioSugeridoUtc, agoraUtc);
                 sugestao.Aceitar(agoraUtc);
-                RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.SugestaoAceita,
+                var evento = RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.SugestaoAceita,
                     sugestao.AutorUsuarioId, agoraUtc, inicioAnterior, sugestao.InicioSugeridoUtc);
+                await NotificarAsync(barbeariaId, agendamentoId, evento.Id,
+                    TipoEventoHistorico.SugestaoAceita, agoraUtc, cancellationToken);
             }
             else
             {
                 sugestao.Rejeitar(agoraUtc);
-                RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.SugestaoRejeitada,
+                var evento = RegistrarEvento(barbeariaId, agendamentoId, TipoEventoHistorico.SugestaoRejeitada,
                     sugestao.AutorUsuarioId, agoraUtc, detalhes: "Sugestão rejeitada pelo cliente.");
+                await NotificarAsync(barbeariaId, agendamentoId, evento.Id,
+                    TipoEventoHistorico.SugestaoRejeitada, agoraUtc, cancellationToken);
             }
 
             return ResultadoCicloVida.Sucesso;
@@ -361,9 +378,11 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
                 var agendamento = await ObterAsync(
                     sugestao.BarbeariaId, sugestao.AgendamentoId, cancellationToken);
                 sugestao.Expirar(agoraUtc);
-                RegistrarEvento(
+                var evento = RegistrarEvento(
                     sugestao.BarbeariaId, sugestao.AgendamentoId, TipoEventoHistorico.SugestaoExpirada,
                     "sistema", agoraUtc, detalhes: "Reserva liberada por expiração.");
+                await NotificarAsync(sugestao.BarbeariaId, sugestao.AgendamentoId, evento.Id,
+                    TipoEventoHistorico.SugestaoExpirada, agoraUtc, cancellationToken);
 
                 if (agendamento is not null)
                     infos.Add(new SugestaoExpiradaInfo(
@@ -371,7 +390,6 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
                         agendamento.ClienteId, agendamento.ProfissionalId, sugestao.InicioSugeridoUtc));
             }
 
-            await CriarNotificacoesExpiracaoAsync(expiradas, infos, agoraUtc, cancellationToken);
             await contexto.SaveChangesAsync(cancellationToken);
             // O lock é de transação: liberá-lo antes do commit permitiria que
             // outra execução lesse o estado antigo e processasse o mesmo lote.
@@ -433,66 +451,6 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
         }
     }
 
-    private async Task CriarNotificacoesExpiracaoAsync(
-        IReadOnlyList<SugestaoHorario> expiradas,
-        List<SugestaoExpiradaInfo> infos,
-        DateTime agoraUtc,
-        CancellationToken cancellationToken)
-    {
-        if (infos.Count == 0) return;
-
-        var eventIds = expiradas.Select(sugestao => sugestao.Id).ToList();
-        var existentes = (await contexto.Set<Notificacao>()
-                .IgnoreQueryFilters()
-                .Where(notificacao => eventIds.Contains(notificacao.EventId))
-                .Select(notificacao => new { notificacao.EventId, notificacao.DestinatarioUsuarioId })
-                .ToListAsync(cancellationToken))
-            .Select(item => (item.EventId, item.DestinatarioUsuarioId))
-            .ToHashSet();
-
-        const string mensagem = "O horário sugerido expirou e a reserva temporária foi liberada.";
-
-        foreach (var info in infos)
-        {
-            var destinatarios = new HashSet<string>(StringComparer.Ordinal) { info.ClienteId };
-
-            var profissional = await contexto.Set<PerfilProfissional>()
-                .IgnoreQueryFilters()
-                .SingleOrDefaultAsync(perfil => perfil.Id == info.ProfissionalId, cancellationToken);
-            if (profissional is not null)
-                destinatarios.Add(profissional.UsuarioId);
-
-            var vinculoDono = await contexto.Set<VinculoProfissional>()
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(
-                    vinculo => vinculo.BarbeariaId == info.BarbeariaId &&
-                               vinculo.Cargo == CargoProfissional.Proprietario,
-                    cancellationToken);
-            if (vinculoDono is not null)
-            {
-                var dono = await contexto.Set<PerfilProfissional>()
-                    .IgnoreQueryFilters()
-                    .SingleOrDefaultAsync(perfil => perfil.Id == vinculoDono.ProfissionalId, cancellationToken);
-                if (dono is not null)
-                    destinatarios.Add(dono.UsuarioId);
-            }
-
-            foreach (var destinatario in destinatarios)
-            {
-                if (!existentes.Add((info.SugestaoId, destinatario))) continue;
-
-                contexto.Set<Notificacao>().Add(Notificacao.Criar(
-                    info.BarbeariaId,
-                    destinatario,
-                    TipoNotificacao.SugestaoExpirada,
-                    info.AgendamentoId,
-                    mensagem,
-                    info.SugestaoId,
-                    agoraUtc));
-            }
-        }
-    }
-
     public async Task<IReadOnlyList<HistoricoAgendamento>> ListarHistoricoAsync(
         Guid barbeariaId,
         Guid agendamentoId,
@@ -536,7 +494,7 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
                 agendamento => agendamento.Id == agendamentoId && agendamento.BarbeariaId == barbeariaId,
                 cancellationToken);
 
-    private void RegistrarEvento(
+    private HistoricoAgendamento RegistrarEvento(
         Guid barbeariaId,
         Guid agendamentoId,
         TipoEventoHistorico tipo,
@@ -544,9 +502,28 @@ public sealed class RepositorioAgendamentoEmOrm(ContextoPontoBarber contexto) : 
         DateTime ocorridoEmUtc,
         DateTime? inicioAnterior = null,
         DateTime? novoInicioUtc = null,
-        string? detalhes = null) =>
-        contexto.Set<HistoricoAgendamento>().Add(HistoricoAgendamento.Criar(
-            barbeariaId, agendamentoId, tipo, autor, ocorridoEmUtc, inicioAnterior, novoInicioUtc, detalhes));
+        string? detalhes = null)
+    {
+        var evento = HistoricoAgendamento.Criar(
+            barbeariaId, agendamentoId, tipo, autor, ocorridoEmUtc, inicioAnterior, novoInicioUtc, detalhes);
+        contexto.Set<HistoricoAgendamento>().Add(evento);
+        return evento;
+    }
+
+    private async Task NotificarAsync(
+        Guid barbeariaId,
+        Guid agendamentoId,
+        Guid eventId,
+        TipoEventoHistorico tipoEvento,
+        DateTime ocorridoEmUtc,
+        CancellationToken cancellationToken)
+    {
+        var tipo = NotificacoesPorEvento.Mapear(tipoEvento);
+        if (tipo is null) return;
+
+        await notificacoes.AdicionarAsync(
+            barbeariaId, agendamentoId, eventId, tipo.Value, ocorridoEmUtc, cancellationToken);
+    }
 
     private async Task<bool> ExisteConflitoInternoAsync(
         Guid barbeariaId,

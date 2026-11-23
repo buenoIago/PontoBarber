@@ -5,6 +5,9 @@
 @if (exibirConta()) {
   <nav aria-label="Navegação principal" class="container py-3 d-flex gap-2 flex-wrap">
     <app-button variante="outline" tamanho="sm" (click)="abrirConta()">Minha conta</app-button>
+    <app-button variante="outline" tamanho="sm" (click)="abrirNotificacoes()">
+      Notificações @if (naoLidas() > 0) { ({{ naoLidas() }}) }
+    </app-button>
 
     @if (eProfissional()) {
       <app-button variante="outline" tamanho="sm" (click)="abrirCriarBarbearia()">
@@ -68,6 +71,9 @@
     }
     @case ('dashboard') {
       <app-dashboard />
+    }
+    @case ('notificacoes') {
+      <app-notificacoes />
     }
     @case ('horarios') {
       <app-horarios-config />

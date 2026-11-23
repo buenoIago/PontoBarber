@@ -1,5 +1,6 @@
 using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Idempotencia;
+using PontoBarber.Dominio.Modulos.Notificacoes;
 
 namespace PontoBarber.Aplicacao.Modulos.Jobs.Processos;
 
@@ -31,6 +32,18 @@ public sealed class FecharVencidosProcesso(IAgendamentoRepositorio repositorio) 
         var quantidade = await repositorio.FecharVencidosAsync(agoraUtc, cancellationToken);
         return new ResultadoProcessamento(quantidade);
     }
+}
+
+/// <summary>Reconcilia eventos que ainda não geraram todas as notificações.</summary>
+public sealed class ReconciliarNotificacoesProcesso(IReconciliacaoNotificacoes repositorio) : IProcessoPeriodico
+{
+    public const string NomeJob = "ReconcileNotificationsJob";
+
+    public string Nome => NomeJob;
+
+    public async Task<ResultadoProcessamento> ExecutarAsync(
+        DateTime agoraUtc, CancellationToken cancellationToken) =>
+        new(await repositorio.ReconciliarAsync(agoraUtc, cancellationToken));
 }
 
 /// <summary>Remove registros de idempotência vencidos por operação direta no banco.</summary>
