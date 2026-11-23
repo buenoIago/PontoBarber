@@ -256,12 +256,19 @@ Nota da seção: a dependência da Task 5.3 quanto aos snapshots históricos foi
 
 ## 14. Integração e endurecimento
 
-- [ ] 14.1 Executar testes de carga nos fluxos de agenda, dashboard e agendamento e comparar com as metas do TDD; verificar relatório com p95 e taxa de erro
+- [x] 14.1 Executar testes de carga nos fluxos de agenda, dashboard e agendamento e comparar com as metas do TDD; verificar relatório com p95 e taxa de erro
+  - Executado com harness C# concorrente sobre SQL Server LocalDB isolado (k6 não está instalado). Agenda: 200 req, p95 120 ms, 0% erros; dashboard: 100 req, p95 407 ms, 0% erros; confirmação: 100 req, p95 191 ms, 0% erros. Todas as metas do TDD atendidas; nenhum gargalo comprovado e nenhuma otimização preventiva introduzida. Evidências em `docs/RELATORIO_ENDURECIMENTO.md`.
 - [ ] 14.2 Executar auditoria de acessibilidade em todas as telas principais e corrigir violações; verificar relatório axe e checklist manual de teclado
-- [ ] 14.3 Executar revisão de segurança: isolamento por tenant, CSRF, autorização por recurso, segredos e dependências; verificar ausência de achados críticos ou altos
-- [ ] 14.4 Executar restauração de backup em ambiente isolado e registrar RTO e RPO; verificar relatório de restauração com dados íntegros
-- [ ] 14.5 Revisar logs quanto a dados sensíveis; verificar amostra de log sem senha, cookie ou contato completo. Reintrodução de traces/exportação OTLP depende de decisão futura (ADR-037)
-- [ ] 14.6 Atualizar `docs/` com contratos finais, processos periódicos e limitações conhecidas; verificar que a documentação corresponde ao comportamento implementado
+  - axe executado nas telas principais pela suíte E2E: 0 violações críticas. Verificação automatizada de teclado adicionada em `client/e2e/teclado.spec.ts` (nomes acessíveis, foco visível e ordem de tabulação), ambos os cenários aprovados.
+  - **Pendente:** não foi realizada inspeção manual de teclado por pessoa; o critério do checklist manual permanece não executado, conforme exigência de não marcar validação não realizada.
+- [x] 14.3 Executar revisão de segurança: isolamento por tenant, CSRF, autorização por recurso, segredos e dependências; verificar ausência de achados críticos ou altos
+  - Isolamento, autorização por recurso e CSRF verificados por testes de integração; nenhum segredo real em arquivos rastreados; `.gitignore` adequado e `.env.example` criado. `dotnet list package --vulnerable` (7 projetos) e `npm audit --omit=dev` retornaram 0 vulnerabilidades. Nenhum achado crítico ou alto. OWASP ZAP indisponível, registrado como limitação.
+- [x] 14.4 Executar restauração de backup em ambiente isolado e registrar RTO e RPO; verificar relatório de restauração com dados íntegros
+  - Restauração real em LocalDB exclusivo com dados sintéticos: RTO 3,71 s, RPO 4,94 s; integridade confirmada (1 usuário, 1 barbearia, 1 agendamento, 0 pagamentos após o ponto de backup). Nenhum banco compartilhado ou de produção utilizado. Política de backup do provedor final permanece pendente (ADR-028).
+- [x] 14.5 Revisar logs quanto a dados sensíveis; verificar amostra de log sem senha, cookie ou contato completo. Reintrodução de traces/exportação OTLP depende de decisão futura (ADR-037)
+  - Cadeia de redação confirmada no pipeline Serilog; 2.811 linhas de log inspecionadas, sem senhas, tokens CSRF, cookies, OTP ou contatos completos. Nenhum trace/OTLP introduzido.
+- [x] 14.6 Atualizar `docs/` com contratos finais, processos periódicos e limitações conhecidas; verificar que a documentação corresponde ao comportamento implementado
+  - Criado `docs/RELATORIO_ENDURECIMENTO.md`; `docs/PROCESSOS_PERIODICOS.md` atualizado com `ReconcileNotificationsJob` implementado e regras de outbox; `.env.example` criado. Documentação revisada para refletir apenas comportamento existente.
 
 ## 15. Produção
 

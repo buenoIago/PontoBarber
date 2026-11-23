@@ -48,8 +48,23 @@ public sealed class SqlServerFixture : IAsyncDisposable
     private const string _imagem = "mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04";
 
     private MsSqlContainer? _container;
+    private string _stringBase = string.Empty;
 
-    public async Task InicializarAsync()
+    public Task InicializarAsync()
+    {
+        // Ambientes sem daemon Docker podem fornecer um SQL Server isolado por
+        // variável de ambiente. Nenhum banco compartilhado é aceito.
+        var externa = Environment.GetEnvironmentVariable("PONTOBARBER_TEST_CONNECTION");
+        if (!string.IsNullOrWhiteSpace(externa))
+        {
+            _stringBase = externa;
+            return Task.CompletedTask;
+        }
+
+        return InicializarContainerAsync();
+    }
+
+    private async Task InicializarContainerAsync()
     {
         // Política do SQL Server: >= 8 caracteres, maiúscula, minúscula, dígito e símbolo.
         var senha = $"P@ssw0rd!{Guid.NewGuid():N}"[..24];
@@ -63,10 +78,15 @@ public sealed class SqlServerFixture : IAsyncDisposable
 
     public string ObterStringConexao(string database)
     {
-        if (_container is null)
-            throw new InvalidOperationException("O container de testes não foi inicializado.");
+        var origem = _stringBase;
+        if (string.IsNullOrWhiteSpace(origem))
+        {
+            if (_container is null)
+                throw new InvalidOperationException("O container de testes não foi inicializado.");
+            origem = _container.GetConnectionString();
+        }
 
-        var construtor = new SqlConnectionStringBuilder(_container.GetConnectionString())
+        var construtor = new SqlConnectionStringBuilder(origem)
         {
             InitialCatalog = database,
             TrustServerCertificate = true

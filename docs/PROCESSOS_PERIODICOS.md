@@ -14,7 +14,7 @@ desta etapa (tasks.md 9.3 a 9.6 e a reconciliação prevista na seção 13):
 | `ExpireTimeSlotSuggestionsJob` | Marca sugestões vencidas como `Expirada`, libera a reserva temporária e notifica cliente, profissional e proprietário | Cron a cada 5 minutos (UTC) | Implementado |
 | `CloseOverdueAppointmentsJob` | Fecha como `NaoCompareceu` agendamentos confirmados cujo início ocorreu há mais de 2 horas | Cron a cada 15 minutos (UTC) | Implementado |
 | `PurgeIdempotencyRecordsJob` | Remove registros de idempotência cuja expiração já passou | Cron diário às 03:00 UTC | Implementado |
-| `ReconcileNotificationsJob` | Reprocessa eventos que ainda não geraram notificação, por `EventId` | Cron a cada 10 minutos (UTC) | Identificado na TDD §12.3 e na seção 13.4 (tasks.md); **não implementado nesta etapa** |
+| `ReconcileNotificationsJob` | Reprocessa eventos que ainda não geraram notificação, por `EventId` | Cron a cada 10 minutos (UTC) | Implementado na Seção 13 |
 
 As rotinas `WarmDashboardJob` e `HealthCheckJob` também constam da TDD §12.3,
 mas não fazem parte das quatro rotinas exigidas por esta etapa e não foram
@@ -35,6 +35,11 @@ introduzidas apenas para completar a lista.
   (`DELETE ... WHERE ExpiraEmUtc <= @agora`), sem carregar registros em memória.
   A estrutura oficial é `RegistrosIdempotencia` (TDD §8.1/ADR-021); não existe
   outra estrutura equivalente no projeto.
+- **Reconciliação de notificações:** o histórico do agendamento é o outbox
+  leve. O job lê eventos em lotes de 500 e cria somente as notificações
+  ausentes para cada destinatário, usando a chave `(EventId, DestinatarioUsuarioId)`.
+  O `sp_getapplock` por job serializa execuções concorrentes; reprocessamentos
+  não duplicam notificações nem efeitos de negócio.
 
 ## Contrato de execução
 
