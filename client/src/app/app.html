@@ -96,7 +96,11 @@
 } @else {
   @switch (tela()) {
     @case ('escolha') {
-      <app-escolha-perfil (selecionado)="escolherPerfil($event)" (entrar)="abrirLogin()" />
+      <app-escolha-perfil
+        (selecionado)="escolherPerfil($event)"
+        (entrar)="abrirLogin()"
+        (entrarProfissional)="entrarComoProfissional()"
+      />
     }
     @case ('cadastro') {
       <app-cadastro [perfil]="perfil()" (entrar)="abrirLogin()" (voltar)="abrirEscolha()" />

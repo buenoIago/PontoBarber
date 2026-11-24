@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 
+import { BarbeariaService } from '../barbearia/barbearia.service';
 import { ErroApi } from '../core/http/erro-api';
 import {
   AlteracaoSenha,
@@ -17,6 +18,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
+  private readonly barbearias = inject(BarbeariaService);
 
   private readonly contaState = signal<ContaUsuario | null>(null);
   private readonly carregandoState = signal(false);
@@ -61,7 +63,8 @@ export class AuthService {
 
   /** Solicita o OTP. A resposta é genérica, mesmo se o e-mail não existir. */
   solicitarCodigo(email: string): void {
-    this.emailOtpState.set(null);
+    // Não limpar antes da resposta: um reenvio com falha deve manter a tela
+    // de código aberta para o usuário poder tentar novamente.
     this.executar(
       () => this.http.post('/api/v1/auth/otp/request', { email }, { withCredentials: true }),
       () => {
@@ -89,7 +92,11 @@ export class AuthService {
   sair(): void {
     this.executar(
       () => this.http.post('/api/v1/auth/logout', {}, { withCredentials: true }),
-      () => this.contaState.set(null),
+      () => {
+        this.contaState.set(null);
+        this.emailOtpState.set(null);
+        this.barbearias.limpar();
+      },
     );
   }
 

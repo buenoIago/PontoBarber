@@ -45,6 +45,23 @@ describe('BarbeariaService', () => {
     expect(servico.barbeariaId()).toBe('b1');
   });
 
+  it('should load the client-facing scheduling data without management links', () => {
+    servico.obterDadosAgendamentoPublico('b1');
+
+    const requisicao = http.expectOne('/api/v1/barbearias/b1/agendamento-publico');
+    expect(requisicao.request.method).toBe('GET');
+    requisicao.flush({
+      barbeariaId: 'b1',
+      nomeBarbearia: 'Central',
+      fusoHorarioId: 'America/Sao_Paulo',
+      profissionais: [{ id: 'p1', nomeCompleto: 'Profissional' }],
+    });
+
+    expect(servico.barbeariaId()).toBe('b1');
+    expect(servico.dadosPublicos()?.profissionais[0].id).toBe('p1');
+    expect(servico.dadosPublicos()?.fusoHorarioId).toBe('America/Sao_Paulo');
+  });
+
   it('should join by invite code and load the professionals', () => {
     servico.entrar('ABC23456');
 

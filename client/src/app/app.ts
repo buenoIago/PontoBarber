@@ -140,6 +140,11 @@ export class App {
     this.telaState.set('login');
   }
 
+  entrarComoProfissional(): void {
+    this.perfilState.set('profissional');
+    this.abrirLogin();
+  }
+
   abrirEscolha(): void {
     this.auth.limparErro();
     this.telaState.set('escolha');

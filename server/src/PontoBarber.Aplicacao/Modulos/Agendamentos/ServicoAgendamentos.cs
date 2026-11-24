@@ -34,6 +34,18 @@ public sealed class ServicoAgendamentos(
         if (conta is null || conta.Tipo != ServicoConta.TipoCliente)
             throw AcessoNegado();
 
+        // Esta validação é do caso de uso público: o agendamento manual da
+        // barbearia e o histórico não são afetados pela desativação.
+        var barbearia = await barbearias.ObterPorIdAsync(barbeariaId, cancellationToken);
+        if (barbearia is null)
+            throw new ExcecaoNaoEncontradoAplicacao(
+                CodigosErro.TenantNaoEncontrado, "Barbearia não encontrada.");
+        if (!barbearia.Ativo)
+            throw new ExcecaoValidacaoAplicacao(new Dictionary<string, string[]>
+            {
+                ["barbeariaId"] = ["Barbearia inativa não recebe novos agendamentos."]
+            });
+
         return await ConfirmarAsync(
             barbeariaId, request, conta.Id, OrigemAgendamento.Publico, null, cancellationToken);
     }

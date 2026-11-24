@@ -15,7 +15,11 @@ const contaBarbeiro = {
   nomeCompleto: 'Barbeiro E2E',
 };
 
-const contaCliente = { ...contaProprietario, id: '33333333-3333-3333-3333-333333333333', tipo: 'Customer' };
+const contaCliente = {
+  ...contaProprietario,
+  id: '33333333-3333-3333-3333-333333333333',
+  tipo: 'Customer',
+};
 
 const servicos = [{ id: 's1', nome: 'Corte degradê', duracaoMinutos: 40, preco: 80, ativo: true }];
 
@@ -113,7 +117,23 @@ async function preparar(page: Page, conta: typeof contaProprietario, modo: Modo)
     rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(servicos) }),
   );
   await page.route('**/api/v1/barbearias/b1/profissionais', (rota) =>
-    rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profissionais) }),
+    rota.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(profissionais),
+    }),
+  );
+  await page.route('**/api/v1/barbearias/b1/agendamento-publico', (rota) =>
+    rota.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        barbeariaId: 'b1',
+        nomeBarbearia: 'Barbearia E2E',
+        fusoHorarioId: 'America/Sao_Paulo',
+        profissionais,
+      }),
+    }),
   );
   await page.route(/\/api\/v1\/barbearias\/b1\/profissionais\/p[12]\/blocks/, (rota) =>
     rota.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
@@ -144,7 +164,11 @@ async function preparar(page: Page, conta: typeof contaProprietario, modo: Modo)
   );
 
   await page.route('**/api/v1/barbearias/b1/agendamentos/public', (rota) =>
-    rota.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(agendamento) }),
+    rota.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(agendamento),
+    }),
   );
   await page.route(/\/api\/v1\/barbearias\/b1\/agendamentos(\?.*)?$/, (rota) => {
     if (rota.request().method() === 'POST') {
@@ -154,10 +178,18 @@ async function preparar(page: Page, conta: typeof contaProprietario, modo: Modo)
         body: JSON.stringify(agendamento),
       });
     }
-    return rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([agendamento]) });
+    return rota.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([agendamento]),
+    });
   });
   await page.route('**/api/v1/me/agendamentos', (rota) =>
-    rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([agendamento]) }),
+    rota.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([agendamento]),
+    }),
   );
   await page.route(/\/api\/v1\/barbearias\/b1\/disponibilidade/, (rota) =>
     rota.fulfill({
@@ -240,7 +272,10 @@ test('erro de conflito é exibido de forma compreensível', async ({ page }) => 
     rota.fulfill({
       status: 409,
       contentType: 'application/problem+json',
-      body: JSON.stringify({ code: 'schedule.slot_unavailable', detail: 'O horário não está mais disponível.' }),
+      body: JSON.stringify({
+        code: 'schedule.slot_unavailable',
+        detail: 'O horário não está mais disponível.',
+      }),
     }),
   );
 

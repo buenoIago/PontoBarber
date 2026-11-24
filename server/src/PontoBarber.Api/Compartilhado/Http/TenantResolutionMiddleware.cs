@@ -70,12 +70,19 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
             return false;
 
         var partes = contexto.Request.Path.Value?.Trim('/').Split('/');
-        return partes is { Length: 5 } &&
-               partes[0] == "api" &&
-               partes[1] == "v1" &&
-               partes[2] == "barbearias" &&
-               Guid.TryParse(partes[3], out _) &&
-               partes[4] is "servicos" or "disponibilidade";
+        if (partes is { Length: 5 } &&
+            Igual(partes[0], "api") &&
+            Igual(partes[1], "v1") &&
+            Igual(partes[2], "barbearias") &&
+            Guid.TryParse(partes[3], out _))
+            return Igual(partes[4], "servicos") ||
+                   Igual(partes[4], "disponibilidade") ||
+                   // Leitura de apoio ao agendamento do cliente (Task 7.7). O
+                   // caso de uso filtra pelo barbeariaId da rota e não expõe
+                   // dados de gestão.
+                   Igual(partes[4], "agendamento-publico");
+
+        return false;
     }
 
     private static bool EhAgendamentoPublico(HttpContext contexto)
@@ -85,12 +92,12 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
 
         var partes = contexto.Request.Path.Value?.Trim('/').Split('/');
         return partes is { Length: 6 } &&
-               partes[0] == "api" &&
-               partes[1] == "v1" &&
-               partes[2] == "barbearias" &&
+               Igual(partes[0], "api") &&
+               Igual(partes[1], "v1") &&
+               Igual(partes[2], "barbearias") &&
                Guid.TryParse(partes[3], out _) &&
-               partes[4] == "agendamentos" &&
-               partes[5] == "public";
+               Igual(partes[4], "agendamentos") &&
+               Igual(partes[5], "public");
     }
 
     /// <summary>
@@ -101,14 +108,20 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
     private static bool EhAcaoPorAgendamento(HttpContext contexto)
     {
         var partes = contexto.Request.Path.Value?.Trim('/').Split('/');
-        return partes is { Length: >= 7 } &&
-               partes[0] == "api" &&
-               partes[1] == "v1" &&
-               partes[2] == "barbearias" &&
+        // A leitura de um agendamento específico tem 6 segmentos; as demais
+        // ações (cancelar, sugestões, histórico...) têm 7 ou mais. A titularidade
+        // é conferida no caso de uso, não aqui.
+        return partes is { Length: >= 6 } &&
+               Igual(partes[0], "api") &&
+               Igual(partes[1], "v1") &&
+               Igual(partes[2], "barbearias") &&
                Guid.TryParse(partes[3], out _) &&
-               partes[4] == "agendamentos" &&
+               Igual(partes[4], "agendamentos") &&
                Guid.TryParse(partes[5], out _);
     }
+
+    private static bool Igual(string? valor, string esperado) =>
+        string.Equals(valor, esperado, StringComparison.OrdinalIgnoreCase);
 
     private static Task NegarAcessoAsync(HttpContext contexto) =>
         EscritorProblemDetails.EscreverAsync(

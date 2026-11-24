@@ -38,6 +38,14 @@ public sealed class ConsultarDisponibilidade(
             throw new ExcecaoNaoEncontradoAplicacao(
                 CodigosErro.TenantNaoEncontrado, "Barbearia não encontrada.");
 
+        // Uma barbearia inativa não recebe novos agendamentos públicos.
+        // Agendamentos históricos e os dados da barbearia permanecem intactos.
+        if (!barbearia.Ativo)
+            throw new ExcecaoValidacaoAplicacao(new Dictionary<string, string[]>
+            {
+                ["barbeariaId"] = ["Barbearia inativa não recebe novos agendamentos."]
+            });
+
         var fuso = ObterFuso(barbearia.FusoHorarioId);
         var hoje = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.UtcNow, fuso));
         ValidarJanela(hoje, data, dias);

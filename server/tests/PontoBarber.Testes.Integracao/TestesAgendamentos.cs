@@ -8,6 +8,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
+using PontoBarber.Aplicacao.Modulos.Jobs;
+using PontoBarber.Aplicacao.Modulos.Jobs.Processos;
 using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Servicos;
 using PontoBarber.Infra.Compartilhado.Orm;
@@ -68,6 +70,122 @@ public sealed class TestesAgendamentos
             NovoAgendamento(cenario.ProfissionalId, cenario.ServicoId, ProximoInicio()));
 
         Assert.AreEqual(HttpStatusCode.Unauthorized, resposta.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Publico_DadosAgendamento_ClienteObtemFusoEProfissionaisAtivos()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+
+        var resposta = await cenario.Cliente.GetAsync(
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/agendamento-publico");
+
+        Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
+        var corpo = await LerCorpoAsync(resposta);
+        Assert.AreEqual(cenario.BarbeariaId, Guid.Parse(corpo.GetProperty("barbeariaId").GetString()!));
+        Assert.AreEqual("America/Sao_Paulo", corpo.GetProperty("fusoHorarioId").GetString());
+        Assert.IsTrue(corpo.GetProperty("profissionais").EnumerateArray().Any());
+    }
+
+    [TestMethod]
+    public async Task Publico_DadosAgendamento_ProfissionalNaoAcessa()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+
+        Assert.AreEqual(HttpStatusCode.Forbidden, (await cenario.Profissional.GetAsync(
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/agendamento-publico")).StatusCode);
+    }
+
+    [TestMethod]
+    public async Task ObterAgendamento_ClienteTitular_NaoExigeVinculoComBarbearia()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var criacao = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post, PublicUrl(cenario.BarbeariaId),
+            NovoAgendamento(cenario.ProfissionalId, cenario.ServicoId, ProximoInicio()));
+        Assert.AreEqual(HttpStatusCode.Created, criacao.StatusCode);
+        var id = (await LerCorpoAsync(criacao)).GetProperty("id").GetString()!;
+
+        var resposta = await cenario.Cliente.GetAsync(
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/agendamentos/{id}");
+
+        Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Jobs_SemEndpointsManuais_NinguemDisparaProcessosGlobaisPorHttp()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+
+        // Os processos globais são executados apenas pelo BackgroundService.
+        // Sem autorização administrativa, nenhuma rota manual é exposta;
+        // clientes e profissionais recebem 404, sem efeito nos processos.
+        foreach (var cliente in new[] { cenario.Cliente, cenario.Dono })
+        {
+            foreach (var rota in new[]
+                     {
+                         "/api/v1/jobs/expirar-sugestoes",
+                         "/api/v1/jobs/fechar-vencidos",
+                         "/api/v1/jobs/expurgar-idempotencia"
+                     })
+            {
+                var resposta = await EnviarComAntiforgeryAsync(
+                    cliente, HttpMethod.Post, rota, new { });
+                Assert.AreEqual(HttpStatusCode.NotFound, resposta.StatusCode, rota);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task LeituraPublica_SegmentosEmMaiusculas_NaoExigeVinculo()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+
+        var resposta = await cenario.Cliente.GetAsync(
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/SERVICOS");
+
+        Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Publico_BarbeariaInativa_Retorna400ENaoCriaAgendamento()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+            await contexto.Database.ExecuteSqlRawAsync(
+                "UPDATE [Barbearias] SET [Ativo] = 0 WHERE [Id] = {0}", cenario.BarbeariaId);
+        }
+
+        // Chamada direta à API: a regra não depende do Angular.
+        var resposta = await EnviarComAntiforgeryAsync(
+            cenario.Cliente, HttpMethod.Post, PublicUrl(cenario.BarbeariaId),
+            NovoAgendamento(cenario.ProfissionalId, cenario.ServicoId, ProximoInicio()));
+
+        Assert.AreEqual(HttpStatusCode.BadRequest, resposta.StatusCode);
+        var corpo = await LerCorpoAsync(resposta);
+        Assert.AreEqual(CodigosErro.ValidacaoFalhou, corpo.GetProperty("code").GetString());
+        Assert.IsTrue(corpo.GetProperty("errors").TryGetProperty("barbeariaId", out _));
+
+        using var verificacao = fabrica.Services.CreateScope();
+        var contextoVerificacao = verificacao.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        Assert.AreEqual(0, await contextoVerificacao.Set<Agendamento>().IgnoreQueryFilters().CountAsync());
+        Assert.IsNotNull(await contextoVerificacao.Set<PontoBarber.Dominio.Modulos.Barbearia.Barbearia>()
+            .SingleAsync(item => item.Id == cenario.BarbeariaId));
     }
 
     [TestMethod]
@@ -560,10 +678,17 @@ public sealed class TestesAgendamentos
         Assert.AreEqual(CodigosErro.SugestaoExpirada,
             (await LerCorpoAsync(aceiteExpirado)).GetProperty("code").GetString());
 
-        var job = await EnviarComAntiforgeryAsync(
-            cenario.Cliente, HttpMethod.Post, "/api/v1/jobs/expirar-sugestoes", new { });
-        Assert.AreEqual(HttpStatusCode.OK, job.StatusCode);
-        Assert.IsTrue((await LerCorpoAsync(job)).GetProperty("expiradas").GetInt32() >= 1);
+        // Sem endpoint manual: executa o mesmo processo usado pelo
+        // BackgroundService, diretamente pela aplicação.
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var registro = escopo.ServiceProvider.GetRequiredService<RegistroProcessosPeriodicos>();
+            var servicoJobs = escopo.ServiceProvider.GetRequiredService<ServicoExecucaoJobs>();
+            var processo = registro.Obter(ExpirarSugestoesProcesso.NomeJob);
+            Assert.IsNotNull(processo);
+            var resultado = await servicoJobs.ExecutarAsync(processo, CancellationToken.None);
+            Assert.IsTrue(resultado.Quantidade >= 1);
+        }
 
         using var outroCliente = fabrica.CreateClient(_opcoesCliente);
         await RegistrarClienteAsync(outroCliente);

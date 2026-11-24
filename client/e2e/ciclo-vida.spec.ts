@@ -157,10 +157,6 @@ async function preparar(page: Page, conta: typeof contaCliente, sugestoes: unkno
       }),
     }),
   );
-  await page.route('**/api/v1/jobs/expirar-sugestoes', (rota) =>
-    rota.fulfill({ status: 200, contentType: 'application/json', body: '{"expiradas":1}' }),
-  );
-
   await page.goto('/');
   if (conta.tipo === 'Professional') {
     await page.getByRole('button', { name: 'Criar barbearia' }).click();

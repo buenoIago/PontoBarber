@@ -9,8 +9,13 @@
     </app-button>
   </div>
 
-  <p class="mt-4">
-    Já possui conta?
-    <button type="button" class="btn btn-link p-0" (click)="entrar.emit()">Entrar</button>
-  </p>
+  <p class="mt-4">Já possui conta?</p>
+  <div class="d-flex flex-wrap gap-3">
+    <button type="button" class="btn btn-link p-0" (click)="entrar.emit()">
+      Entrar como cliente
+    </button>
+    <button type="button" class="btn btn-link p-0" (click)="entrarProfissional.emit()">
+      Entrar como profissional
+    </button>
+  </div>
 </section>

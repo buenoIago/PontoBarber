@@ -29,6 +29,19 @@ export interface Profissional {
   situacao: string;
 }
 
+/** Leitura de apoio ao agendamento público (Task 7.7), sem dados de gestão. */
+export interface ProfissionalDisponivel {
+  id: string;
+  nomeCompleto: string;
+}
+
+export interface DadosAgendamentoPublico {
+  barbeariaId: string;
+  nomeBarbearia: string;
+  fusoHorarioId: string;
+  profissionais: ProfissionalDisponivel[];
+}
+
 export interface Vinculo {
   id: string;
   barbeariaId: string;

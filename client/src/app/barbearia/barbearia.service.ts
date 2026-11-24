@@ -6,6 +6,7 @@ import { ErroApi } from '../core/http/erro-api';
 import {
   type Barbearia,
   type CriarBarbearia,
+  type DadosAgendamentoPublico,
   type Profissional,
   type Vinculo,
 } from './barbearia.models';
@@ -19,6 +20,7 @@ export class BarbeariaService {
   private readonly barbeariaIdState = signal<string | null>(null);
   private readonly vinculoState = signal<Vinculo | null>(null);
   private readonly profissionaisState = signal<Profissional[]>([]);
+  private readonly dadosPublicosState = signal<DadosAgendamentoPublico | null>(null);
   private readonly carregandoState = signal(false);
   private readonly erroState = signal<string | null>(null);
 
@@ -26,6 +28,7 @@ export class BarbeariaService {
   readonly barbeariaId = this.barbeariaIdState.asReadonly();
   readonly vinculo = this.vinculoState.asReadonly();
   readonly profissionais = this.profissionaisState.asReadonly();
+  readonly dadosPublicos = this.dadosPublicosState.asReadonly();
   readonly carregando = this.carregandoState.asReadonly();
   readonly erro = this.erroState.asReadonly();
 
@@ -77,6 +80,21 @@ export class BarbeariaService {
     );
   }
 
+  /** Leitura permitida ao cliente autenticado para montar o agendamento. */
+  obterDadosAgendamentoPublico(barbeariaId: string): void {
+    this.executar(
+      () =>
+        this.http.get<DadosAgendamentoPublico>(
+          `/api/v1/barbearias/${barbeariaId}/agendamento-publico`,
+          { withCredentials: true },
+        ),
+      (resposta) => {
+        this.dadosPublicosState.set(resposta);
+        this.barbeariaIdState.set(resposta.barbeariaId);
+      },
+    );
+  }
+
   listarProfissionais(barbeariaId = this.barbeariaIdState()): void {
     if (!barbeariaId) return;
 
@@ -113,6 +131,16 @@ export class BarbeariaService {
         ),
       () => this.listarProfissionais(barbeariaId),
     );
+  }
+
+  /** Remove todo o estado de tenant ao trocar de conta (logout/login). */
+  limpar(): void {
+    this.barbeariaState.set(null);
+    this.barbeariaIdState.set(null);
+    this.vinculoState.set(null);
+    this.profissionaisState.set([]);
+    this.dadosPublicosState.set(null);
+    this.erroState.set(null);
   }
 
   limparErro(): void {

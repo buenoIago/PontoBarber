@@ -792,7 +792,8 @@ Códigos de erro estáveis:
 | `PUT` | `/api/v1/barbearias/{barbeariaId}` | Editar dados da barbearia | Proprietário | RF-EMP-002, RF-EMP-003 |
 | `GET` | `/api/v1/barbearias/{barbeariaId}/codigo-convite` | Consultar código de convite | Proprietário | RF-AUTH-008, RF-PROF-008 |
 | `POST` | `/api/v1/barbearias/entrar` | Entrar por código de convite | Barbeiro | RF-AUTH-009 |
-| `GET` | `/api/v1/barbearias/{barbeariaId}/profissionais` | Listar profissionais | Proprietário, Barbeiro | RF-PROF-001, RF-PROF-002, RF-PROF-003 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/agendamento-publico` | Fuso e profissionais ativos para agendamento do cliente (Task 7.7) | Cliente | RF-AGE-PÚBLICO — leitura mínima, sem telefone/cargo/convite |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/profissionais` | Listar profissionais (gestão) | Proprietário, Barbeiro | RF-PROF-001, RF-PROF-002, RF-PROF-003 |
 | `GET` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}` | Consultar profissional | Proprietário, o próprio | RF-PROF-004 |
 | `PUT` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}` | Editar dados profissionais | Proprietário, o próprio | RF-PROF-005 |
 | `PATCH` | `/api/v1/barbearias/{barbeariaId}/profissionais/{id}/status` | Ativar ou desativar | Proprietário | RF-PROF-006 |

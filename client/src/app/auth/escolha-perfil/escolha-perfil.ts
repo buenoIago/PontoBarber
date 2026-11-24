@@ -13,4 +13,5 @@ export type TipoPerfil = 'cliente' | 'profissional';
 export class EscolhaPerfil {
   readonly selecionado = output<TipoPerfil>();
   readonly entrar = output<void>();
+  readonly entrarProfissional = output<void>();
 }

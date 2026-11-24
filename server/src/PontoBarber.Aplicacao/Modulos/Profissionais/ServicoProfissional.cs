@@ -109,6 +109,31 @@ public sealed class ServicoProfissional(
     }
 
     /// <summary>
+    /// Dados de leitura para o agendamento público (Task 7.7): a barbearia da
+    /// rota e somente os profissionais com vínculo ativo. Não exige vínculo do
+    /// solicitante nem devolve telefone, cargo ou código de convite.
+    /// </summary>
+    public async Task<DadosAgendamentoPublicoResponse> ObterDadosParaAgendamentoPublicoAsync(
+        Guid barbeariaId,
+        CancellationToken cancellationToken)
+    {
+        var barbearia = await barbearias.ObterPorIdAsync(barbeariaId, cancellationToken)
+            ?? throw new ExcecaoNaoEncontradoAplicacao(
+                CodigosErro.TenantNaoEncontrado, "Barbearia não encontrada.");
+
+        var vinculos = await profissionais.ListarProfissionaisAsync(barbeariaId, cancellationToken);
+        var ativos = vinculos
+            .Where(item => item.Vinculo.Situacao == StatusVinculo.Ativo)
+            .Select(item => new ProfissionalDisponivelResponse(
+                item.Perfil.Id, item.Perfil.NomeCompleto))
+            .OrderBy(item => item.NomeCompleto, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new DadosAgendamentoPublicoResponse(
+            barbearia.Id, barbearia.Nome, barbearia.FusoHorarioId, ativos);
+    }
+
+    /// <summary>
     /// Lista nome, telefone e situação dos profissionais da barbearia da rota
     /// (RF-PROF-002/003). Exige vínculo ativo do usuário, sem exigir cargo de
     /// proprietário para a leitura.

@@ -8,12 +8,16 @@ import { EscolhaPerfil } from './escolha-perfil';
 @Component({
   imports: [EscolhaPerfil],
   template: `
-    <app-escolha-perfil (selecionado)="perfil.set($event)" (entrar)="entrou.set(true)" />
+    <app-escolha-perfil
+      (selecionado)="perfil.set($event)"
+      (entrar)="entrou.set('cliente')"
+      (entrarProfissional)="entrou.set('profissional')"
+    />
   `,
 })
 class Host {
   readonly perfil = signal<string | null>(null);
-  readonly entrou = signal(false);
+  readonly entrou = signal<string | null>(null);
 }
 
 describe('EscolhaPerfil', () => {
@@ -42,9 +46,14 @@ describe('EscolhaPerfil', () => {
     await fixture.whenStable();
     expect(fixture.componentInstance.perfil()).toBe('profissional');
 
-    elemento.querySelector<HTMLButtonElement>('button.btn-link')?.click();
+    const entrar = elemento.querySelectorAll<HTMLButtonElement>('button.btn-link');
+    entrar[0].click();
     await fixture.whenStable();
-    expect(fixture.componentInstance.entrou()).toBe(true);
+    expect(fixture.componentInstance.entrou()).toBe('cliente');
+
+    entrar[1].click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.entrou()).toBe('profissional');
   });
 
   it('should not have critical axe violations when rendered', async () => {

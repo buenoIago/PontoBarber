@@ -26,7 +26,7 @@ test('cadastro de cliente não solicita senha', async ({ page }) => {
 
 test('login de cliente solicita código por e-mail', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar como cliente' }).click();
 
   await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
   await expect(page.locator('input#login-senha')).toHaveCount(0);
@@ -39,9 +39,7 @@ test('login de cliente solicita código por e-mail', async ({ page }) => {
 
 test('login profissional mantém e-mail e senha', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Sou profissional' }).click();
-  await expect(page.getByRole('heading', { name: 'Criar conta' })).toBeVisible();
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar como profissional' }).click();
 
   await expect(page.locator('input#login-senha')).toBeVisible();
   await page.locator('input#login-email').fill('usuario@exemplo.com');

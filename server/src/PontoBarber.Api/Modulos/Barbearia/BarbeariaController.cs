@@ -45,6 +45,18 @@ public sealed class BarbeariaController(
         return Results.Ok(BarbeariaContracts.DaResponse(resposta));
     }
 
+    /// <summary>
+    /// Leitura usada pelo fluxo de agendamento público: o cliente autenticado
+    /// precisa do fuso da barbearia e da lista de profissionais ativos, sem
+    /// acessar a gestão de vínculos (Task 7.7).
+    /// </summary>
+    [HttpGet("{barbeariaId:guid}/agendamento-publico")]
+    [Authorize(Policy = ConfiguracaoAuth.PolíticaCliente)]
+    public async Task<IResult> ObterDadosAgendamentoPublico(
+        Guid barbeariaId, CancellationToken cancellationToken) =>
+        Results.Ok(await servicoProfissional.ObterDadosParaAgendamentoPublicoAsync(
+            barbeariaId, cancellationToken));
+
     [HttpPut("{barbeariaId:guid}")]
     [Authorize(Policy = ConfiguracaoAuth.PolíticaProfissional)]
     public async Task<IResult> Atualizar(

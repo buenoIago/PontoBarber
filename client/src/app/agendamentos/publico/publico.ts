@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
 
 import { BarbeariaService } from '../../barbearia/barbearia.service';
 import { Button } from '../../shared/ui/button/button';
@@ -18,12 +25,14 @@ export class AgendamentoPublico implements OnInit {
 
   readonly barbeariaId = this.barbearias.barbeariaId;
   readonly servicos = this.servico.servicos;
-  readonly profissionais = this.barbearias.profissionais;
+  readonly profissionais = computed(() => this.barbearias.dadosPublicos()?.profissionais ?? []);
   readonly slots = this.servico.slots;
-  readonly carregando = this.servico.carregando;
-  readonly erro = this.servico.erro;
+  readonly carregando = computed(() => this.servico.carregando() || this.barbearias.carregando());
+  readonly erro = computed(() => this.servico.erro() ?? this.barbearias.erro());
   readonly sucesso = this.servico.sucesso;
-  readonly fuso = computed(() => this.barbearias.barbearia()?.fusoHorarioId ?? 'Fuso da barbearia');
+  readonly fuso = computed(
+    () => this.barbearias.dadosPublicos()?.fusoHorarioId ?? 'Fuso da barbearia',
+  );
 
   readonly servicoId = signal('');
   readonly profissionalId = signal('');
@@ -36,22 +45,19 @@ export class AgendamentoPublico implements OnInit {
     const id = this.idBarbeariaInformado().trim();
     if (!id) return;
 
-    this.barbearias.selecionar(id);
-    this.barbearias.obter(id);
-    this.carregarDados();
+    this.carregarDados(id);
   }
 
   ngOnInit(): void {
     this.servico.limparMensagens();
-    this.carregarDados();
+    const barbeariaId = this.barbearias.barbeariaId();
+    if (barbeariaId) this.carregarDados(barbeariaId);
   }
 
-  private carregarDados(): void {
-    const barbeariaId = this.barbearias.barbeariaId();
-    if (!barbeariaId) return;
-
+  private carregarDados(barbeariaId: string): void {
+    this.barbearias.selecionar(barbeariaId);
+    this.barbearias.obterDadosAgendamentoPublico(barbeariaId);
     this.servico.listarServicos(barbeariaId);
-    this.barbearias.listarProfissionais(barbeariaId);
   }
 
   selecionarData(valor: string): void {
@@ -64,21 +70,24 @@ export class AgendamentoPublico implements OnInit {
     const barbeariaId = this.barbearias.barbeariaId();
     if (!barbeariaId || !this.servicoId() || !this.profissionalId() || !this.data()) return;
 
-    this.servico.consultarSlots(
-      barbeariaId, this.servicoId(), this.profissionalId(), this.data(),
-    );
+    this.servico.consultarSlots(barbeariaId, this.servicoId(), this.profissionalId(), this.data());
   }
 
   confirmar(): void {
     const barbeariaId = this.barbearias.barbeariaId();
     if (!barbeariaId || !this.horario()) return;
 
-    this.servico.confirmar(barbeariaId, {
-      profissionalId: this.profissionalId(),
-      servicoId: this.servicoId(),
-      iniciaEmUtc: this.horario(),
-      observacoes: this.observacoes().trim() || null,
-    }, true, () => this.horario.set(''));
+    this.servico.confirmar(
+      barbeariaId,
+      {
+        profissionalId: this.profissionalId(),
+        servicoId: this.servicoId(),
+        iniciaEmUtc: this.horario(),
+        observacoes: this.observacoes().trim() || null,
+      },
+      true,
+      () => this.horario.set(''),
+    );
   }
 
   formatar(instant: string): string {
@@ -87,7 +96,7 @@ export class AgendamentoPublico implements OnInit {
       month: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      timeZone: this.barbearias.barbearia()?.fusoHorarioId || undefined,
+      timeZone: this.barbearias.dadosPublicos()?.fusoHorarioId || undefined,
     }).format(new Date(instant));
   }
 }

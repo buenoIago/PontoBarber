@@ -141,6 +141,7 @@ Nota da seção: a dependência da Task 5.3 quanto aos snapshots históricos foi
 - [x] 7.7 Implementar fluxo de agendamento público no frontend com seleção de serviço, profissional, data e horário; verificar E2E completo e axe sem violação crítica
   - Implementado: `client/src/app/agendamentos/publico/` com seleção sequencial de serviço → profissional → data → horário devolvido pela API, confirmação no endpoint público autenticado e exibição de resultado. O frontend envia somente identificadores e o instante escolhido; preço/duração/término vêm do servidor. Conflitos são traduzidos para mensagens compreensíveis pelo mapa de códigos existente (`ErroApi`).
   - Testes Vitest e E2E executados e aprovados: fluxo completo, recusa de confirmação sem horário, erro `409` exibido como "já está ocupado" e auditoria axe nas telas.
+  - Correção de integração (revisão geral): o cliente não conseguia carregar o fuso e os profissionais porque as rotas de gestão exigem perfil/vínculo de profissional. Novo endpoint `GET /api/v1/barbearias/{barbeariaId}/agendamento-publico` (somente `Customer`) devolve dados mínimos e profissionais com vínculo ativo, sem telefone/cargo/convite. Testes de integração cobrem acesso do cliente, recusa do profissional e leitura com segmentos em maiúsculas.
 
 ## 8. Ciclo de vida do agendamento
 

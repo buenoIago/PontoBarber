@@ -58,6 +58,32 @@ public sealed class TestesConsultaDisponibilidade
     }
 
     [TestMethod]
+    public async Task Consultar_BarbeariaInativa_Retorna400()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        using var cliente = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarEEntrarAsync(cliente);
+        var barbearia = await CriarBarbeariaAsync(cliente);
+        var (profissionalId, servicoId, _) = await PrepararConfiguracaoAsync(fabrica, cliente, barbearia.Id);
+
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+            await contexto.Database.ExecuteSqlRawAsync(
+                "UPDATE [Barbearias] SET [Ativo] = 0 WHERE [Id] = {0}", barbearia.Id);
+        }
+
+        var resposta = await cliente.GetAsync(
+            Url(barbearia.Id, servicoId, profissionalId, HojeNaBarbearia()));
+
+        Assert.AreEqual(HttpStatusCode.BadRequest, resposta.StatusCode);
+        var corpo = await LerCorpoAsync(resposta);
+        Assert.AreEqual(CodigosErro.ValidacaoFalhou, corpo.GetProperty("code").GetString());
+        Assert.IsTrue(corpo.GetProperty("errors").TryGetProperty("barbeariaId", out _));
+    }
+
+    [TestMethod]
     public async Task Consultar_ComBloqueio_RemoveSlotsSobrepostos()
     {
         using var fabrica = CriarFabricaComBanco();
