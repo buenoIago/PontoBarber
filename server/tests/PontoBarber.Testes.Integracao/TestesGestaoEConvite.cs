@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
+using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Infra.Compartilhado.Orm;
@@ -74,6 +75,63 @@ public sealed class TestesGestaoEConvite
         Assert.AreEqual("Barbearia Atualizada", persistida.Nome);
         Assert.AreEqual(barbearia.CodigoConvite, persistida.CodigoConvite);
         Assert.AreEqual(1, await contexto.Set<VinculoProfissional>().IgnoreQueryFilters().CountAsync());
+    }
+
+    [TestMethod]
+    public async Task Atualizar_ComProprietario_PreservaAgendamentosHistoricos()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        using var cliente = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarEEntrarAsync(cliente);
+        var barbearia = await CriarBarbeariaAsync(cliente);
+
+        Guid profissionalId;
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+            profissionalId = (await contexto.Set<VinculoProfissional>().IgnoreQueryFilters()
+                .SingleAsync(vinculo => vinculo.Cargo == CargoProfissional.Proprietario)).ProfissionalId;
+        }
+
+        // datetime2(3) (e timestamp(3) no PostgreSQL) truncam a precisão a
+        // milissegundos; normalizar a fixture para não comparar ticks perdidos.
+        var inicioBruto = DateTime.UtcNow.AddDays(1);
+        var inicio = inicioBruto.AddTicks(-(inicioBruto.Ticks % TimeSpan.TicksPerMillisecond));
+        var agendamento = Agendamento.Criar(
+            barbearia.Id, "cliente-historico-1", profissionalId, Guid.CreateVersion7(),
+            inicio, "Corte Histórico", 40, 80m, "Observação original", OrigemAgendamento.Manual);
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+            contexto.Set<Agendamento>().Add(agendamento);
+            await contexto.SaveChangesAsync();
+        }
+
+        var resposta = await EnviarComAntiforgeryAsync(
+            cliente, HttpMethod.Put, $"/api/v1/barbearias/{barbearia.Id}",
+            new
+            {
+                nome = "Barbearia Renomeada",
+                telefoneComercial = "(11) 99999-9999",
+                emailComercial = "contato@barbearia.com",
+                cidade = "São Paulo",
+                endereco = "Rua Nova, 200",
+                instagram = "@barbeariacentral"
+            });
+        Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
+
+        using var escopoFinal = fabrica.Services.CreateScope();
+        var contextoFinal = escopoFinal.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        var historico = await contextoFinal.Set<Agendamento>().IgnoreQueryFilters()
+            .SingleAsync(item => item.Id == agendamento.Id);
+        Assert.AreEqual(inicio, historico.IniciaEmUtc);
+        Assert.AreEqual("Corte Histórico", historico.NomeServicoSnapshot);
+        Assert.AreEqual(40, historico.DuracaoSnapshot);
+        Assert.AreEqual(80m, historico.PrecoSnapshot);
+        Assert.AreEqual("Observação original", historico.Observacoes);
+        Assert.AreEqual("Barbearia Renomeada",
+            (await contextoFinal.Set<Barbearia>().SingleAsync()).Nome);
     }
 
     [TestMethod]
