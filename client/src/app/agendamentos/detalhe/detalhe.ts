@@ -35,8 +35,13 @@ export class DetalheAgendamento implements OnInit {
   readonly carregando = this.servico.carregando;
   readonly erro = this.servico.erro;
   readonly sucesso = this.servico.sucesso;
-  readonly fuso = computed(() => this.barbearias.barbearia()?.fusoHorarioId);
+  readonly dadosPublicos = this.barbearias.dadosPublicos;
   readonly eCliente = computed(() => this.auth.conta()?.tipo === 'Customer');
+  readonly fuso = computed(() =>
+    this.eCliente()
+      ? this.dadosPublicos()?.fusoHorarioId
+      : this.barbearias.barbearia()?.fusoHorarioId,
+  );
   readonly eBarbeiro = computed(() => this.barbearias.vinculo()?.cargo === 'Barbeiro');
 
   readonly dataHorario = signal('');
@@ -75,7 +80,12 @@ export class DetalheAgendamento implements OnInit {
     this.agora.set(Date.now());
     if (!barbeariaId || !agendamentoId) return;
 
-    if (!this.barbearias.barbearia()) this.barbearias.obter(barbeariaId);
+    if (this.eCliente()) {
+      if (this.dadosPublicos()?.barbeariaId !== barbeariaId)
+        this.barbearias.obterDadosAgendamentoPublico(barbeariaId);
+    } else if (!this.barbearias.barbearia()) {
+      this.barbearias.obter(barbeariaId);
+    }
     this.servico.limparMensagens();
     this.servico.carregarDetalhe(barbeariaId, agendamentoId);
   }

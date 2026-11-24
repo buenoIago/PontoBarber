@@ -67,7 +67,11 @@ describe('Serviço do ciclo de vida', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
     servico = TestBed.inject(AgendamentosService);
     http = TestBed.inject(HttpTestingController);
@@ -124,7 +128,9 @@ describe('Telas do ciclo de vida', () => {
             barbearia: signal({ codigoConvite: 'ABC23456', fusoHorarioId: 'America/Sao_Paulo' }),
             vinculo: signal({ profissionalId: 'p1' }),
             profissionais: signal([]),
+            dadosPublicos: signal(null),
             obter: vi.fn(),
+            obterDadosAgendamentoPublico: vi.fn(),
             listarProfissionais: vi.fn(),
             selecionar: vi.fn(),
           },

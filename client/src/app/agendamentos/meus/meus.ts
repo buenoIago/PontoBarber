@@ -32,7 +32,7 @@ export class MeusAgendamentos implements OnInit {
 
   abrir(agendamento: Agendamento): void {
     this.barbearias.selecionar(agendamento.barbeariaId);
-    this.barbearias.obter(agendamento.barbeariaId);
+    this.barbearias.obterDadosAgendamentoPublico(agendamento.barbeariaId);
     this.servico.selecionarDetalhe(agendamento.id);
     this.detalheSolicitado.emit();
   }
@@ -43,6 +43,7 @@ export class MeusAgendamentos implements OnInit {
       month: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: this.barbearias.dadosPublicos()?.fusoHorarioId || undefined,
     }).format(new Date(instant));
   }
 

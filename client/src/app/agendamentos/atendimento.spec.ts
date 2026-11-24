@@ -34,7 +34,11 @@ describe('Serviço de atendimento', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
     servico = TestBed.inject(AgendamentosService);
     http = TestBed.inject(HttpTestingController);
@@ -77,7 +81,10 @@ describe('Tela de atendimento', () => {
         provideZonelessChangeDetection(),
         {
           provide: AuthService,
-          useValue: { conta: signal({ tipo: cargo ? 'Professional' : 'Customer' }), erro: signal(null) },
+          useValue: {
+            conta: signal({ tipo: cargo ? 'Professional' : 'Customer' }),
+            erro: signal(null),
+          },
         },
         {
           provide: BarbeariaService,
@@ -85,7 +92,9 @@ describe('Tela de atendimento', () => {
             barbeariaId: signal('b1'),
             barbearia: signal({ fusoHorarioId: 'America/Sao_Paulo' }),
             vinculo: signal(cargo ? { cargo, profissionalId: 'p1' } : null),
+            dadosPublicos: signal(null),
             obter: vi.fn(),
+            obterDadosAgendamentoPublico: vi.fn(),
             listarProfissionais: vi.fn(),
           },
         },
@@ -134,12 +143,15 @@ describe('Tela de atendimento', () => {
   });
 
   it('should show real times and pending payment after completion', async () => {
-    const elemento = await configurar({
-      ...agendamentoBase,
-      situacao: 'Concluido',
-      inicioRealUtc: '2026-11-22T13:02:00Z',
-      fimRealUtc: '2026-11-22T13:45:00Z',
-    }, 'Barbeiro');
+    const elemento = await configurar(
+      {
+        ...agendamentoBase,
+        situacao: 'Concluido',
+        inicioRealUtc: '2026-11-22T13:02:00Z',
+        fimRealUtc: '2026-11-22T13:45:00Z',
+      },
+      'Barbeiro',
+    );
 
     expect(elemento.textContent).toContain('Início real');
     expect(elemento.textContent).toContain('Fim real');
@@ -148,7 +160,10 @@ describe('Tela de atendimento', () => {
   });
 
   it('should distinguish no-show from cancellation', async () => {
-    const elemento = await configurar({ ...agendamentoBase, situacao: 'NaoCompareceu' }, 'Barbeiro');
+    const elemento = await configurar(
+      { ...agendamentoBase, situacao: 'NaoCompareceu' },
+      'Barbeiro',
+    );
     expect(elemento.textContent).toContain('NaoCompareceu');
     expect(elemento.textContent).toContain('Este estado é distinto de cancelamento.');
     expect(elemento.textContent).not.toContain('Iniciar atendimento');
