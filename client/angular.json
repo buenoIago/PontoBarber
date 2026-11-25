@@ -104,6 +104,7 @@
           "options": {
             "tsConfig": "tsconfig.spec.json",
             "setupFiles": ["src/test-setup.ts"],
+            "coverageExclude": ["**/*.html"],
             "coverageThresholds": {
               "statements": 70,
               "branches": 70,

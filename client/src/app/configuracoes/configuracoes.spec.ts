@@ -154,6 +154,85 @@ describe('Telas de configuração', () => {
     expect(elemento.textContent).toContain('Adicionar bloqueio');
   });
 
+  it('should edit, cancel and save opening hours', async () => {
+    await configurar();
+    const fixture = TestBed.createComponent(Horarios);
+    const componente = fixture.componentInstance;
+    const servico = TestBed.inject(ConfiguracoesService);
+    const salvar = vi.mocked(servico.salvarHorarios);
+    await fixture.whenStable();
+
+    componente.iniciarEdicao();
+    expect(componente.editando()).toBe(true);
+    expect(componente.rascunho()).toHaveLength(semana.length);
+    expect(componente.rascunho()[0]).not.toBe(semana[0]);
+
+    componente.alternarFechado(1, true);
+    expect(componente.rascunho()[0].fechado).toBe(true);
+    componente.alternarFechado(99, true);
+    expect(componente.rascunho().every((dia) => dia.diaSemana !== 99)).toBe(true);
+
+    componente.definirHorario(7, 'abreAs', '08:00');
+    componente.definirHorario(7, 'fechaAs', '');
+    expect(componente.rascunho()[1].abreAs).toBe('08:00');
+    expect(componente.rascunho()[1].fechaAs).toBeNull();
+
+    expect(componente.horaTela('09:00:00')).toBe('09:00');
+    expect(componente.horaTela(null)).toBe('');
+
+    componente.salvar();
+    expect(salvar).toHaveBeenCalledWith(
+      'b1',
+      [
+        { diaSemana: 1, abreAs: '09:00:00', fechaAs: '18:00:00', fechado: true },
+        { diaSemana: 7, abreAs: '08:00:00', fechaAs: null, fechado: true },
+      ],
+      expect.any(Function),
+    );
+    const concluido = salvar.mock.calls[0][2];
+    concluido?.();
+    expect(componente.editando()).toBe(false);
+    expect(componente.rascunho()).toEqual([]);
+  });
+
+  it('should not request hours without an active barbearia', async () => {
+    await configurar();
+    const barbearias = TestBed.inject(BarbeariaService) as unknown as {
+      barbeariaId: { set(valor: string | null): void };
+    };
+    barbearias.barbeariaId.set(null);
+
+    const fixture = TestBed.createComponent(Horarios);
+    await fixture.whenStable();
+
+    expect(vi.mocked(TestBed.inject(ConfiguracoesService).listarHorarios)).not.toHaveBeenCalled();
+    fixture.componentInstance.salvar();
+    expect(vi.mocked(TestBed.inject(ConfiguracoesService).salvarHorarios)).not.toHaveBeenCalled();
+  });
+
+  it('should load the barbearia when only its id is known', async () => {
+    await configurar();
+    const barbearias = TestBed.inject(BarbeariaService) as unknown as {
+      barbearia: { set(valor: unknown): void };
+    };
+    barbearias.barbearia.set(null);
+
+    const fixture = TestBed.createComponent(Horarios);
+    await fixture.whenStable();
+
+    expect(vi.mocked(TestBed.inject(BarbeariaService).obter)).toHaveBeenCalledWith('b1');
+    expect(vi.mocked(TestBed.inject(ConfiguracoesService).listarHorarios)).toHaveBeenCalledWith(
+      'b1',
+    );
+
+    fixture.componentInstance.iniciarEdicao();
+    fixture.componentInstance.definirHorario(99, 'abreAs', '10:00');
+    expect(fixture.componentInstance.rascunho().every((dia) => dia.diaSemana !== 99)).toBe(true);
+
+    fixture.componentInstance.cancelar();
+    expect(fixture.componentInstance.editando()).toBe(false);
+  });
+
   it('should not have critical axe violations on opening hours', async () => {
     expect(await violacoesCriticas(await renderizar(Horarios))).toEqual([]);
   });
