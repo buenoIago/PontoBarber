@@ -1,10 +1,14 @@
 /** Contratos da API de autenticação (TDD §11). */
+import type { Vinculo } from '../barbearia/barbearia.models';
+
 export interface ContaUsuario {
   id: string;
   nomeCompleto: string;
   email: string;
   telefone: string | null;
   tipo: string;
+  /** Vínculos ativos do usuário; vazio para Customer. */
+  vinculos: Vinculo[];
 }
 
 /** Cliente não possui senha: autentica por código OTP enviado por e-mail. */

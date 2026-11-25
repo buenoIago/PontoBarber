@@ -210,6 +210,118 @@ public sealed class TestesConta
         Assert.AreEqual(hashAntes, (await ObterUsuarioAsync(fabrica, email)).PasswordHash);
     }
 
+    [TestMethod]
+    public async Task Me_ProfissionalProprietario_RetornaVinculoAtivoSemConvite()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        using var cliente = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarProfissionalAsync(cliente);
+        var (barbeariaId, _) = await CriarBarbeariaAsync(cliente);
+
+        var resposta = await cliente.GetAsync("/api/v1/auth/me");
+        Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
+        var vinculos = (await LerCorpoAsync(resposta)).GetProperty("vinculos").EnumerateArray().ToList();
+
+        Assert.AreEqual(1, vinculos.Count);
+        Assert.AreEqual(barbeariaId, Guid.Parse(vinculos[0].GetProperty("barbeariaId").GetString()!));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(vinculos[0].GetProperty("profissionalId").GetString()));
+        Assert.AreEqual("Proprietario", vinculos[0].GetProperty("cargo").GetString());
+        Assert.AreEqual("Ativo", vinculos[0].GetProperty("situacao").GetString());
+        Assert.IsFalse(vinculos[0].TryGetProperty("codigoConvite", out _));
+    }
+
+    [TestMethod]
+    public async Task Me_ProfissionalBarbeiro_RetornaVinculoEExcluiInativo()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        using var dono = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarProfissionalAsync(dono);
+        var (barbeariaId, codigoConvite) = await CriarBarbeariaAsync(dono);
+
+        using var barbeiro = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarProfissionalAsync(barbeiro);
+        Assert.AreEqual(HttpStatusCode.OK, (await PostAsync(barbeiro, "/api/v1/barbearias/entrar",
+            new { codigoConvite })).StatusCode);
+
+        var me = await LerCorpoAsync(await barbeiro.GetAsync("/api/v1/auth/me"));
+        var vinculos = me.GetProperty("vinculos").EnumerateArray().ToList();
+        Assert.AreEqual(1, vinculos.Count);
+        Assert.AreEqual(barbeariaId, Guid.Parse(vinculos[0].GetProperty("barbeariaId").GetString()!));
+        Assert.AreEqual("Barbeiro", vinculos[0].GetProperty("cargo").GetString());
+
+        var profissionalId = vinculos[0].GetProperty("profissionalId").GetString()!;
+        Assert.AreEqual(HttpStatusCode.OK, (await EnviarAsync(dono, HttpMethod.Patch,
+            $"/api/v1/barbearias/{barbeariaId}/profissionais/{profissionalId}/status",
+            new { ativo = false })).StatusCode);
+
+        var aposInativar = await LerCorpoAsync(await barbeiro.GetAsync("/api/v1/auth/me"));
+        Assert.AreEqual(0, aposInativar.GetProperty("vinculos").GetArrayLength());
+    }
+
+    [TestMethod]
+    public async Task Me_Cliente_RetornaVinculosVazios()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        using var cliente = fabrica.CreateClient(_opcoesCliente);
+        await AuthTestHelper.RegistrarEEntrarClienteAsync(cliente);
+
+        var me = await LerCorpoAsync(await cliente.GetAsync("/api/v1/auth/me"));
+        Assert.AreEqual("Customer", me.GetProperty("tipo").GetString());
+        Assert.AreEqual(0, me.GetProperty("vinculos").GetArrayLength());
+    }
+
+    [TestMethod]
+    public async Task Me_NaoRetornaVinculosDeOutroUsuario()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        using var dono = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarProfissionalAsync(dono);
+        var (barbeariaId, _) = await CriarBarbeariaAsync(dono);
+
+        using var outro = fabrica.CreateClient(_opcoesCliente);
+        await RegistrarProfissionalAsync(outro);
+
+        var me = await LerCorpoAsync(await outro.GetAsync("/api/v1/auth/me"));
+        var vinculos = me.GetProperty("vinculos").EnumerateArray().ToList();
+        Assert.IsFalse(vinculos.Any(vinculo =>
+            Guid.Parse(vinculo.GetProperty("barbeariaId").GetString()!) == barbeariaId));
+    }
+
+    private static async Task RegistrarProfissionalAsync(HttpClient cliente)
+    {
+        var email = $"prof-{Guid.NewGuid():N}@exemplo.com";
+        const string senha = "Senha123";
+        Assert.AreEqual(HttpStatusCode.Created, (await PostAsync(cliente,
+            "/api/v1/auth/register/professional", new
+            {
+                nomeCompleto = "Profissional Teste",
+                email,
+                telefone = "11999999999",
+                senha,
+                confirmarSenha = senha
+            })).StatusCode);
+        Assert.AreEqual(HttpStatusCode.NoContent, (await PostAsync(cliente,
+            "/api/v1/auth/login", new { email, senha })).StatusCode);
+    }
+
+    private static async Task<(Guid Id, string CodigoConvite)> CriarBarbeariaAsync(HttpClient cliente)
+    {
+        var resposta = await PostAsync(cliente, "/api/v1/barbearias", new
+        {
+            nome = "Barbearia Teste",
+            telefoneComercial = "(11) 99999-9999",
+            emailComercial = "contato@barbearia.com",
+            cidade = "São Paulo",
+            endereco = "Rua Central, 100",
+            instagram = (string?)null,
+            fusoHorarioId = "America/Sao_Paulo"
+        });
+        Assert.AreEqual(HttpStatusCode.Created, resposta.StatusCode);
+        var corpo = await LerCorpoAsync(resposta);
+        return (Guid.Parse(corpo.GetProperty("id").GetString()!),
+            corpo.GetProperty("codigoConvite").GetString()!);
+    }
+
     private sealed class CodigoOtpFake : PontoBarber.Dominio.Modulos.Auth.ICodigoOtpRepositorio
     {
         public Task<PontoBarber.Dominio.Modulos.Auth.CodigoOtp?> ObterAsync(string email, CancellationToken ct) =>
@@ -319,12 +431,16 @@ public sealed class TestesConta
         return fabrica;
     }
 
-    private static async Task<HttpResponseMessage> PostAsync(HttpClient cliente, string rota, object corpo)
+    private static Task<HttpResponseMessage> PostAsync(HttpClient cliente, string rota, object corpo) =>
+        EnviarAsync(cliente, HttpMethod.Post, rota, corpo);
+
+    private static async Task<HttpResponseMessage> EnviarAsync(
+        HttpClient cliente, HttpMethod metodo, string rota, object corpo)
     {
         var respostaGet = await cliente.GetAsync("/health/live");
         var token = ObterTokenAntiforgery(respostaGet);
 
-        using var requisicao = new HttpRequestMessage(HttpMethod.Post, rota)
+        using var requisicao = new HttpRequestMessage(metodo, rota)
         {
             Content = new StringContent(JsonSerializer.Serialize(corpo, _json), Encoding.UTF8, "application/json")
         };

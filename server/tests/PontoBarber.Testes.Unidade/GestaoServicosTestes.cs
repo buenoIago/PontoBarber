@@ -317,6 +317,10 @@ public sealed class GestaoServicosTestes
         PerfilProfissional perfil,
         VinculoProfissional vinculo) : IProfissionalRepositorio
     {
+        public Task<IReadOnlyList<VinculoProfissional>> ListarVinculosAtivosPorUsuarioAsync(
+            string usuarioId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<VinculoProfissional>>([]);
+
         public Task<PerfilProfissional?> ObterPorUsuarioAsync(string usuarioId, CancellationToken ct) =>
             Task.FromResult<PerfilProfissional?>(perfil);
 

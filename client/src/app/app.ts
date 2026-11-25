@@ -15,6 +15,7 @@ import { EscolhaPerfil, type TipoPerfil } from './auth/escolha-perfil/escolha-pe
 import { Login } from './auth/login/login';
 import { VerificacaoOtp } from './auth/verificacao-otp/verificacao-otp';
 import { BarbeariaService } from './barbearia/barbearia.service';
+import type { Vinculo } from './barbearia/barbearia.models';
 import { CadastroBarbearia } from './barbearia/cadastro-barbearia/cadastro-barbearia';
 import { EntrarBarbearia } from './barbearia/entrar-barbearia/entrar-barbearia';
 import { Profissionais } from './barbearia/profissionais/profissionais';
@@ -95,6 +96,8 @@ export class App {
   readonly perfil = this.perfilState.asReadonly();
   readonly conta = this.auth.conta;
   readonly erro = this.auth.erro;
+  readonly vinculosDisponiveis = this.barbearias.vinculosDisponiveis;
+  readonly barbeariaId = this.barbearias.barbeariaId;
 
   readonly exibirConta = computed(() => this.conta() !== null);
   readonly eProfissional = computed(() => this.conta()?.tipo === 'Professional');
@@ -143,6 +146,11 @@ export class App {
   entrarComoProfissional(): void {
     this.perfilState.set('profissional');
     this.abrirLogin();
+  }
+
+  selecionarVinculo(vinculo: Vinculo): void {
+    this.barbearias.selecionarVinculo(vinculo);
+    this.auth.limparErro();
   }
 
   abrirEscolha(): void {

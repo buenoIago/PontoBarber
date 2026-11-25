@@ -2,6 +2,19 @@
   <div class="alert alert-danger" role="alert">{{ erro() }}</div>
 }
 
+@if (exibirConta() && eProfissional() && vinculosDisponiveis().length > 1 && !barbeariaId()) {
+  <section class="container py-3" aria-label="Seleção de barbearia">
+    <p>Você possui mais de uma barbearia ativa. Escolha uma para continuar:</p>
+    <div class="d-flex flex-wrap gap-2">
+      @for (vinculo of vinculosDisponiveis(); track vinculo.id) {
+        <app-button (click)="selecionarVinculo(vinculo)">
+          Barbearia {{ vinculo.barbeariaId.slice(0, 8) }}
+        </app-button>
+      }
+    </div>
+  </section>
+}
+
 @if (exibirConta()) {
   <nav aria-label="Navegação principal" class="container py-3 d-flex gap-2 flex-wrap">
     <app-button variante="outline" tamanho="sm" (click)="abrirConta()">Minha conta</app-button>

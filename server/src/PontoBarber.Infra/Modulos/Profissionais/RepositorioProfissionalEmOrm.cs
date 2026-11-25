@@ -47,6 +47,16 @@ public sealed class RepositorioProfissionalEmOrm(ContextoPontoBarber contexto) :
                vinculo.Situacao == StatusVinculo.Ativo
          select vinculo).AnyAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<VinculoProfissional>> ListarVinculosAtivosPorUsuarioAsync(
+        string usuarioId,
+        CancellationToken cancellationToken) =>
+        await (from vinculo in contexto.Set<VinculoProfissional>().IgnoreQueryFilters()
+               join perfil in contexto.Set<PerfilProfissional>()
+                   on vinculo.ProfissionalId equals perfil.Id
+               where perfil.UsuarioId == usuarioId &&
+                     vinculo.Situacao == StatusVinculo.Ativo
+               select vinculo).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<ProfissionalVinculo>> ListarProfissionaisAsync(
         Guid barbeariaId,
         CancellationToken cancellationToken)

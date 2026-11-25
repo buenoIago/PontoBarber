@@ -19,6 +19,7 @@ export class BarbeariaService {
   private readonly barbeariaState = signal<Barbearia | null>(null);
   private readonly barbeariaIdState = signal<string | null>(null);
   private readonly vinculoState = signal<Vinculo | null>(null);
+  private readonly vinculosDisponiveisState = signal<Vinculo[]>([]);
   private readonly profissionaisState = signal<Profissional[]>([]);
   private readonly dadosPublicosState = signal<DadosAgendamentoPublico | null>(null);
   private readonly carregandoState = signal(false);
@@ -27,6 +28,7 @@ export class BarbeariaService {
   readonly barbearia = this.barbeariaState.asReadonly();
   readonly barbeariaId = this.barbeariaIdState.asReadonly();
   readonly vinculo = this.vinculoState.asReadonly();
+  readonly vinculosDisponiveis = this.vinculosDisponiveisState.asReadonly();
   readonly profissionais = this.profissionaisState.asReadonly();
   readonly dadosPublicos = this.dadosPublicosState.asReadonly();
   readonly carregando = this.carregandoState.asReadonly();
@@ -60,6 +62,27 @@ export class BarbeariaService {
         this.listarProfissionais(resposta.barbeariaId);
       },
     );
+  }
+
+  /** Reidrata o tenant a partir dos vínculos ativos devolvidos por /auth/me. */
+  restaurarVinculos(vinculos: Vinculo[]): void {
+    const ativos = vinculos.filter((vinculo) => vinculo.situacao === 'Ativo');
+    this.vinculosDisponiveisState.set(ativos);
+
+    if (ativos.length === 1) {
+      this.selecionarVinculo(ativos[0]);
+      return;
+    }
+
+    // Nenhum vínculo ou mais de um: não escolher barbearia arbitrariamente.
+    this.vinculoState.set(null);
+    this.barbeariaIdState.set(null);
+  }
+
+  /** Seleção explícita quando o usuário possui mais de um vínculo ativo. */
+  selecionarVinculo(vinculo: Vinculo): void {
+    this.vinculoState.set(vinculo);
+    this.barbeariaIdState.set(vinculo.barbeariaId);
   }
 
   selecionar(barbeariaId: string): void {
@@ -138,6 +161,7 @@ export class BarbeariaService {
     this.barbeariaState.set(null);
     this.barbeariaIdState.set(null);
     this.vinculoState.set(null);
+    this.vinculosDisponiveisState.set([]);
     this.profissionaisState.set([]);
     this.dadosPublicosState.set(null);
     this.erroState.set(null);

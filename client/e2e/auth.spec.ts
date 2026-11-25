@@ -49,6 +49,79 @@ test('login profissional mantém e-mail e senha', async ({ page }) => {
   await expect(page.locator('.alert')).toBeVisible();
 });
 
+test('múltiplos vínculos ativos exigem seleção explícita da barbearia', async ({ page }) => {
+  await page.route('**/api/v1/auth/me', (rota) =>
+    rota.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'u1',
+        nomeCompleto: 'Profissional',
+        email: 'prof@exemplo.com',
+        telefone: null,
+        tipo: 'Professional',
+        vinculos: [
+          {
+            id: 'v1',
+            barbeariaId: 'b1',
+            profissionalId: 'p1',
+            cargo: 'Proprietario',
+            situacao: 'Ativo',
+          },
+          {
+            id: 'v2',
+            barbeariaId: 'b2',
+            profissionalId: 'p2',
+            cargo: 'Barbeiro',
+            situacao: 'Ativo',
+          },
+        ],
+      }),
+    }),
+  );
+
+  await page.goto('/');
+  await expect(page.getByText('Você possui mais de uma barbearia ativa.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Barbearia b2' }).click();
+
+  await expect(page.getByText('Você possui mais de uma barbearia ativa.')).toBeHidden();
+});
+
+test('um único vínculo ativo é restaurado após recarregar a página', async ({ page }) => {
+  await page.route('**/api/v1/auth/me', (rota) =>
+    rota.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'u1',
+        nomeCompleto: 'Profissional',
+        email: 'prof@exemplo.com',
+        telefone: null,
+        tipo: 'Professional',
+        vinculos: [
+          {
+            id: 'v1',
+            barbeariaId: 'b1',
+            profissionalId: 'p1',
+            cargo: 'Barbeiro',
+            situacao: 'Ativo',
+          },
+        ],
+      }),
+    }),
+  );
+
+  await page.goto('/');
+  await expect(page.getByText('Você possui mais de uma barbearia ativa.')).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Navegação principal' })).toBeVisible();
+
+  await page.reload();
+
+  await expect(page.getByText('Você possui mais de uma barbearia ativa.')).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Navegação principal' })).toBeVisible();
+});
+
 test('página inicial não apresenta violações críticas de acessibilidade', async ({ page }) => {
   await page.goto('/');
 

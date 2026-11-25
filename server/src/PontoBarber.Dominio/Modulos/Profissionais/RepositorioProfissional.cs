@@ -28,6 +28,15 @@ public interface IProfissionalRepositorio
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Vínculos ativos do profissional identificado pela conta de acesso,
+    /// independentemente da barbearia. Usado para reidratar o tenant no boot
+    /// da SPA; não expõe dados de outras contas.
+    /// </summary>
+    Task<IReadOnlyList<VinculoProfissional>> ListarVinculosAtivosPorUsuarioAsync(
+        string usuarioId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lista os profissionais vinculados à barbearia, exceto os vínculos
     /// removidos. A lista é filtrada pelo tenant da rota.
     /// </summary>

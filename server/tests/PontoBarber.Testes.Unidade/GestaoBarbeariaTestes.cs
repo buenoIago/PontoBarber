@@ -199,6 +199,10 @@ public sealed class GestaoBarbeariaTestes
 
         public VinculoProfissional? Vinculo { get; set; }
 
+        public Task<IReadOnlyList<VinculoProfissional>> ListarVinculosAtivosPorUsuarioAsync(
+            string usuarioId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<VinculoProfissional>>([]);
+
         public Task<PerfilProfissional?> ObterPorUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>
             Task.FromResult(_perfil);
 

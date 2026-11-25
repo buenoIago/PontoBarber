@@ -69,6 +69,27 @@ public sealed class ServicoProfissional(
     }
 
     /// <summary>
+    /// Vínculos ativos da conta autenticada, para reidratar o tenant da SPA
+    /// após recarregar a página. Não exige barbeariaId (que é o dado a ser
+    /// recuperado) e não devolve convite, telefone ou dados de outras contas.
+    /// </summary>
+    public async Task<IReadOnlyList<VinculoResponse>> ObterVinculosAtivosAsync(
+        string usuarioId,
+        CancellationToken cancellationToken)
+    {
+        var vinculos = await profissionais.ListarVinculosAtivosPorUsuarioAsync(
+            usuarioId, cancellationToken);
+        return vinculos
+            .Select(vinculo => new VinculoResponse(
+                vinculo.Id,
+                vinculo.BarbeariaId,
+                vinculo.ProfissionalId,
+                vinculo.Cargo.ToString(),
+                vinculo.Situacao.ToString()))
+            .ToList();
+    }
+
+    /// <summary>
     /// Resolve o vínculo profissional que dá acesso à agenda dentro da barbearia
     /// da rota (TDD §11.2). O proprietário, por sua função administrativa, pode
     /// consultar a agenda de qualquer profissional; os demais profissionais

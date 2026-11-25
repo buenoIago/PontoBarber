@@ -36,7 +36,11 @@ export class AuthService {
   carregarConta(): void {
     this.executar(
       () => this.http.get<ContaUsuario>('/api/v1/auth/me', { withCredentials: true }),
-      (conta) => this.contaState.set(conta),
+      (conta) => {
+        if (!conta) return;
+        this.contaState.set(conta);
+        this.barbearias.restaurarVinculos(conta.vinculos ?? []);
+      },
     );
   }
 

@@ -4,12 +4,15 @@ using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
+using PontoBarber.Aplicacao.Modulos.Profissionais;
 
 namespace PontoBarber.Api.Modulos.Auth;
 
 [ApiController]
 [Route("api/v1/auth")]
-public sealed class AuthController(ServicoConta servicoConta) : ControllerBase
+public sealed class AuthController(
+    ServicoConta servicoConta,
+    ServicoProfissional servicoProfissional) : ControllerBase
 {
     [HttpPost("register/customer")]
     public async Task<IResult> CadastrarCliente(
@@ -81,13 +84,27 @@ public sealed class AuthController(ServicoConta servicoConta) : ControllerBase
                 "Não autenticado", "É necessário autenticar para acessar este recurso.");
 
         var conta = await servicoConta.ObterContaAsync(usuarioId, cancellationToken);
+        var vinculos = conta.Tipo == ServicoConta.TipoBarbeiro
+            ? await servicoProfissional.ObterVinculosAtivosAsync(usuarioId, cancellationToken)
+            : [];
+
+        // Contrato já previsto em TDD §10.2 e na spec identity-and-access:
+        // perfil, vínculos ativos e permissões. Sem convite ou dados alheios.
         return Results.Ok(new
         {
             conta.Id,
             conta.NomeCompleto,
             conta.Email,
             conta.Telefone,
-            conta.Tipo
+            conta.Tipo,
+            vinculos = vinculos.Select(vinculo => new
+            {
+                vinculo.Id,
+                vinculo.BarbeariaId,
+                vinculo.ProfissionalId,
+                vinculo.Cargo,
+                vinculo.Situacao
+            }).ToList()
         });
     }
 

@@ -260,6 +260,10 @@ public sealed class GestaoProfissionaisTestes
         public PerfilProfissional? PerfilAlvo => Perfis.Count > 1 ? Perfis[1] : null;
         public bool Salvou { get; private set; }
 
+        public Task<IReadOnlyList<VinculoProfissional>> ListarVinculosAtivosPorUsuarioAsync(
+            string usuarioId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<VinculoProfissional>>([]);
+
         public Task<PerfilProfissional?> ObterPorUsuarioAsync(string usuarioId, CancellationToken ct) =>
             Task.FromResult(usuarioId == _usuarioId ? proprietario : null);
 

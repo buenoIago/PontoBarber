@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { BarbeariaService } from '../barbearia/barbearia.service';
 import { interceptorErro } from '../core/http/interceptor-erro';
 import { AuthService } from './auth.service';
 
@@ -41,6 +42,87 @@ describe('AuthService', () => {
     });
 
     expect(servico.conta()?.email).toBe('usuario@exemplo.com');
+    http.verify();
+  });
+
+  it('should restore a single active link after loading the account', () => {
+    configurar();
+    const barbearias = TestBed.inject(BarbeariaService);
+
+    servico.carregarConta();
+    responder('GET', '/api/v1/auth/me', {
+      id: '1',
+      nomeCompleto: 'Nome',
+      email: 'usuario@exemplo.com',
+      telefone: null,
+      tipo: 'Professional',
+      vinculos: [
+        {
+          id: 'v1',
+          barbeariaId: 'b1',
+          profissionalId: 'p1',
+          cargo: 'Barbeiro',
+          situacao: 'Ativo',
+        },
+      ],
+    });
+
+    expect(barbearias.barbeariaId()).toBe('b1');
+    expect(barbearias.vinculo()?.profissionalId).toBe('p1');
+    http.verify();
+  });
+
+  it('should not choose arbitrarily when the account has several links', () => {
+    configurar();
+    const barbearias = TestBed.inject(BarbeariaService);
+
+    servico.carregarConta();
+    responder('GET', '/api/v1/auth/me', {
+      id: '1',
+      nomeCompleto: 'Nome',
+      email: 'usuario@exemplo.com',
+      telefone: null,
+      tipo: 'Professional',
+      vinculos: [
+        {
+          id: 'v1',
+          barbeariaId: 'b1',
+          profissionalId: 'p1',
+          cargo: 'Proprietario',
+          situacao: 'Ativo',
+        },
+        {
+          id: 'v2',
+          barbeariaId: 'b2',
+          profissionalId: 'p2',
+          cargo: 'Barbeiro',
+          situacao: 'Ativo',
+        },
+      ],
+    });
+
+    expect(barbearias.barbeariaId()).toBeNull();
+    expect(barbearias.vinculo()).toBeNull();
+    expect(barbearias.vinculosDisponiveis()).toHaveLength(2);
+    http.verify();
+  });
+
+  it('should not restore links for a customer account', () => {
+    configurar();
+    const barbearias = TestBed.inject(BarbeariaService);
+
+    servico.carregarConta();
+    responder('GET', '/api/v1/auth/me', {
+      id: '1',
+      nomeCompleto: 'Nome',
+      email: 'usuario@exemplo.com',
+      telefone: null,
+      tipo: 'Customer',
+      vinculos: [],
+    });
+
+    expect(barbearias.barbeariaId()).toBeNull();
+    expect(barbearias.vinculosDisponiveis()).toEqual([]);
     http.verify();
   });
 
@@ -133,20 +215,34 @@ describe('AuthService', () => {
     http.verify();
   });
 
-  it('should clear the account on logout', () => {
+  it('should clear the account and the tenant on logout', () => {
     configurar();
+    const barbearias = TestBed.inject(BarbeariaService);
     servico.carregarConta();
     responder('GET', '/api/v1/auth/me', {
       id: '1',
       nomeCompleto: 'N',
       email: 'e',
-      tipo: 'Customer',
+      tipo: 'Professional',
+      vinculos: [
+        {
+          id: 'v1',
+          barbeariaId: 'b1',
+          profissionalId: 'p1',
+          cargo: 'Proprietario',
+          situacao: 'Ativo',
+        },
+      ],
     });
+    expect(barbearias.barbeariaId()).toBe('b1');
 
     servico.sair();
     responder('POST', '/api/v1/auth/logout');
 
     expect(servico.conta()).toBeNull();
+    expect(barbearias.barbeariaId()).toBeNull();
+    expect(barbearias.vinculo()).toBeNull();
+    expect(barbearias.vinculosDisponiveis()).toEqual([]);
     http.verify();
   });
 });

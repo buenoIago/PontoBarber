@@ -212,6 +212,10 @@ public sealed class CriacaoBarbeariaTestes
     {
         public PerfilProfissional? PerfilExistente { get; init; }
 
+        public Task<IReadOnlyList<VinculoProfissional>> ListarVinculosAtivosPorUsuarioAsync(
+            string usuarioId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<VinculoProfissional>>([]);
+
         public Task<PerfilProfissional?> ObterPorUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>
             Task.FromResult(PerfilExistente);
 

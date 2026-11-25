@@ -62,6 +62,75 @@ describe('BarbeariaService', () => {
     expect(servico.dadosPublicos()?.fusoHorarioId).toBe('America/Sao_Paulo');
   });
 
+  it('should restore one active link automatically', () => {
+    servico.restaurarVinculos([
+      {
+        id: 'v1',
+        barbeariaId: 'b1',
+        profissionalId: 'p1',
+        cargo: 'Barbeiro',
+        situacao: 'Ativo',
+      },
+      {
+        id: 'v2',
+        barbeariaId: 'b2',
+        profissionalId: 'p2',
+        cargo: 'Barbeiro',
+        situacao: 'Inativo',
+      },
+    ]);
+
+    expect(servico.barbeariaId()).toBe('b1');
+    expect(servico.vinculo()?.profissionalId).toBe('p1');
+    expect(servico.vinculosDisponiveis()).toHaveLength(1);
+  });
+
+  it('should leave the tenant unselected when several links are active', () => {
+    const vinculos = [
+      {
+        id: 'v1',
+        barbeariaId: 'b1',
+        profissionalId: 'p1',
+        cargo: 'Proprietario',
+        situacao: 'Ativo',
+      },
+      {
+        id: 'v2',
+        barbeariaId: 'b2',
+        profissionalId: 'p2',
+        cargo: 'Barbeiro',
+        situacao: 'Ativo',
+      },
+    ];
+    servico.restaurarVinculos(vinculos);
+
+    expect(servico.barbeariaId()).toBeNull();
+    expect(servico.vinculo()).toBeNull();
+    expect(servico.vinculosDisponiveis()).toHaveLength(2);
+
+    servico.selecionarVinculo(vinculos[1]);
+    expect(servico.barbeariaId()).toBe('b2');
+    expect(servico.vinculo()?.profissionalId).toBe('p2');
+  });
+
+  it('should clear restored links on logout', () => {
+    servico.restaurarVinculos([
+      {
+        id: 'v1',
+        barbeariaId: 'b1',
+        profissionalId: 'p1',
+        cargo: 'Barbeiro',
+        situacao: 'Ativo',
+      },
+    ]);
+
+    servico.limpar();
+
+    expect(servico.barbeariaId()).toBeNull();
+    expect(servico.vinculo()).toBeNull();
+    expect(servico.vinculosDisponiveis()).toEqual([]);
+  });
+
   it('should join by invite code and load the professionals', () => {
     servico.entrar('ABC23456');
 

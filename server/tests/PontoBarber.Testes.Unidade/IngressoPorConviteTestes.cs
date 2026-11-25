@@ -172,6 +172,10 @@ public sealed class IngressoPorConviteTestes
         public PerfilProfissional? PerfilAdicionado { get; private set; }
         public bool ConflitoAoAdicionar { get; set; }
 
+        public Task<IReadOnlyList<VinculoProfissional>> ListarVinculosAtivosPorUsuarioAsync(
+            string usuarioId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<VinculoProfissional>>([]);
+
         public Task<PerfilProfissional?> ObterPorUsuarioAsync(string usuarioId, CancellationToken ct) =>
             Task.FromResult(Perfil);
 
