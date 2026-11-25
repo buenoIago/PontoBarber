@@ -1,5 +1,5 @@
-using Npgsql;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Infra.Compartilhado.Orm;

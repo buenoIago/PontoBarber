@@ -1,9 +1,9 @@
-using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Infra.Compartilhado.Orm.Configuracoes;
+using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 
 namespace PontoBarber.Infra.Modulos.Agendamentos.Configuracoes;
 
