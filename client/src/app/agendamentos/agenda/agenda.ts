@@ -47,7 +47,8 @@ export class Agenda implements OnInit {
   readonly fuso = computed(() => this.barbearias.barbearia()?.fusoHorarioId);
 
   readonly eProprietario = computed(
-    () => this.auth.conta()?.tipo === 'Professional' &&
+    () =>
+      this.auth.conta()?.tipo === 'Professional' &&
       this.barbearias.barbearia()?.codigoConvite != null,
   );
   readonly profissionalId = computed(() =>

@@ -61,7 +61,15 @@
       </thead>
       <tbody>
         @for (evento of eventos(); track evento.id) {
-          <tr [class]="evento.tipo === 'bloqueio' ? 'table-secondary' : evento.situacao === 'Cancelado' ? 'table-danger' : 'table-light'">
+          <tr
+            [class]="
+              evento.tipo === 'bloqueio'
+                ? 'table-secondary'
+                : evento.situacao === 'Cancelado'
+                  ? 'table-danger'
+                  : 'table-light'
+            "
+          >
             <td>{{ formatarHora(evento.iniciaEmUtc) }}</td>
             <td>
               <strong>{{ evento.titulo }}</strong>

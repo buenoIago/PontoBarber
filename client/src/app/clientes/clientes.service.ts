@@ -45,10 +45,9 @@ export class ClientesService {
   obter(barbeariaId: string, id: string): void {
     this.executar(
       () =>
-        this.http.get<Cliente>(
-          `/api/v1/barbearias/${barbeariaId}/customers/${id}`,
-          { withCredentials: true },
-        ),
+        this.http.get<Cliente>(`/api/v1/barbearias/${barbeariaId}/customers/${id}`, {
+          withCredentials: true,
+        }),
       (resposta) => this.selecionadoState.set(resposta),
     );
   }

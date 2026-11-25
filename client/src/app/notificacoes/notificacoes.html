@@ -2,7 +2,9 @@
   <div class="d-flex align-items-center justify-content-between">
     <h1 class="h3">Notificações</h1>
     @if (naoLidas() > 0) {
-      <span class="badge text-bg-danger" aria-label="Notificações não lidas">{{ naoLidas() }} não lidas</span>
+      <span class="badge text-bg-danger" aria-label="Notificações não lidas"
+        >{{ naoLidas() }} não lidas</span
+      >
     }
   </div>
 
@@ -11,7 +13,12 @@
   }
 
   @if (naoLidas() > 0) {
-    <app-button variante="outline" tamanho="sm" [desabilitado]="atualizando()" (click)="marcarTodas()">
+    <app-button
+      variante="outline"
+      tamanho="sm"
+      [desabilitado]="atualizando()"
+      (click)="marcarTodas()"
+    >
       Marcar todas como lidas
     </app-button>
   }
@@ -36,7 +43,11 @@
             <small class="text-body-secondary">{{ formatar(notificacao.criadoEmUtc) }}</small>
           </div>
           @if (!notificacao.lidoEmUtc) {
-            <app-button tamanho="sm" [desabilitado]="atualizando()" (click)="marcarComoLida(notificacao.id)">
+            <app-button
+              tamanho="sm"
+              [desabilitado]="atualizando()"
+              (click)="marcarComoLida(notificacao.id)"
+            >
               Marcar como lida
             </app-button>
           }

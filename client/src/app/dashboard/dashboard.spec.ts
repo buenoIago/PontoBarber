@@ -31,7 +31,11 @@ describe('Serviço do dashboard', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
     servico = TestBed.inject(DashboardService);
     http = TestBed.inject(HttpTestingController);
@@ -49,7 +53,9 @@ describe('Serviço do dashboard', () => {
 
   it('should expose an error message on failure', () => {
     servico.carregar('b1');
-    http.expectOne('/api/v1/barbearias/b1/dashboard').flush('erro', { status: 500, statusText: 'Erro' });
+    http
+      .expectOne('/api/v1/barbearias/b1/dashboard')
+      .flush('erro', { status: 500, statusText: 'Erro' });
     expect(servico.erro()).toContain('Não foi possível carregar');
   });
 });

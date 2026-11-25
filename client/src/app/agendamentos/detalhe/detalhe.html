@@ -17,39 +17,63 @@
       <div class="card-body">
         <h2 class="h5">{{ agendamento.nomeServico }}</h2>
         <p class="mb-1"><strong>Início:</strong> {{ formatar(agendamento.iniciaEmUtc) }}</p>
-        <p class="mb-1"><strong>Término previsto:</strong> {{ formatar(agendamento.terminaEmUtc) }}</p>
+        <p class="mb-1">
+          <strong>Término previsto:</strong> {{ formatar(agendamento.terminaEmUtc) }}
+        </p>
         <p class="mb-1"><strong>Valor:</strong> R$ {{ agendamento.preco.toFixed(2) }}</p>
         <p>
           <strong>Situação:</strong>
-          <span [class]="'badge ' + (agendamento.situacao === 'Cancelado' || agendamento.situacao === 'NaoCompareceu' ? 'text-bg-danger' : agendamento.situacao === 'EmAndamento' ? 'text-bg-warning' : agendamento.situacao === 'Concluido' ? 'text-bg-primary' : 'text-bg-success')">
+          <span
+            [class]="
+              'badge ' +
+              (agendamento.situacao === 'Cancelado' || agendamento.situacao === 'NaoCompareceu'
+                ? 'text-bg-danger'
+                : agendamento.situacao === 'EmAndamento'
+                  ? 'text-bg-warning'
+                  : agendamento.situacao === 'Concluido'
+                    ? 'text-bg-primary'
+                    : 'text-bg-success')
+            "
+          >
             {{ agendamento.situacao }}
           </span>
         </p>
         @if (agendamento.inicioRealUtc) {
-          <p class="mb-1"><strong>Início real:</strong> {{ formatar(agendamento.inicioRealUtc) }}</p>
+          <p class="mb-1">
+            <strong>Início real:</strong> {{ formatar(agendamento.inicioRealUtc) }}
+          </p>
         }
         @if (agendamento.fimRealUtc) {
           <p class="mb-1"><strong>Fim real:</strong> {{ formatar(agendamento.fimRealUtc) }}</p>
         }
         <p>
           <strong>Pagamento:</strong>
-          <span [class]="'badge ' + (agendamento.situacaoPagamento === 'Pago' ? 'text-bg-success' : 'text-bg-secondary')">
+          <span
+            [class]="
+              'badge ' +
+              (agendamento.situacaoPagamento === 'Pago' ? 'text-bg-success' : 'text-bg-secondary')
+            "
+          >
             {{ agendamento.situacaoPagamento || 'Pendente' }}
           </span>
         </p>
         @if (agendamento.pagamento; as pagamento) {
           <p class="text-body-secondary mb-1">
-            R$ {{ pagamento.valor.toFixed(2) }} · {{ pagamento.metodo }} · {{ formatar(pagamento.registradoEmUtc) }}
+            R$ {{ pagamento.valor.toFixed(2) }} · {{ pagamento.metodo }} ·
+            {{ formatar(pagamento.registradoEmUtc) }}
           </p>
         } @else if (agendamento.situacao === 'Concluido') {
           <p class="text-body-secondary">Atendimento finalizado sem pagamento registrado.</p>
         }
         @if (agendamento.situacao === 'Cancelado') {
           <p class="text-body-secondary mb-0">
-            Cancelado em {{ formatar(agendamento.canceladoEmUtc) }} — {{ agendamento.motivoCancelamento || 'sem motivo' }}
+            Cancelado em {{ formatar(agendamento.canceladoEmUtc) }} —
+            {{ agendamento.motivoCancelamento || 'sem motivo' }}
           </p>
         } @else if (agendamento.situacao === 'NaoCompareceu') {
-          <p class="text-body-secondary mb-0">O cliente não compareceu. Este estado é distinto de cancelamento.</p>
+          <p class="text-body-secondary mb-0">
+            O cliente não compareceu. Este estado é distinto de cancelamento.
+          </p>
         }
       </div>
     </div>
@@ -67,7 +91,9 @@
           <app-button tamanho="sm" (click)="concluir()">Concluir atendimento</app-button>
         }
         @if (!podeIniciar() && !podeConcluir()) {
-          <p class="text-body-secondary">Nenhuma ação de atendimento disponível para o estado atual.</p>
+          <p class="text-body-secondary">
+            Nenhuma ação de atendimento disponível para o estado atual.
+          </p>
         }
       </div>
 
@@ -124,7 +150,9 @@
         @for (sugestao of pendentes(); track sugestao.id) {
           <div class="card mb-2">
             <div class="card-body">
-              <p class="mb-1"><strong>Novo horário:</strong> {{ formatar(sugestao.inicioSugeridoUtc) }}</p>
+              <p class="mb-1">
+                <strong>Novo horário:</strong> {{ formatar(sugestao.inicioSugeridoUtc) }}
+              </p>
               <p class="mb-1">{{ sugestao.motivo }}</p>
               <p class="text-body-secondary">Válido até {{ formatar(sugestao.expiraEmUtc) }}</p>
               <div class="d-flex gap-2">
@@ -165,16 +193,27 @@
       </app-form-field>
 
       <div class="d-flex flex-wrap gap-2">
-        <app-button tamanho="sm" [desabilitado]="!horario()" (click)="remarcar()">Remarcar</app-button>
+        <app-button tamanho="sm" [desabilitado]="!horario()" (click)="remarcar()"
+          >Remarcar</app-button
+        >
         @if (!eCliente()) {
-          <app-button variante="outline" tamanho="sm" [desabilitado]="!horario()" (click)="sugerir()">
+          <app-button
+            variante="outline"
+            tamanho="sm"
+            [desabilitado]="!horario()"
+            (click)="sugerir()"
+          >
             Sugerir novo horário
           </app-button>
         }
       </div>
 
       @if (!eCliente()) {
-        <app-form-field id="detalhe-motivo-sugestao" rotulo="Motivo da sugestão" [obrigatorio]="true">
+        <app-form-field
+          id="detalhe-motivo-sugestao"
+          rotulo="Motivo da sugestão"
+          [obrigatorio]="true"
+        >
           <input
             id="detalhe-motivo-sugestao"
             class="form-control"
@@ -202,8 +241,14 @@
             />
           </app-form-field>
           <div class="d-flex gap-2">
-            <app-button variante="secondary" tamanho="sm" (click)="cancelar()">Confirmar cancelamento</app-button>
-            <app-button variante="outline" tamanho="sm" (click)="confirmandoCancelamento.set(false)">
+            <app-button variante="secondary" tamanho="sm" (click)="cancelar()"
+              >Confirmar cancelamento</app-button
+            >
+            <app-button
+              variante="outline"
+              tamanho="sm"
+              (click)="confirmandoCancelamento.set(false)"
+            >
               Voltar
             </app-button>
           </div>
@@ -222,7 +267,9 @@
               <strong>{{ rotuloEvento(evento.tipoEvento) }}</strong>
               <div class="text-body-secondary">
                 {{ formatar(evento.ocorridoEmUtc) }}
-                @if (evento.detalhes) { — {{ evento.detalhes }} }
+                @if (evento.detalhes) {
+                  — {{ evento.detalhes }}
+                }
               </div>
             </div>
             @if (evento.novoInicioUtc) {

@@ -40,11 +40,15 @@ describe('AgendamentosService', () => {
   });
 
   it('should confirm a public appointment', () => {
-    servico.confirmar('b1', {
-      profissionalId: 'p1',
-      servicoId: 's1',
-      iniciaEmUtc: '2026-11-23T13:00:00Z',
-    }, true);
+    servico.confirmar(
+      'b1',
+      {
+        profissionalId: 'p1',
+        servicoId: 's1',
+        iniciaEmUtc: '2026-11-23T13:00:00Z',
+      },
+      true,
+    );
 
     const req = http.expectOne('/api/v1/barbearias/b1/agendamentos/public');
     expect(req.request.method).toBe('POST');
@@ -58,7 +62,12 @@ describe('AgendamentosService', () => {
     const req = http.expectOne(
       '/api/v1/barbearias/b1/disponibilidade?servicoId=s1&profissionalId=p1&date=2026-11-23&dias=1',
     );
-    req.flush({ date: '2026-11-23', fusoHorarioId: 'America/Sao_Paulo', slots: [], hasAvailability: false });
+    req.flush({
+      date: '2026-11-23',
+      fusoHorarioId: 'America/Sao_Paulo',
+      slots: [],
+      hasAvailability: false,
+    });
     expect(servico.slots()).toEqual([]);
   });
 });
@@ -103,19 +112,21 @@ describe('Telas de agendamento', () => {
         {
           provide: AgendamentosService,
           useValue: {
-            agenda: signal([{
-              id: 'a1',
-              barbeariaId: 'b1',
-              profissionalId: 'p1',
-              servicoId: 's1',
-              iniciaEmUtc: '2026-11-23T13:00:00Z',
-              terminaEmUtc: '2026-11-23T13:40:00Z',
-              nomeServico: 'Corte degradê',
-              duracaoMinutos: 40,
-              preco: 80,
-              situacao: 'Confirmado',
-              origem: 'Publico',
-            }]),
+            agenda: signal([
+              {
+                id: 'a1',
+                barbeariaId: 'b1',
+                profissionalId: 'p1',
+                servicoId: 's1',
+                iniciaEmUtc: '2026-11-23T13:00:00Z',
+                terminaEmUtc: '2026-11-23T13:40:00Z',
+                nomeServico: 'Corte degradê',
+                duracaoMinutos: 40,
+                preco: 80,
+                situacao: 'Confirmado',
+                origem: 'Publico',
+              },
+            ]),
             bloqueios: signal([]),
             servicos: signal([]),
             slots: signal([]),

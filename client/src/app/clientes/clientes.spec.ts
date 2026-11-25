@@ -22,7 +22,11 @@ describe('Serviço de clientes', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
     servico = TestBed.inject(ClientesService);
     http = TestBed.inject(HttpTestingController);

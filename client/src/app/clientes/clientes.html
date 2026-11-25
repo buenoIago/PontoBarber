@@ -55,7 +55,12 @@
     </app-table>
 
     <div class="d-flex align-items-center justify-content-between mt-3">
-      <app-button variante="outline" tamanho="sm" [desabilitado]="pagina() === 1" (click)="anterior()">
+      <app-button
+        variante="outline"
+        tamanho="sm"
+        [desabilitado]="pagina() === 1"
+        (click)="anterior()"
+      >
         Anterior
       </app-button>
       <span>Página {{ pagina() }} · {{ total() }} cliente(s)</span>
@@ -80,7 +85,8 @@
       </div>
     </div>
     <p class="text-body-secondary mt-2">
-      Estes dados são administrados pelo próprio cliente. Não há ações de cadastro, edição ou exclusão aqui.
+      Estes dados são administrados pelo próprio cliente. Não há ações de cadastro, edição ou
+      exclusão aqui.
     </p>
   }
 </section>

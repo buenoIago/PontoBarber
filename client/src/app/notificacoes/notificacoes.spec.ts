@@ -24,7 +24,11 @@ describe('Serviço de notificações', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
     servico = TestBed.inject(NotificacoesService);
     http = TestBed.inject(HttpTestingController);
@@ -48,18 +52,22 @@ describe('Serviço de notificações', () => {
     const um = http.expectOne('/api/v1/notificacoes/n1/ler');
     expect(um.request.method).toBe('POST');
     um.flush(null);
-    http.expectOne('/api/v1/notificacoes').flush({ itens: [], naoLidas: 0, pagina: 1, tamanho: 20 });
+    http
+      .expectOne('/api/v1/notificacoes')
+      .flush({ itens: [], naoLidas: 0, pagina: 1, tamanho: 20 });
 
     servico.marcarTodas();
     const todas = http.expectOne('/api/v1/notificacoes/ler-todas');
     expect(todas.request.method).toBe('POST');
     todas.flush({ marcadas: 0 });
-    http.expectOne('/api/v1/notificacoes').flush({ itens: [], naoLidas: 0, pagina: 1, tamanho: 20 });
+    http
+      .expectOne('/api/v1/notificacoes')
+      .flush({ itens: [], naoLidas: 0, pagina: 1, tamanho: 20 });
   });
 });
 
 describe('Central de notificações', () => {
-  async function configurar(itens: typeof notificacao[] = [notificacao], naoLidas = 1) {
+  async function configurar(itens: (typeof notificacao)[] = [notificacao], naoLidas = 1) {
     await TestBed.configureTestingModule({
       imports: [Notificacoes],
       providers: [

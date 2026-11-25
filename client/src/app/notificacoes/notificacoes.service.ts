@@ -68,7 +68,9 @@ export class NotificacoesService implements OnDestroy {
       .subscribe({
         next: () => this.carregar(),
         error: (erro: unknown) =>
-          this.erroState.set(erro instanceof ErroApi ? erro.message : 'Não foi possível marcar como lida.'),
+          this.erroState.set(
+            erro instanceof ErroApi ? erro.message : 'Não foi possível marcar como lida.',
+          ),
       });
   }
 
@@ -80,7 +82,9 @@ export class NotificacoesService implements OnDestroy {
       .subscribe({
         next: () => this.carregar(),
         error: (erro: unknown) =>
-          this.erroState.set(erro instanceof ErroApi ? erro.message : 'Não foi possível marcar todas.'),
+          this.erroState.set(
+            erro instanceof ErroApi ? erro.message : 'Não foi possível marcar todas.',
+          ),
       });
   }
 

@@ -43,12 +43,7 @@ export class AgendamentosService {
   readonly erro = this.erroState.asReadonly();
   readonly sucesso = this.sucessoState.asReadonly();
 
-  listarAgenda(
-    barbeariaId: string,
-    de: string,
-    ate: string,
-    profissionalId?: string | null,
-  ): void {
+  listarAgenda(barbeariaId: string, de: string, ate: string, profissionalId?: string | null): void {
     const filtro = profissionalId ? `&profissionalId=${profissionalId}` : '';
     this.executar(
       () =>
@@ -204,10 +199,9 @@ export class AgendamentosService {
   carregarDetalhe(barbeariaId: string, id: string): void {
     this.executar(
       () =>
-        this.http.get<Agendamento>(
-          `/api/v1/barbearias/${barbeariaId}/agendamentos/${id}`,
-          { withCredentials: true },
-        ),
+        this.http.get<Agendamento>(`/api/v1/barbearias/${barbeariaId}/agendamentos/${id}`, {
+          withCredentials: true,
+        }),
       (resposta) => {
         this.detalheState.set(resposta);
         this.carregarHistorico(barbeariaId, id);

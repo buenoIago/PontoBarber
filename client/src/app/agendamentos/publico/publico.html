@@ -10,7 +10,11 @@
   }
 
   @if (!barbeariaId()) {
-    <app-form-field id="barbearia-agendamento" rotulo="Identificador da barbearia" [obrigatorio]="true">
+    <app-form-field
+      id="barbearia-agendamento"
+      rotulo="Identificador da barbearia"
+      [obrigatorio]="true"
+    >
       <input
         id="barbearia-agendamento"
         class="form-control"
