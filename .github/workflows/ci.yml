@@ -47,6 +47,9 @@ jobs:
 
       - name: Verificar alterações pendentes no modelo EF
         shell: bash
+        env:
+          # Apenas monta o modelo; `has-pending-model-changes` não abre conexão.
+          ConnectionStrings__DefaultConnection: "Host=127.0.0.1;Port=5432;Database=pontobarber_ci;Username=ci;Password=ci;Timeout=1"
         run: |
           if find server/src/PontoBarber.Infra -path '*/Migrations/*Snapshot.cs' -print -quit | grep -q .; then
             dotnet ef migrations has-pending-model-changes \
