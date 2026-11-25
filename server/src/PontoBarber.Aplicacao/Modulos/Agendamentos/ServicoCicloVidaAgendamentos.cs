@@ -125,6 +125,9 @@ public sealed class ServicoCicloVidaAgendamentos(
 
         if (sugestao.EstaExpirada(agora))
             throw new ExcecaoConflitoAplicacao(CodigosErro.SugestaoExpirada, "A sugestão expirou.");
+        if (sugestao.InicioSugeridoUtc <= agora)
+            throw new ExcecaoConflitoAplicacao(
+                CodigosErro.SugestaoExpirada, "O horário sugerido já passou.");
         if (sugestao.Situacao != SituacaoSugestao.Pendente)
             throw new ExcecaoConflitoAplicacao(
                 CodigosErro.AgendamentoEstadoInvalido, "A sugestão já foi respondida.");

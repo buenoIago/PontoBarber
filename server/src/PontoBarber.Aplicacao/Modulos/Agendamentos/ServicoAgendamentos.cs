@@ -103,7 +103,8 @@ public sealed class ServicoAgendamentos(
 
         var agendamentos = await repositorio.ListarPorBarbeariaAsync(
             barbeariaId, inicioUtc, fimUtc, filtroProfissional, null, cancellationToken);
-        return agendamentos.Select(item => ParaResponse(item)).ToList();
+        var pagamentosPorAgendamento = await CarregarPagamentosAsync(agendamentos, cancellationToken);
+        return agendamentos.Select(item => ParaResponse(item, pagamentosPorAgendamento)).ToList();
     }
 
     public async Task<IReadOnlyList<AgendamentoResponse>> ListarDoClienteAsync(
@@ -120,7 +121,8 @@ public sealed class ServicoAgendamentos(
         var inicioUtc = ParaUtc(de, new TimeOnly(0, 0), fuso);
         var fimUtc = ParaUtc(ate.AddDays(1), new TimeOnly(0, 0), fuso);
         var agendamentos = await repositorio.ListarDoClienteAsync(conta.Id, inicioUtc, fimUtc, cancellationToken);
-        return agendamentos.Select(item => ParaResponse(item)).ToList();
+        var pagamentosPorAgendamento = await CarregarPagamentosAsync(agendamentos, cancellationToken);
+        return agendamentos.Select(item => ParaResponse(item, pagamentosPorAgendamento)).ToList();
     }
 
     public async Task<AgendamentoResponse> ObterAsync(
@@ -142,7 +144,11 @@ public sealed class ServicoAgendamentos(
         {
             if (agendamento.ClienteId != conta.Id)
                 throw AcessoNegado();
-            return ParaResponse(agendamento);
+
+            var pagamentoCliente = await pagamentos.ObterPorAgendamentoAsync(
+                barbeariaId, agendamentoId, cancellationToken);
+            var resumoCliente = ParaResumo(pagamentoCliente);
+            return ParaResponse(agendamento, resumoCliente);
         }
 
         var perfil = await profissionais.ObterPorUsuarioAsync(usuarioId, cancellationToken);
@@ -248,6 +254,36 @@ public sealed class ServicoAgendamentos(
     private static DateTime ParaUtc(DateOnly data, TimeOnly hora, TimeZoneInfo fuso) =>
         TimeZoneInfo.ConvertTimeToUtc(
             DateTime.SpecifyKind(data.ToDateTime(hora), DateTimeKind.Unspecified), fuso);
+
+    private async Task<IReadOnlyDictionary<Guid, Pagamento>> CarregarPagamentosAsync(
+        IReadOnlyCollection<Agendamento> agendamentos,
+        CancellationToken cancellationToken)
+    {
+        var mapa = new Dictionary<Guid, Pagamento>();
+        foreach (var grupo in agendamentos.GroupBy(item => item.BarbeariaId))
+        {
+            var encontrados = await pagamentos.ObterPorAgendamentosAsync(
+                grupo.Key, grupo.Select(item => item.Id).ToList(), cancellationToken);
+            foreach (var par in encontrados)
+                mapa[par.Key] = par.Value;
+        }
+
+        return mapa;
+    }
+
+    private static AgendamentoResponse ParaResponse(
+        Agendamento agendamento, IReadOnlyDictionary<Guid, Pagamento> pagamentosPorAgendamento) =>
+        ParaResponse(
+            agendamento,
+            pagamentosPorAgendamento.TryGetValue(agendamento.Id, out var pagamento)
+                ? ParaResumo(pagamento)
+                : null);
+
+    private static PagamentoResumo? ParaResumo(Pagamento? pagamento) =>
+        pagamento is null
+            ? null
+            : new PagamentoResumo(
+                pagamento.Id, pagamento.Valor, pagamento.Metodo.ToString(), pagamento.RegistradoEmUtc);
 
     private static AgendamentoResponse ParaResponse(
         Agendamento agendamento, PagamentoResumo? pagamento = null, string? situacaoPagamento = null) =>

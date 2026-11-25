@@ -36,7 +36,8 @@ public sealed class TestesConsultaDisponibilidade
         await RegistrarEEntrarAsync(cliente);
         var barbearia = await CriarBarbeariaAsync(cliente);
         var (profissionalId, servicoId, duracao) = await PrepararConfiguracaoAsync(fabrica, cliente, barbearia.Id);
-        var data = HojeNaBarbearia();
+        // Horários do próprio dia já passados não são oferecidos.
+        var data = HojeNaBarbearia().AddDays(1);
 
         var resposta = await cliente.GetAsync(Url(barbearia.Id, servicoId, profissionalId, data));
 
@@ -92,7 +93,7 @@ public sealed class TestesConsultaDisponibilidade
         await RegistrarEEntrarAsync(cliente);
         var barbearia = await CriarBarbeariaAsync(cliente);
         var (profissionalId, servicoId, _) = await PrepararConfiguracaoAsync(fabrica, cliente, barbearia.Id);
-        var data = HojeNaBarbearia();
+        var data = HojeNaBarbearia().AddDays(1);
         var fuso = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
         var inicio = TimeZoneInfo.ConvertTimeToUtc(
             DateTime.SpecifyKind(data.ToDateTime(new TimeOnly(10, 0)), DateTimeKind.Unspecified), fuso);

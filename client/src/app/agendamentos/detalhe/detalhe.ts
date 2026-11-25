@@ -42,7 +42,15 @@ export class DetalheAgendamento implements OnInit {
       ? this.dadosPublicos()?.fusoHorarioId
       : this.barbearias.barbearia()?.fusoHorarioId,
   );
-  readonly eBarbeiro = computed(() => this.barbearias.vinculo()?.cargo === 'Barbeiro');
+  // TDD §5.5.3: atendimento e pagamento exigem vínculo ativo e titularidade
+  // da agenda. Proprietário e barbeiro seguem a mesma regra; o backend valida
+  // perfil.Id == agendamento.ProfissionalId (ServicoAtendimentos).
+  readonly eBarbeiro = computed(() => {
+    if (this.auth.conta()?.tipo !== 'Professional') return false;
+    const vinculo = this.barbearias.vinculo();
+    if (!vinculo || vinculo.situacao !== 'Ativo') return false;
+    return vinculo.profissionalId === this.detalhe()?.profissionalId;
+  });
 
   readonly dataHorario = signal('');
   readonly horario = signal('');
@@ -64,14 +72,17 @@ export class DetalheAgendamento implements OnInit {
     () => this.eBarbeiro() && this.detalhe()?.situacao === 'Confirmado',
   );
   readonly podePagar = computed(
-    () => this.eBarbeiro() &&
+    () =>
+      this.eBarbeiro() &&
       this.detalhe()?.situacaoPagamento === 'Pendente' &&
       !['Cancelado', 'NaoCompareceu'].includes(this.detalhe()?.situacao ?? ''),
   );
 
   readonly pendentes = computed(() =>
-    this.sugestoes().filter((sugestao) =>
-      sugestao.situacao === 'Pendente' && new Date(sugestao.expiraEmUtc).getTime() > this.agora()),
+    this.sugestoes().filter(
+      (sugestao) =>
+        sugestao.situacao === 'Pendente' && new Date(sugestao.expiraEmUtc).getTime() > this.agora(),
+    ),
   );
 
   ngOnInit(): void {
@@ -157,7 +168,11 @@ export class DetalheAgendamento implements OnInit {
     if (!barbeariaId || !id || this.valorPagamento() < 0) return;
 
     this.servico.registrarPagamento(
-      barbeariaId, id, this.valorPagamento(), this.metodoPagamento(), () => this.recarregar(),
+      barbeariaId,
+      id,
+      this.valorPagamento(),
+      this.metodoPagamento(),
+      () => this.recarregar(),
     );
   }
 

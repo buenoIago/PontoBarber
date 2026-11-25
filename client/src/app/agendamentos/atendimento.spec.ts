@@ -91,7 +91,7 @@ describe('Tela de atendimento', () => {
           useValue: {
             barbeariaId: signal('b1'),
             barbearia: signal({ fusoHorarioId: 'America/Sao_Paulo' }),
-            vinculo: signal(cargo ? { cargo, profissionalId: 'p1' } : null),
+            vinculo: signal(cargo ? { cargo, profissionalId: 'p1', situacao: 'Ativo' } : null),
             dadosPublicos: signal(null),
             obter: vi.fn(),
             obterDadosAgendamentoPublico: vi.fn(),
@@ -134,6 +134,18 @@ describe('Tela de atendimento', () => {
     expect(elemento.textContent).toContain('Iniciar atendimento');
     expect(elemento.textContent).toContain('Marcar não comparecimento');
     expect(elemento.textContent).toContain('Registrar pagamento');
+  });
+
+  it('should offer attendance actions to the owner on their own agenda', async () => {
+    const elemento = await configurar(agendamentoBase, 'Proprietario');
+    expect(elemento.textContent).toContain('Iniciar atendimento');
+    expect(elemento.textContent).toContain('Registrar pagamento');
+  });
+
+  it('should hide attendance actions when the appointment belongs to another professional', async () => {
+    const elemento = await configurar({ ...agendamentoBase, profissionalId: 'p2' }, 'Barbeiro');
+    expect(elemento.textContent).not.toContain('Iniciar atendimento');
+    expect(elemento.textContent).not.toContain('Registrar pagamento');
   });
 
   it('should hide attendance actions from the customer', async () => {

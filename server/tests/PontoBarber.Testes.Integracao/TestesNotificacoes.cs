@@ -68,6 +68,59 @@ public sealed class TestesNotificacoes
     }
 
     [TestMethod]
+    public async Task Reconciliacao_MaisDe500Eventos_ProcessaEventosPosterioresSemDuplicar()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+
+        Guid[] jaReconciliados;
+        Guid[] foraDaPrimeiraPagina;
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+            var agora = DateTime.UtcNow;
+            var eventos = Enumerable.Range(0, 520)
+                .Select(indice => Evento(cenario.BarbeariaId, cenario.AgendamentoId,
+                    TipoEventoHistorico.ServicoConcluido, agora.AddSeconds(indice)))
+                .ToList();
+
+            jaReconciliados = eventos.Take(500).Select(evento => evento.Id).ToArray();
+            foraDaPrimeiraPagina = eventos.Skip(500).Select(evento => evento.Id).ToArray();
+
+            contexto.Set<HistoricoAgendamento>().AddRange(eventos);
+            contexto.Set<Notificacao>().AddRange(jaReconciliados.Select(eventoId =>
+                Notificacao.Criar(cenario.BarbeariaId, cenario.ClienteAId,
+                    TipoNotificacao.ServicoConcluido, cenario.AgendamentoId,
+                    "Reconciliado", eventoId, agora)));
+            await contexto.SaveChangesAsync();
+        }
+
+        var processo = fabrica.Services.CreateScope().ServiceProvider
+            .GetRequiredService<RegistroProcessosPeriodicos>()
+            .Obter(ReconciliarNotificacoesProcesso.NomeJob)!;
+        var resultado = await ExecutarProcessoAsync(fabrica, processo);
+
+        Assert.IsTrue(resultado.Quantidade > 0);
+
+        using var verificacao = fabrica.Services.CreateScope();
+        var ctx = verificacao.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        var notificacoes = await ctx.Set<Notificacao>().IgnoreQueryFilters().ToListAsync();
+
+        // Nenhum par (EventId, destinatário) pode aparecer duas vezes.
+        Assert.AreEqual(notificacoes.Count, notificacoes
+            .Select(item => $"{item.EventId}|{item.DestinatarioUsuarioId}").Distinct().Count());
+
+        foreach (var eventoId in jaReconciliados)
+            Assert.AreEqual(1, notificacoes.Count(item => item.EventId == eventoId &&
+                item.DestinatarioUsuarioId == cenario.ClienteAId));
+
+        foreach (var eventoId in foraDaPrimeiraPagina)
+            Assert.IsTrue(notificacoes.Any(item => item.EventId == eventoId),
+                $"Evento {eventoId} não foi reconciliado.");
+    }
+
+    [TestMethod]
     public async Task Consulta_Notificacoes_RestritaAoProprioUsuario()
     {
         using var fabrica = CriarFabricaComBanco();

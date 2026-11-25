@@ -180,8 +180,9 @@ public sealed class TestesAutorizacaoConfiguracoes
         var perfil = await ObterPerfilIdAsync(fabrica, dono);
         await EnviarComAntiforgeryAsync(dono, HttpMethod.Put, DisponibilidadeUrl(barbearia.Id, perfil), Janelas());
         var servicoId = await ObterServicoIdAsync(fabrica, barbearia.Id);
+        // A consulta não oferece horários passados; usar o próximo dia.
         var data = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(
-            DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo")));
+            DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo"))).AddDays(1);
 
         using var cliente = fabrica.CreateClient(_opcoesCliente);
         var resposta = await cliente.GetAsync(

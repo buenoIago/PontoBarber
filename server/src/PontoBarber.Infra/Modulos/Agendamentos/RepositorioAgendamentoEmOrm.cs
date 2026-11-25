@@ -50,9 +50,12 @@ public sealed class RepositorioAgendamentoEmOrm(
                 detalhes: $"Origem: {agendamento.Origem}. Snapshot: {agendamento.NomeServicoSnapshot}.");
             RegistrarEvento(agendamento.BarbeariaId, agendamento.Id, TipoEventoHistorico.Confirmacao, null, agora,
                 novoInicioUtc: agendamento.IniciaEmUtc, detalhes: "Confirmação automática na criação.");
+            await contexto.SaveChangesAsync(cancellationToken);
+
+            // O agendamento já existe na transação: notificações criadas antes
+            // do SaveChanges não encontravam o registro e eram descartadas.
             await NotificarAsync(agendamento.BarbeariaId, agendamento.Id, evento.Id,
                 TipoEventoHistorico.Criacao, agora, cancellationToken);
-
             await contexto.SaveChangesAsync(cancellationToken);
             await LiberarLocksAsync(conexao, transacaoDb, [chaveLock], cancellationToken);
             await transacao.CommitAsync(cancellationToken);
@@ -87,6 +90,26 @@ public sealed class RepositorioAgendamentoEmOrm(
                                   profissionalIds.Contains(agendamento.ProfissionalId) &&
                                   agendamento.IniciaEmUtc < fimUtc &&
                                   agendamento.TerminaEmUtc > inicioUtc)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<(Guid ProfissionalId, DateTime IniciaEmUtc, DateTime TerminaEmUtc)>>
+        ListarReservasTemporariasAsync(
+            Guid barbeariaId,
+            IReadOnlyCollection<Guid> profissionalIds,
+            DateTime inicioUtc,
+            DateTime fimUtc,
+            DateTime agoraUtc,
+            CancellationToken cancellationToken) =>
+        await contexto.Set<SugestaoHorario>()
+            .IgnoreQueryFilters()
+            .Where(sugestao => sugestao.BarbeariaId == barbeariaId &&
+                               profissionalIds.Contains(sugestao.ProfissionalId) &&
+                               sugestao.Situacao == SituacaoSugestao.Pendente &&
+                               sugestao.ExpiraEmUtc > agoraUtc &&
+                               sugestao.InicioSugeridoUtc < fimUtc &&
+                               sugestao.FimSugeridoUtc > inicioUtc)
+            .Select(sugestao => new ValueTuple<Guid, DateTime, DateTime>(
+                sugestao.ProfissionalId, sugestao.InicioSugeridoUtc, sugestao.FimSugeridoUtc))
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Agendamento>> ListarPorBarbeariaAsync(

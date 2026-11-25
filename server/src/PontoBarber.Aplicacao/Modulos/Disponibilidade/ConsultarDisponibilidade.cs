@@ -81,12 +81,12 @@ public sealed class ConsultarDisponibilidade(
         var fimDiaUtc = ParaUtc(data, horario.FechaAs!.Value, fuso);
         var bloqueiosDoDia = await bloqueios.ListarPeriodoAsync(
             barbeariaId, inicioDiaUtc, fimDiaUtc, cancellationToken);
+        var profissionalIds = alvos.Select(alvo => alvo.Perfil.Id).ToList();
+        var agoraUtc = DateTime.UtcNow;
         var agendamentosDoDia = await agendamentos.ListarAtivosPorPeriodoAsync(
-            barbeariaId,
-            alvos.Select(alvo => alvo.Perfil.Id).ToList(),
-            inicioDiaUtc,
-            fimDiaUtc,
-            cancellationToken);
+            barbeariaId, profissionalIds, inicioDiaUtc, fimDiaUtc, cancellationToken);
+        var reservasTemporarias = await agendamentos.ListarReservasTemporariasAsync(
+            barbeariaId, profissionalIds, inicioDiaUtc, fimDiaUtc, agoraUtc, cancellationToken);
 
         var slots = new List<SlotDisponibilidade>();
         foreach (var alvo in alvos)
@@ -114,6 +114,10 @@ public sealed class ConsultarDisponibilidade(
                     if (inicioSlot == DateTime.MinValue || fimSlot == DateTime.MinValue)
                         continue;
 
+                    // Não oferecer horários que já passaram no próprio dia.
+                    if (inicioSlot <= DateTime.UtcNow)
+                        continue;
+
                     if (bloqueiosDoDia.Any(bloqueio => bloqueio.ProfissionalId == alvo.Perfil.Id &&
                                                      inicioSlot < bloqueio.TerminaEmUtc &&
                                                      fimSlot > bloqueio.IniciaEmUtc))
@@ -122,6 +126,11 @@ public sealed class ConsultarDisponibilidade(
                     if (agendamentosDoDia.Any(agendamento => agendamento.ProfissionalId == alvo.Perfil.Id &&
                                                           inicioSlot < agendamento.TerminaEmUtc &&
                                                           fimSlot > agendamento.IniciaEmUtc))
+                        continue;
+
+                    if (reservasTemporarias.Any(reserva => reserva.ProfissionalId == alvo.Perfil.Id &&
+                                                         inicioSlot < reserva.TerminaEmUtc &&
+                                                         fimSlot > reserva.IniciaEmUtc))
                         continue;
 
                     slots.Add(new SlotDisponibilidade(

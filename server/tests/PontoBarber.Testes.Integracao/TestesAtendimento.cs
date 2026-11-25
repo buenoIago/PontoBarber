@@ -162,6 +162,38 @@ public sealed class TestesAtendimento
     }
 
     [TestMethod]
+    public async Task Pagamento_ConcorrenteMesmaChaveEPayload_DevolveMesmaResposta()
+    {
+        using var fabrica = CriarFabricaComBanco();
+        CriarSchema(fabrica);
+        var cenario = await CriarCenarioAsync(fabrica);
+        var id = await CriarAgendamentoAsync(cenario);
+        Assert.AreEqual(HttpStatusCode.OK, (await Acao(cenario.Barbeiro, cenario.BarbeariaId, id, "iniciar")).StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, (await Acao(cenario.Barbeiro, cenario.BarbeariaId, id, "concluir")).StatusCode);
+
+        const string chave = "chave-concorrente";
+        var respostas = await Task.WhenAll(
+            Pagar(cenario.Barbeiro, cenario.BarbeariaId, id, chave, 80m, "Pix"),
+            Pagar(cenario.Barbeiro, cenario.BarbeariaId, id, chave, 80m, "Pix"));
+
+        Assert.IsTrue(respostas.All(resposta => resposta.StatusCode == HttpStatusCode.Created));
+        var idPagamento = (await LerAsync(respostas[0])).GetProperty("id").GetString();
+        Assert.AreEqual(idPagamento, (await LerAsync(respostas[1])).GetProperty("id").GetString());
+
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+            Assert.AreEqual(1, await contexto.Set<Pagamento>().IgnoreQueryFilters().CountAsync());
+        }
+
+        // Mesma chave, payload diferente: continua sendo conflito estável.
+        var divergente = await Pagar(cenario.Barbeiro, cenario.BarbeariaId, id, chave, 80m, "Cash");
+        Assert.AreEqual(HttpStatusCode.Conflict, divergente.StatusCode);
+        Assert.AreEqual(CodigosErro.ConcorrenciaConflito,
+            (await LerAsync(divergente)).GetProperty("code").GetString());
+    }
+
+    [TestMethod]
     public async Task Pagamento_InvalidoESemAlterarEstadoDoAtendimento()
     {
         using var fabrica = CriarFabricaComBanco();
@@ -202,7 +234,21 @@ public sealed class TestesAtendimento
             (await LerAsync(resposta)).GetProperty("code").GetString());
     }
 
+    // Data fixa do dia corrente: o atendimento só pode começar no dia do
+    // agendamento, independentemente da hora em que a suíte é executada.
     private static DateTime HojeAs10() => As10(0);
+
+    // Instante sempre futuro e dentro da janela da fixture para a criação via
+    // API; o horário persistido é ajustado depois para HojeAs10().
+    private static DateTime ProximoInstanteValido()
+    {
+        var local = TimeZoneInfo.ConvertTime(DateTime.UtcNow, _fuso);
+        var candidato = local.TimeOfDay > new TimeSpan(23, 0, 0)
+            ? local.Date.AddDays(1).AddMinutes(15)
+            : local.AddMinutes(15);
+        return TimeZoneInfo.ConvertTimeToUtc(
+            DateTime.SpecifyKind(candidato, DateTimeKind.Unspecified), _fuso);
+    }
 
     private static DateTime AmanhaAs10() => As10(1);
 
@@ -222,12 +268,22 @@ public sealed class TestesAtendimento
             {
                 profissionalId = cenario.BarbeiroId,
                 servicoId = cenario.ServicoId,
-                iniciaEmUtc = (inicio ?? HojeAs10()).ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture),
+                iniciaEmUtc = (inicio ?? ProximoInstanteValido()).ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture),
                 observacoes = (string?)null,
                 clienteId = cenario.ClienteId
             });
-        Assert.AreEqual(HttpStatusCode.Created, resposta.StatusCode);
-        return Guid.Parse((await LerAsync(resposta)).GetProperty("id").GetString()!);
+        Assert.AreEqual(HttpStatusCode.Created, resposta.StatusCode, await resposta.Content.ReadAsStringAsync());
+        var id = Guid.Parse((await LerAsync(resposta)).GetProperty("id").GetString()!);
+
+        var inicioPersistido = inicio ?? HojeAs10();
+        using (var escopo = cenario.Fabrica.Services.CreateScope())
+        {
+            var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+            await contexto.Database.ExecuteSqlRawAsync(
+                "UPDATE [Agendamentos] SET [IniciaEmUtc] = {0}, [TerminaEmUtc] = {1} WHERE [Id] = {2}",
+                inicioPersistido, inicioPersistido.AddMinutes(40), id);
+        }
+        return id;
     }
 
     private static Task<HttpResponseMessage> Acao(HttpClient cliente, Guid barbeariaId, Guid id, string acao) =>
@@ -291,13 +347,13 @@ public sealed class TestesAtendimento
         }
 
         var dias = Enumerable.Range(1, 7)
-            .Select(dia => new { diaSemana = dia, abreAs = "09:00:00", fechaAs = "18:00:00", fechado = false })
+            .Select(dia => new { diaSemana = dia, abreAs = "00:00:00", fechaAs = "23:59:00", fechado = false })
             .ToArray();
         Assert.AreEqual(HttpStatusCode.OK, (await EnviarAsync(
             dono, HttpMethod.Put, $"/api/v1/barbearias/{barbearia.Id}/horarios-funcionamento", dias)).StatusCode);
 
         var janelas = Enumerable.Range(1, 7)
-            .Select(dia => new { diaSemana = dia, iniciaEm = "10:00:00", terminaEm = "12:00:00" })
+            .Select(dia => new { diaSemana = dia, iniciaEm = "00:00:00", terminaEm = "23:59:00" })
             .ToArray();
         Assert.AreEqual(HttpStatusCode.OK, (await EnviarAsync(
             dono, HttpMethod.Put,
@@ -308,7 +364,7 @@ public sealed class TestesAtendimento
             new { nome = "Corte", duracaoMinutos = 40, preco = 80m });
         var servicoId = Guid.Parse((await LerAsync(servico)).GetProperty("id").GetString()!);
 
-        return new Cenario(dono, barbeiro, outroBarbeiro, cliente, barbearia.Id,
+        return new Cenario(fabrica, dono, barbeiro, outroBarbeiro, cliente, barbearia.Id,
             barbeiroId, clienteId.ToString(), servicoId);
     }
 
@@ -375,6 +431,7 @@ public sealed class TestesAtendimento
     }
 
     private sealed record Cenario(
+        WebApplicationFactory<Program> Fabrica,
         HttpClient Dono,
         HttpClient Barbeiro,
         HttpClient OutroBarbeiro,

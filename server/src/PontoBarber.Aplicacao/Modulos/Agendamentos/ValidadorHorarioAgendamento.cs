@@ -30,6 +30,10 @@ public sealed class ValidadorHorarioAgendamento(
                 ["iniciaEmUtc"] = ["Informe o horário em UTC."]
             });
 
+        if (inicioUtc <= DateTime.UtcNow)
+            throw new ExcecaoHorarioAplicacao(
+                CodigosErro.AgendaHorarioIndisponivel, "O horário informado já passou.");
+
         var barbearia = await barbearias.ObterPorIdAsync(barbeariaId, cancellationToken);
         if (barbearia is null)
             throw new ExcecaoNaoEncontradoAplicacao(

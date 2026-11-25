@@ -161,11 +161,34 @@ public sealed class ServicoAtendimentos(
         return resultado switch
         {
             ResultadoPagamento.Sucesso => resposta,
-            ResultadoPagamento.ChaveEmConflito => throw new ExcecaoConflitoAplicacao(
-                CodigosErro.ConcorrenciaConflito, "A chave de idempotência foi reutilizada com outros dados."),
+            ResultadoPagamento.Duplicado or ResultadoPagamento.ChaveEmConflito =>
+                await RepetirRespostaOuFalharAsync(usuarioId, chaveIdempotencia, hash, cancellationToken),
             _ => throw new ExcecaoConflitoAplicacao(
                 CodigosErro.PagamentoJaRegistrado, "Este atendimento já possui pagamento registrado.")
         };
+    }
+
+    /// <summary>
+    /// Concorrência com a mesma chave e payload deve devolver a resposta já
+    /// gravada, como acontece na repetição sequencial.
+    /// </summary>
+    private async Task<PagamentoResponse> RepetirRespostaOuFalharAsync(
+        string usuarioId,
+        string chaveIdempotencia,
+        string hash,
+        CancellationToken cancellationToken)
+    {
+        var registro = await pagamentos.ObterIdempotenciaAsync(
+            usuarioId, chaveIdempotencia, cancellationToken);
+
+        if (registro is not null &&
+            registro.ExpiraEmUtc > DateTime.UtcNow &&
+            string.Equals(registro.HashRequisicao, hash, StringComparison.Ordinal) &&
+            registro.JsonResposta is not null)
+            return JsonSerializer.Deserialize<PagamentoResponse>(registro.JsonResposta, _json)!;
+
+        throw new ExcecaoConflitoAplicacao(
+            CodigosErro.ConcorrenciaConflito, "A chave de idempotência foi reutilizada com outros dados.");
     }
 
     private async Task<Agendamento> ObterAutorizadoAsync(

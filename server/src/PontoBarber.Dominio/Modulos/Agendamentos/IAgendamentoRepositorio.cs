@@ -30,6 +30,20 @@ public interface IAgendamentoRepositorio
         DateTime fimUtc,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Sugestões pendentes e não vencidas que ocupam temporariamente o horário.
+    /// Usada para não oferecer na disponibilidade um slot que o motor de
+    /// conflito rejeitaria.
+    /// </summary>
+    Task<IReadOnlyList<(Guid ProfissionalId, DateTime IniciaEmUtc, DateTime TerminaEmUtc)>>
+        ListarReservasTemporariasAsync(
+            Guid barbeariaId,
+            IReadOnlyCollection<Guid> profissionalIds,
+            DateTime inicioUtc,
+            DateTime fimUtc,
+            DateTime agoraUtc,
+            CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Agendamento>> ListarPorBarbeariaAsync(
         Guid barbeariaId,
         DateTime inicioUtc,

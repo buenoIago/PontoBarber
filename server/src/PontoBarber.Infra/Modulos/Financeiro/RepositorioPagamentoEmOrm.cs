@@ -21,6 +21,24 @@ public sealed class RepositorioPagamentoEmOrm(
                              pagamento.AgendamentoId == agendamentoId,
                 cancellationToken);
 
+    public async Task<IReadOnlyDictionary<Guid, Pagamento>> ObterPorAgendamentosAsync(
+        Guid barbeariaId,
+        IReadOnlyCollection<Guid> agendamentoIds,
+        CancellationToken cancellationToken)
+    {
+        if (agendamentoIds.Count == 0)
+            return new Dictionary<Guid, Pagamento>();
+
+        var pagamentos = await contexto.Set<Pagamento>()
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(pagamento => pagamento.BarbeariaId == barbeariaId &&
+                                agendamentoIds.Contains(pagamento.AgendamentoId))
+            .ToListAsync(cancellationToken);
+
+        return pagamentos.ToDictionary(pagamento => pagamento.AgendamentoId);
+    }
+
     public Task<RegistroIdempotencia?> ObterIdempotenciaAsync(
         string usuarioId, string chave, CancellationToken cancellationToken) =>
         contexto.Set<RegistroIdempotencia>()

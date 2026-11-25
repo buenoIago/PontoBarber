@@ -17,6 +17,11 @@ public interface IPagamentoRepositorio
     Task<Pagamento?> ObterPorAgendamentoAsync(
         Guid barbeariaId, Guid agendamentoId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyDictionary<Guid, Pagamento>> ObterPorAgendamentosAsync(
+        Guid barbeariaId,
+        IReadOnlyCollection<Guid> agendamentoIds,
+        CancellationToken cancellationToken);
+
     Task<RegistroIdempotencia?> ObterIdempotenciaAsync(
         string usuarioId, string chave, CancellationToken cancellationToken);
 

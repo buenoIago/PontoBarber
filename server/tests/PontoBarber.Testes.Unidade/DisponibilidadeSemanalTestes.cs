@@ -163,6 +163,12 @@ public sealed class DisponibilidadeSemanalTestes
             DateTime fimUtc, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Agendamento>>([]);
 
+        public Task<IReadOnlyList<(Guid ProfissionalId, DateTime IniciaEmUtc, DateTime TerminaEmUtc)>>
+            ListarReservasTemporariasAsync(
+                Guid barbeariaId, IReadOnlyCollection<Guid> profissionalIds, DateTime inicioUtc,
+                DateTime fimUtc, DateTime agoraUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<(Guid, DateTime, DateTime)>>([]);
+
         public Task<IReadOnlyList<Agendamento>> ListarPorBarbeariaAsync(
             Guid barbeariaId, DateTime inicioUtc, DateTime fimUtc, Guid? profissionalId,
             string? clienteId, CancellationToken cancellationToken) =>

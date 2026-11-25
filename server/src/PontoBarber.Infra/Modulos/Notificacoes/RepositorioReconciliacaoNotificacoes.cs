@@ -50,6 +50,11 @@ public sealed class RepositorioReconciliacaoNotificacoes(
         {
             var eventos = await contexto.Set<HistoricoAgendamento>()
                 .IgnoreQueryFilters()
+                // Somente eventos ainda não reconciliados; sem este filtro a
+                // consulta reaplica sempre os mesmos 500 primeiros registros.
+                .Where(evento => !contexto.Set<Notificacao>()
+                    .IgnoreQueryFilters()
+                    .Any(notificacao => notificacao.EventId == evento.Id))
                 .OrderBy(evento => evento.OcorridoEmUtc)
                 .ThenBy(evento => evento.Id)
                 .Take(500)
