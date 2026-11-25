@@ -168,7 +168,7 @@ public sealed class TestesAgendamentos
         {
             var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
             await contexto.Database.ExecuteSqlRawAsync(
-                "UPDATE [Barbearias] SET [Ativo] = 0 WHERE [Id] = {0}", cenario.BarbeariaId);
+                "UPDATE \"Barbearias\" SET \"Ativo\" = false WHERE \"Id\" = {0}", cenario.BarbeariaId);
         }
 
         // Chamada direta à API: a regra não depende do Angular.
@@ -493,7 +493,7 @@ public sealed class TestesAgendamentos
             var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
             var passado = DateTime.UtcNow.AddMinutes(-10);
             await contexto.Database.ExecuteSqlRawAsync(
-                "UPDATE [Agendamentos] SET [IniciaEmUtc] = {0}, [TerminaEmUtc] = {1} WHERE [Id] = {2}",
+                "UPDATE \"Agendamentos\" SET \"IniciaEmUtc\" = {0}, \"TerminaEmUtc\" = {1} WHERE \"Id\" = {2}",
                 passado, passado.AddMinutes(40), segundo);
         }
 
@@ -667,7 +667,7 @@ public sealed class TestesAgendamentos
         {
             var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
             await contexto.Database.ExecuteSqlRawAsync(
-                "UPDATE [SugestoesHorario] SET [ExpiraEmUtc] = {0} WHERE [Id] = {1}",
+                "UPDATE \"SugestoesHorario\" SET \"ExpiraEmUtc\" = {0} WHERE \"Id\" = {1}",
                 DateTime.UtcNow.AddHours(-1), sugestaoId);
         }
 

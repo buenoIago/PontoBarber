@@ -72,7 +72,7 @@ public sealed class TestesConsultaDisponibilidade
         {
             var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
             await contexto.Database.ExecuteSqlRawAsync(
-                "UPDATE [Barbearias] SET [Ativo] = 0 WHERE [Id] = {0}", barbearia.Id);
+                "UPDATE \"Barbearias\" SET \"Ativo\" = false WHERE \"Id\" = {0}", barbearia.Id);
         }
 
         var resposta = await cliente.GetAsync(

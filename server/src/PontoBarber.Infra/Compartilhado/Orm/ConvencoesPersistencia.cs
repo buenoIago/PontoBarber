@@ -9,7 +9,9 @@ namespace PontoBarber.Infra.Compartilhado.Orm;
 /// </summary>
 public static class ConvencoesPersistencia
 {
-    private const string _tipoColunaUtc = "datetime2(3)";
+    // O conversor abaixo normaliza o valor para UTC; timestamptz é o tipo
+    // PostgreSQL que aceita DateTime com Kind=Utc e preserva o instante.
+    private const string _tipoColunaUtc = "timestamp with time zone";
     private const string _sufixoUtc = "Utc";
 
     private static DateTime NormalizarUtc(DateTime valor) => valor.Kind switch

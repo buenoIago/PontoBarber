@@ -1,3 +1,4 @@
+using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PontoBarber.Dominio.Modulos.Barbearia;
@@ -18,5 +19,10 @@ public sealed class ConfiguracaoHorarioFuncionamento : ConfiguracaoEntidade<Hora
         builder.HasIndex(horario => new { horario.BarbeariaId, horario.DiaSemana })
             .IsUnique()
             .HasDatabaseName("UX_Horarios_Barbearia_Dia");
+
+        builder.HasOne<BarbeariaEntidade>()
+            .WithMany()
+            .HasForeignKey(horario => horario.BarbeariaId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

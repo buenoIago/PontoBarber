@@ -204,6 +204,7 @@ public sealed class TestesClientes
             CriarAgendamento(barbearia.Id, clienteAId, perfilBarbeiro.Id, agora.AddDays(1)),
             CriarAgendamento(barbearia.Id, clienteAId, perfilBarbeiro.Id, agora.AddDays(2), concluido: true),
             CriarAgendamento(outraBarbearia.Id, clienteBId, perfilOutroDono.Id, agora.AddDays(1)));
+        SemeaduraIntegridade.GarantirTudo(contexto);
         await contexto.SaveChangesAsync();
 
         return new Cenario(

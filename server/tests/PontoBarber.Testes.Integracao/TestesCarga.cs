@@ -140,6 +140,7 @@ public sealed class TestesCarga
             }
         }
 
+        SemeaduraIntegridade.GarantirTudo(contexto);
         contexto.SaveChanges();
         return (perfis.Select(item => item.Id).ToArray(), servico.Id);
     }
@@ -305,25 +306,23 @@ public sealed class TestesCarga
 
         if (!string.IsNullOrWhiteSpace(externa))
         {
-            // Ambiente sem daemon Docker: usa SQL Server LocalDB isolado.
-            var construtorMaster = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(externa)
+            // Ambiente sem daemon Docker: usa PostgreSQL isolado.
+            var construtorMaster = new Npgsql.NpgsqlConnectionStringBuilder(externa)
             {
-                InitialCatalog = "master"
+                Database = "postgres"
             };
-            using (var conexaoMaster = new Microsoft.Data.SqlClient.SqlConnection(construtorMaster.ToString()))
+            using (var conexaoMaster = new Npgsql.NpgsqlConnection(construtorMaster.ToString()))
             {
                 conexaoMaster.Open();
                 using var comando = conexaoMaster.CreateCommand();
-                comando.CommandText = $"CREATE DATABASE [{database}]";
+                comando.CommandText = $"CREATE DATABASE \"{database}\"";
                 comando.ExecuteNonQuery();
             }
 
-            var construtor = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(externa)
+            conexao = new Npgsql.NpgsqlConnectionStringBuilder(externa)
             {
-                InitialCatalog = database,
-                TrustServerCertificate = true
-            };
-            conexao = construtor.ToString();
+                Database = database
+            }.ConnectionString;
         }
         else
         {

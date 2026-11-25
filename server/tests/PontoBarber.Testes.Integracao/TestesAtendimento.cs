@@ -280,7 +280,7 @@ public sealed class TestesAtendimento
         {
             var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
             await contexto.Database.ExecuteSqlRawAsync(
-                "UPDATE [Agendamentos] SET [IniciaEmUtc] = {0}, [TerminaEmUtc] = {1} WHERE [Id] = {2}",
+                "UPDATE \"Agendamentos\" SET \"IniciaEmUtc\" = {0}, \"TerminaEmUtc\" = {1} WHERE \"Id\" = {2}",
                 inicioPersistido, inicioPersistido.AddMinutes(40), id);
         }
         return id;

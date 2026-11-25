@@ -105,6 +105,7 @@ public sealed class TestesGestaoEConvite
         {
             var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
             contexto.Set<Agendamento>().Add(agendamento);
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -280,6 +281,7 @@ public sealed class TestesGestaoEConvite
                 .SingleAsync(v => v.Cargo == CargoProfissional.Barbeiro);
             typeof(VinculoProfissional).GetProperty(nameof(VinculoProfissional.Situacao))!
                 .SetValue(vinculo, StatusVinculo.Inativo);
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -304,10 +306,17 @@ public sealed class TestesGestaoEConvite
         var barbeariaId = Guid.CreateVersion7();
         var profissionalId = Guid.CreateVersion7();
         contexto.Set<VinculoProfissional>().Add(VinculoProfissional.CriarBarbeiro(barbeariaId, profissionalId));
+        SemeaduraIntegridade.GarantirTudo(contexto);
         await contexto.SaveChangesAsync();
 
-        contexto.Set<VinculoProfissional>().Add(VinculoProfissional.CriarBarbeiro(barbeariaId, profissionalId));
-        await Assert.ThrowsExactlyAsync<DbUpdateException>(() => contexto.SaveChangesAsync());
+        // Novo contexto: a duplicidade é detectada pela restrição do banco,
+        // não pelo rastreador do contexto que inseriu o primeiro vínculo.
+        using var escopoDuplicado = fabrica.Services.CreateScope();
+        var contextoDuplicado = escopoDuplicado.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
+        contextoDuplicado.Set<VinculoProfissional>()
+            .Add(VinculoProfissional.CriarBarbeiro(barbeariaId, profissionalId));
+        await Assert.ThrowsExactlyAsync<DbUpdateException>(
+            () => contextoDuplicado.SaveChangesAsync());
     }
 
     private static WebApplicationFactory<Program> CriarFabricaComBanco()

@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PontoBarber.Dominio.Modulos.Agendamentos;
@@ -20,8 +20,8 @@ public sealed class RepositorioAgendamentoEmOrm(
         CancellationToken cancellationToken)
     {
         await using var transacao = await contexto.Database.BeginTransactionAsync(cancellationToken);
-        var conexao = (SqlConnection)contexto.Database.GetDbConnection();
-        var transacaoDb = (SqlTransaction)transacao.GetDbTransaction();
+        var conexao = contexto.Database.GetDbConnection();
+        var transacaoDb = transacao.GetDbTransaction();
 
         var falhaLock = await AdquirirLocksAsync(conexao, transacaoDb, [chaveLock], cancellationToken);
         if (falhaLock is not null)
@@ -375,8 +375,8 @@ public sealed class RepositorioAgendamentoEmOrm(
         const string chaveLock = "pb:job:ExpireTimeSlotSuggestionsJob";
 
         await using var transacao = await contexto.Database.BeginTransactionAsync(cancellationToken);
-        var conexao = (SqlConnection)contexto.Database.GetDbConnection();
-        var transacaoDb = (SqlTransaction)transacao.GetDbTransaction();
+        var conexao = contexto.Database.GetDbConnection();
+        var transacaoDb = transacao.GetDbTransaction();
 
         var falhaLock = await AdquirirLocksAsync(conexao, transacaoDb, [chaveLock], cancellationToken);
         if (falhaLock is not null)
@@ -432,8 +432,8 @@ public sealed class RepositorioAgendamentoEmOrm(
         var limite = agoraUtc.AddHours(-2);
 
         await using var transacao = await contexto.Database.BeginTransactionAsync(cancellationToken);
-        var conexao = (SqlConnection)contexto.Database.GetDbConnection();
-        var transacaoDb = (SqlTransaction)transacao.GetDbTransaction();
+        var conexao = contexto.Database.GetDbConnection();
+        var transacaoDb = transacao.GetDbTransaction();
 
         var falhaLock = await AdquirirLocksAsync(conexao, transacaoDb, [chaveLock], cancellationToken);
         if (falhaLock is not null)
@@ -597,8 +597,8 @@ public sealed class RepositorioAgendamentoEmOrm(
         CancellationToken cancellationToken)
     {
         await using var transacao = await contexto.Database.BeginTransactionAsync(cancellationToken);
-        var conexao = (SqlConnection)contexto.Database.GetDbConnection();
-        var transacaoDb = (SqlTransaction)transacao.GetDbTransaction();
+        var conexao = contexto.Database.GetDbConnection();
+        var transacaoDb = transacao.GetDbTransaction();
 
         var falhaLock = await AdquirirLocksAsync(conexao, transacaoDb, chavesLock, cancellationToken);
         if (falhaLock is not null)
@@ -629,8 +629,8 @@ public sealed class RepositorioAgendamentoEmOrm(
     }
 
     private static async Task<ResultadoCicloVida?> AdquirirLocksAsync(
-        SqlConnection conexao,
-        SqlTransaction transacao,
+        DbConnection conexao,
+        DbTransaction transacao,
         IEnumerable<string> chavesLock,
         CancellationToken cancellationToken)
     {
@@ -639,45 +639,22 @@ public sealed class RepositorioAgendamentoEmOrm(
         foreach (var chave in chavesLock.Distinct(StringComparer.Ordinal)
                      .OrderBy(chave => chave, StringComparer.Ordinal))
         {
-            using var comando = conexao.CreateCommand();
-            comando.Transaction = transacao;
-            comando.CommandType = CommandType.StoredProcedure;
-            comando.CommandText = "sp_getapplock";
-            comando.Parameters.AddWithValue("@Resource", chave);
-            comando.Parameters.AddWithValue("@LockMode", "Exclusive");
-            comando.Parameters.AddWithValue("@LockOwner", "Transaction");
-            comando.Parameters.AddWithValue("@LockTimeout", 5000);
-            var resultado = new SqlParameter("@resultado", SqlDbType.Int)
-            {
-                Direction = ParameterDirection.ReturnValue
-            };
-            comando.Parameters.Add(resultado);
-            await comando.ExecuteNonQueryAsync(cancellationToken);
-
-            var codigo = (int)resultado.Value!;
-            if (codigo < 0)
-                return codigo == -1 ? ResultadoCicloVida.Indisponivel : ResultadoCicloVida.Conflito;
+            if (!await LockTransacionalPostgres.AdquirirAsync(
+                    conexao, transacao, chave, cancellationToken))
+                return ResultadoCicloVida.Indisponivel;
         }
 
         return null;
     }
 
-    private static async Task LiberarLocksAsync(
-        SqlConnection conexao,
-        SqlTransaction transacao,
+    private static Task LiberarLocksAsync(
+        DbConnection conexao,
+        DbTransaction transacao,
         IEnumerable<string> chavesLock,
         CancellationToken cancellationToken)
     {
-        foreach (var chave in chavesLock.Distinct(StringComparer.Ordinal)
-                     .OrderByDescending(chave => chave, StringComparer.Ordinal))
-        {
-            using var comando = conexao.CreateCommand();
-            comando.Transaction = transacao;
-            comando.CommandType = CommandType.StoredProcedure;
-            comando.CommandText = "sp_releaseapplock";
-            comando.Parameters.AddWithValue("@Resource", chave);
-            comando.Parameters.AddWithValue("@LockOwner", "Transaction");
-            await comando.ExecuteNonQueryAsync(cancellationToken);
-        }
+        // Advisory locks transacionais do PostgreSQL são liberados
+        // automaticamente no commit/rollback; não há unlock explícito.
+        return Task.CompletedTask;
     }
 }

@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PontoBarber.Dominio.Modulos.Auth;
@@ -42,26 +42,12 @@ public sealed class RepositorioCodigoOtpEmOrm(ContextoPontoBarber contexto) : IC
         Guid codigoId, DateTime agoraUtc, CancellationToken cancellationToken)
     {
         await using var transacao = await contexto.Database.BeginTransactionAsync(cancellationToken);
-        var conexao = (SqlConnection)contexto.Database.GetDbConnection();
-        var transacaoDb = (SqlTransaction)transacao.GetDbTransaction();
+        var conexao = contexto.Database.GetDbConnection();
+        var transacaoDb = transacao.GetDbTransaction();
         var chave = $"pb:auth:otp:{codigoId}";
 
-        using var comandoLock = conexao.CreateCommand();
-        comandoLock.Transaction = transacaoDb;
-        comandoLock.CommandType = CommandType.StoredProcedure;
-        comandoLock.CommandText = "sp_getapplock";
-        comandoLock.Parameters.AddWithValue("@Resource", chave);
-        comandoLock.Parameters.AddWithValue("@LockMode", "Exclusive");
-        comandoLock.Parameters.AddWithValue("@LockOwner", "Transaction");
-        comandoLock.Parameters.AddWithValue("@LockTimeout", 5000);
-        var retorno = new SqlParameter("@resultado", SqlDbType.Int)
-        {
-            Direction = ParameterDirection.ReturnValue
-        };
-        comandoLock.Parameters.Add(retorno);
-        await comandoLock.ExecuteNonQueryAsync(cancellationToken);
-
-        if ((int)retorno.Value! < 0)
+        if (!await LockTransacionalPostgres.AdquirirAsync(
+                conexao, transacaoDb, chave, cancellationToken))
         {
             await transacao.RollbackAsync(cancellationToken);
             return false;

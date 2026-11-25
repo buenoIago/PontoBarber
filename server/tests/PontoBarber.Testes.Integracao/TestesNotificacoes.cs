@@ -43,6 +43,7 @@ public sealed class TestesNotificacoes
                 Evento(cenario.BarbeariaId, cenario.AgendamentoId, TipoEventoHistorico.Criacao, agora),
                 Evento(cenario.BarbeariaId, cenario.AgendamentoId, TipoEventoHistorico.ServicoConcluido, agora),
                 Evento(cenario.BarbeariaId, cenario.AgendamentoId, TipoEventoHistorico.PagamentoRegistrado, agora));
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -93,6 +94,7 @@ public sealed class TestesNotificacoes
                 Notificacao.Criar(cenario.BarbeariaId, cenario.ClienteAId,
                     TipoNotificacao.ServicoConcluido, cenario.AgendamentoId,
                     "Reconciliado", eventoId, agora)));
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -138,6 +140,7 @@ public sealed class TestesNotificacoes
                     cenario.AgendamentoId, "Para A 2", Guid.NewGuid(), agora),
                 Notificacao.Criar(cenario.BarbeariaId, cenario.ClienteBId, TipoNotificacao.AgendamentoCriado,
                     cenario.AgendamentoId, "Para B", Guid.NewGuid(), agora));
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -178,6 +181,7 @@ public sealed class TestesNotificacoes
             contexto.Set<HistoricoAgendamento>().Add(
                 Evento(cenario.BarbeariaId, cenario.AgendamentoId,
                     TipoEventoHistorico.SugestaoCriada, DateTime.UtcNow));
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -254,6 +258,7 @@ public sealed class TestesNotificacoes
             barbearia.Id, clienteAId, perfil.Id, Guid.NewGuid(), DateTime.UtcNow.AddDays(1),
             "Corte", 40, 80m, null, OrigemAgendamento.Publico);
         contexto.Set<Agendamento>().Add(agendamento);
+        SemeaduraIntegridade.GarantirTudo(contexto);
         await contexto.SaveChangesAsync();
 
         return new Cenario(dono, barbeiro, clienteA, clienteB, barbearia.Id, agendamento.Id,

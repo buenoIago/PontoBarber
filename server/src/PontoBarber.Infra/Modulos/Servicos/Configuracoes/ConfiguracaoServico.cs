@@ -1,5 +1,7 @@
+using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Servicos;
 using PontoBarber.Infra.Compartilhado.Orm.Configuracoes;
 
@@ -20,5 +22,11 @@ public sealed class ConfiguracaoServico : ConfiguracaoEntidade<Servico>
         builder.HasIndex(servico => new { servico.BarbeariaId, servico.Nome })
             .IsUnique()
             .HasDatabaseName("UX_Servicos_Barbearia_Nome");
+
+        builder.HasAlternateKey(servico => new { servico.BarbeariaId, servico.Id });
+        builder.HasOne<BarbeariaEntidade>()
+            .WithMany()
+            .HasForeignKey(servico => servico.BarbeariaId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

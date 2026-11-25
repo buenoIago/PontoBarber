@@ -45,7 +45,7 @@ public static class DependencyInjection
             var stringConexao = configuracao.GetConnectionString("DefaultConnection");
 
             if (!string.IsNullOrWhiteSpace(stringConexao))
-                options.UseSqlServer(stringConexao);
+                options.UseNpgsql(stringConexao);
         });
 
         // Único registro de Identity. A configuração de senha, bloqueio,

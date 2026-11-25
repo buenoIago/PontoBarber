@@ -13,7 +13,7 @@ public sealed class RepositorioRegistroIdempotenciaEmOrm(ContextoPontoBarber con
     /// </summary>
     public Task<int> ExpurgarExpiradosAsync(DateTime agoraUtc, CancellationToken cancellationToken) =>
         contexto.Database.ExecuteSqlRawAsync(
-            "DELETE FROM [RegistrosIdempotencia] WHERE [ExpiraEmUtc] <= {0}",
+            "DELETE FROM \"RegistrosIdempotencia\" WHERE \"ExpiraEmUtc\" <= {0}",
             new object[] { agoraUtc },
             cancellationToken);
 }

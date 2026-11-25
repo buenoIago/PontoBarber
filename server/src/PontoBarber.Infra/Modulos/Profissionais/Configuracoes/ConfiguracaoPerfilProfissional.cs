@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Infra.Compartilhado.Orm.Configuracoes;
+using PontoBarber.Infra.Identity;
 
 namespace PontoBarber.Infra.Modulos.Profissionais.Configuracoes;
 
@@ -16,12 +17,17 @@ public sealed class ConfiguracaoPerfilProfissional : ConfiguracaoEntidade<Perfil
 
         builder.ToTable("Profissionais");
 
-        builder.Property(entidade => entidade.UsuarioId).HasMaxLength(450).IsRequired();
+        builder.Property(entidade => entidade.UsuarioId).IsRequired();
         builder.Property(entidade => entidade.NomeCompleto).HasMaxLength(200).IsRequired();
         builder.Property(entidade => entidade.Telefone).HasMaxLength(20);
 
         builder.HasIndex(entidade => entidade.UsuarioId)
             .IsUnique()
             .HasDatabaseName("UX_Profissionais_UsuarioId");
+
+        builder.HasOne<Usuario>()
+            .WithMany()
+            .HasForeignKey(entidade => entidade.UsuarioId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

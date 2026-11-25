@@ -1,6 +1,8 @@
+using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PontoBarber.Dominio.Modulos.Agendamentos;
+using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Infra.Compartilhado.Orm.Configuracoes;
 
 namespace PontoBarber.Infra.Modulos.Agendamentos.Configuracoes;
@@ -15,11 +17,22 @@ public sealed class ConfiguracaoHistoricoAgendamento : ConfiguracaoEntidade<Hist
         builder.ToTable("HistoricosAgendamento");
         builder.Property(evento => evento.AgendamentoId).IsRequired();
         builder.Property(evento => evento.TipoEvento).HasConversion<int>().IsRequired();
-        builder.Property(evento => evento.AtorUsuarioId).HasMaxLength(450);
+        builder.Property(evento => evento.AtorUsuarioId);
         builder.Property(evento => evento.OcorridoEmUtc).IsRequired();
         builder.Property(evento => evento.Detalhes).HasMaxLength(500);
 
         builder.HasIndex(evento => new { evento.AgendamentoId, evento.OcorridoEmUtc })
             .HasDatabaseName("IX_History_Appointment_Occurred");
+
+        builder.HasAlternateKey(evento => new { evento.BarbeariaId, evento.Id });
+        builder.HasOne<BarbeariaEntidade>()
+            .WithMany()
+            .HasForeignKey(evento => evento.BarbeariaId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasOne<Agendamento>()
+            .WithMany()
+            .HasForeignKey(evento => new { evento.BarbeariaId, evento.AgendamentoId })
+            .HasPrincipalKey(agendamento => new { agendamento.BarbeariaId, agendamento.Id })
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

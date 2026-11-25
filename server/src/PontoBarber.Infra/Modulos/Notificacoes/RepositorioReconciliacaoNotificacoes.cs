@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using PontoBarber.Dominio.Modulos.Agendamentos;
@@ -22,25 +22,11 @@ public sealed class RepositorioReconciliacaoNotificacoes(
     public async Task<int> ReconciliarAsync(DateTime agoraUtc, CancellationToken cancellationToken)
     {
         await using var transacao = await contexto.Database.BeginTransactionAsync(cancellationToken);
-        var conexao = (SqlConnection)contexto.Database.GetDbConnection();
-        var transacaoDb = (SqlTransaction)transacao.GetDbTransaction();
+        var conexao = contexto.Database.GetDbConnection();
+        var transacaoDb = transacao.GetDbTransaction();
 
-        using var comandoLock = conexao.CreateCommand();
-        comandoLock.Transaction = transacaoDb;
-        comandoLock.CommandType = CommandType.StoredProcedure;
-        comandoLock.CommandText = "sp_getapplock";
-        comandoLock.Parameters.AddWithValue("@Resource", _chaveLock);
-        comandoLock.Parameters.AddWithValue("@LockMode", "Exclusive");
-        comandoLock.Parameters.AddWithValue("@LockOwner", "Transaction");
-        comandoLock.Parameters.AddWithValue("@LockTimeout", 5000);
-        var resultado = new SqlParameter("@resultado", SqlDbType.Int)
-        {
-            Direction = ParameterDirection.ReturnValue
-        };
-        comandoLock.Parameters.Add(resultado);
-        await comandoLock.ExecuteNonQueryAsync(cancellationToken);
-
-        if ((int)resultado.Value! < 0)
+        if (!await LockTransacionalPostgres.AdquirirAsync(
+                conexao, transacaoDb, _chaveLock, cancellationToken))
         {
             await transacao.RollbackAsync(cancellationToken);
             return 0;

@@ -1,4 +1,4 @@
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Dominio.Modulos.Barbearia;
@@ -63,7 +63,7 @@ public sealed class RepositorioBarbeariaEmOrm(ContextoPontoBarber contexto) : IB
     }
 
     private static bool EhConflitoDeConvite(DbUpdateException excecao) =>
-        excecao.InnerException is SqlException sql &&
-        (sql.Number == 2601 || sql.Number == 2627) &&
-        sql.Message.Contains("UX_Barbearias_CodigoConvite", StringComparison.Ordinal);
+        excecao.InnerException is PostgresException postgres &&
+        postgres.SqlState == "23505" &&
+        postgres.MessageText.Contains("UX_Barbearias_CodigoConvite", StringComparison.Ordinal);
 }

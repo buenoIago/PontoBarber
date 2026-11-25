@@ -1,20 +1,20 @@
-using Microsoft.Data.SqlClient;
-using Testcontainers.MsSql;
+using Npgsql;
+using Testcontainers.PostgreSql;
 
 namespace PontoBarber.Testes.Integracao;
 
 /// <summary>
-/// Inicializa o SQL Server em container apenas quando um teste realmente
+/// Inicializa o PostgreSQL em container apenas quando um teste realmente
 /// solicita uma connection string, e o descarta no encerramento do assembly.
 /// Cada teste utiliza um banco com nome único, criado e removido por ele.
 /// </summary>
 [TestClass]
 public static class ConfiguracaoTestesIntegracao
 {
-    private static readonly Lazy<SqlServerFixture> _fixture = new(() => new SqlServerFixture());
+    private static readonly Lazy<PostgresFixture> _fixture = new(() => new PostgresFixture());
     private static readonly Lazy<Task> _inicializacao = new(() => _fixture.Value.InicializarAsync());
 
-    public static SqlServerFixture Container
+    public static PostgresFixture Container
     {
         get
         {
@@ -43,16 +43,16 @@ public static class ConfiguracaoTestesIntegracao
     }
 }
 
-public sealed class SqlServerFixture : IAsyncDisposable
+public sealed class PostgresFixture : IAsyncDisposable
 {
-    private const string _imagem = "mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04";
+    private const string _imagem = "postgres:16.8-alpine";
 
-    private MsSqlContainer? _container;
+    private PostgreSqlContainer? _container;
     private string _stringBase = string.Empty;
 
     public Task InicializarAsync()
     {
-        // Ambientes sem daemon Docker podem fornecer um SQL Server isolado por
+        // Ambientes sem daemon Docker podem fornecer um PostgreSQL isolado por
         // variável de ambiente. Nenhum banco compartilhado é aceito.
         var externa = Environment.GetEnvironmentVariable("PONTOBARBER_TEST_CONNECTION");
         if (!string.IsNullOrWhiteSpace(externa))
@@ -66,11 +66,10 @@ public sealed class SqlServerFixture : IAsyncDisposable
 
     private async Task InicializarContainerAsync()
     {
-        // Política do SQL Server: >= 8 caracteres, maiúscula, minúscula, dígito e símbolo.
-        var senha = $"P@ssw0rd!{Guid.NewGuid():N}"[..24];
-
-        _container = new MsSqlBuilder(_imagem)
-            .WithPassword(senha)
+        _container = new PostgreSqlBuilder(_imagem)
+            .WithDatabase("pontobarber")
+            .WithUsername("pontobarber")
+            .WithPassword($"pb{Guid.NewGuid():N}"[..24])
             .Build();
 
         await _container.StartAsync();
@@ -86,29 +85,29 @@ public sealed class SqlServerFixture : IAsyncDisposable
             origem = _container.GetConnectionString();
         }
 
-        var construtor = new SqlConnectionStringBuilder(origem)
+        // Cada teste usa um banco único; sem pooling, as conexões são fechadas
+        // de fato e não esgotam max_connections do PostgreSQL.
+        return new NpgsqlConnectionStringBuilder(origem)
         {
-            InitialCatalog = database,
-            TrustServerCertificate = true
-        };
-
-        return construtor.ConnectionString;
+            Database = database,
+            Pooling = false
+        }.ConnectionString;
     }
 
     /// <summary>
     /// Cria um catálogo exclusivo no container e devolve a connection string.
     /// Usado quando o teste precisa de um banco existente, mas não deve criar
-    /// schema no <c>master</c> nem compartilhar estado com outros testes.
+    /// schema no banco padrão nem compartilhar estado com outros testes.
     /// </summary>
     public string CriarBancoIsolado(string prefixo)
     {
         var database = $"{prefixo}_{Guid.NewGuid():N}";
 
-        using (var conexao = new SqlConnection(ObterStringConexao("master")))
+        using (var conexao = new NpgsqlConnection(ObterStringConexao("postgres")))
         {
             conexao.Open();
             using var comando = conexao.CreateCommand();
-            comando.CommandText = $"CREATE DATABASE [{database}]";
+            comando.CommandText = $"CREATE DATABASE \"{database}\"";
             comando.ExecuteNonQuery();
         }
 

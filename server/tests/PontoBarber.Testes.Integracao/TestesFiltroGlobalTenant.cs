@@ -20,7 +20,7 @@ public class TestesFiltroGlobalTenant : IDisposable
         var stringConexao = ConfiguracaoTestesIntegracao.Container.ObterStringConexao(database);
 
         var options = new DbContextOptionsBuilder<ContextoPontoBarber>()
-            .UseSqlServer(stringConexao)
+            .UseNpgsql(stringConexao)
             .Options;
 
         _context = new ContextoPersistenciaTeste(options, _contextoTenant);

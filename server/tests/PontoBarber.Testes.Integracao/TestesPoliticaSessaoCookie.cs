@@ -128,7 +128,7 @@ public sealed class TestesPoliticaSessaoCookie
                     servicos.AddSingleton<IContextoTenant, ContextoTenantNulo>();
                     servicos.AddRouting();
                     servicos.AddDbContext<ContextoPontoBarber>(opcoes =>
-                        opcoes.UseSqlServer("Server=localhost;Database=PontoBarberSessao;Trusted_Connection=True;TrustServerCertificate=True"));
+                        opcoes.UseNpgsql("Host=localhost;Database=PontoBarberSessao;Username=pontobarber;Password=none"));
                     servicos.AddIdentityPontoBarber();
                     // Sem banco neste teste: a validação de SecurityStamp do Identity
                     // rejeitaria o principal ao ultrapassar o intervalo de 30 minutos.

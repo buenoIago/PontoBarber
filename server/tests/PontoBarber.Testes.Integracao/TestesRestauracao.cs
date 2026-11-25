@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using PontoBarber.Dominio.Modulos.Agendamentos;
 using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Financeiro;
@@ -15,6 +15,8 @@ namespace PontoBarber.Testes.Integracao;
 /// <summary>
 /// Restauração real em instância isolada. Usa a conexão local configurada em
 /// PONTOBARBER_TEST_CONNECTION; nunca toca bancos compartilhados ou de produção.
+/// O "backup" é um clone via CREATE DATABASE ... TEMPLATE, recurso nativo do
+/// PostgreSQL que preserva os dados no ponto em que foi tirado.
 /// </summary>
 [TestClass]
 public sealed class TestesRestauracao
@@ -34,31 +36,18 @@ public sealed class TestesRestauracao
 
         var sufixo = Guid.NewGuid().ToString("N");
         var database = $"PontoBarberRestore_{sufixo}";
-        var backup = Path.Combine(
-            @"C:\Users\Cliente\AppData\Local\Temp\opencode\validacao", $"pb-restore-{sufixo}.bak");
-        Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
+        var backup = $"PontoBarberRestoreBackup_{sufixo}";
+        var administrador = new NpgsqlConnectionStringBuilder(externa) { Database = "postgres" }.ConnectionString;
+        var conexaoBanco = new NpgsqlConnectionStringBuilder(externa) { Database = database }.ConnectionString;
 
-        var construtorMaster = new SqlConnectionStringBuilder(externa) { InitialCatalog = "master" };
-        var construtorBanco = new SqlConnectionStringBuilder(externa)
-        {
-            InitialCatalog = database,
-            TrustServerCertificate = true
-        };
-
-        using (var conexao = new SqlConnection(construtorMaster.ToString()))
-        {
-            conexao.Open();
-            using var comando = conexao.CreateCommand();
-            comando.CommandText = $"CREATE DATABASE [{database}]";
-            comando.ExecuteNonQuery();
-        }
+        await ExecutarAsync(administrador, $"CREATE DATABASE \"{database}\"");
 
         using var fabrica = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.ConfigureAppConfiguration((_, configuracao) =>
                 configuracao.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["Email:Modo"] = "Memoria",
-                    ["ConnectionStrings:DefaultConnection"] = construtorBanco.ToString(),
+                    ["ConnectionStrings:DefaultConnection"] = conexaoBanco,
                     ["Jobs:IntervaloMinutos"] = "60"
                 })));
 
@@ -69,9 +58,9 @@ public sealed class TestesRestauracao
             Semear(contexto);
         }
 
-        // Backup de linha de base.
-        await ExecutarAsync(construtorMaster.ToString(),
-            $"BACKUP DATABASE [{database}] TO DISK = N'{backup}' WITH INIT");
+        // Backup de linha de base: clone transacional do banco isolado.
+        NpgsqlConnection.ClearAllPools();
+        await ExecutarAsync(administrador, $"CREATE DATABASE \"{backup}\" TEMPLATE \"{database}\"");
 
         // Alterações posteriores ao backup: marcador do RPO.
         var marcacao = DateTime.UtcNow;
@@ -83,19 +72,17 @@ public sealed class TestesRestauracao
             contexto.Set<Pagamento>().Add(Pagamento.Criar(
                 agendamento.BarbeariaId, agendamento.Id, 999m, FormaPagamento.Pix,
                 DateTime.UtcNow, usuario.Id));
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
-        // Restauração sobre o banco isolado (single-user para evitar conexões ativas).
+        // Restauração sobre o banco isolado a partir do clone da linha de base.
         var cronometro = Stopwatch.StartNew();
-        await ExecutarAsync(construtorMaster.ToString(),
-            $"ALTER DATABASE [{database}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE");
-        await ExecutarAsync(construtorMaster.ToString(),
-            $"RESTORE DATABASE [{database}] FROM DISK = N'{backup}' WITH REPLACE");
-        await ExecutarAsync(construtorMaster.ToString(),
-            $"ALTER DATABASE [{database}] SET MULTI_USER");
+        NpgsqlConnection.ClearAllPools();
+        await ExecutarAsync(administrador, $"DROP DATABASE \"{database}\"");
+        await ExecutarAsync(administrador, $"CREATE DATABASE \"{database}\" TEMPLATE \"{backup}\"");
         cronometro.Stop();
-        SqlConnection.ClearAllPools();
+        NpgsqlConnection.ClearAllPools();
 
         using var verificacao = fabrica.Services.CreateScope();
         var ctx = verificacao.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
@@ -110,6 +97,10 @@ public sealed class TestesRestauracao
         Console.WriteLine($"[RESTORE] integridade: usuarios={usuarios}, barbearias={barbearias}, " +
             $"agendamentos={agendamentos}, pagamentos={pagamentos}");
 
+        // Lima somente os bancos isolados criados por este teste.
+        await ExecutarAsync(administrador, $"DROP DATABASE IF EXISTS \"{backup}\"");
+        await ExecutarAsync(administrador, $"DROP DATABASE IF EXISTS \"{database}\"");
+
         Assert.AreEqual(1, usuarios);
         Assert.AreEqual(1, barbearias);
         Assert.AreEqual(1, agendamentos);
@@ -119,7 +110,7 @@ public sealed class TestesRestauracao
 
     private static async Task ExecutarAsync(string conexao, string sql)
     {
-        await using var ligacao = new SqlConnection(conexao);
+        await using var ligacao = new NpgsqlConnection(conexao);
         await ligacao.OpenAsync();
         await using var comando = ligacao.CreateCommand();
         comando.CommandText = sql;
@@ -156,6 +147,7 @@ public sealed class TestesRestauracao
             null,
             OrigemAgendamento.Publico);
         contexto.Set<Agendamento>().Add(agendamento);
+        SemeaduraIntegridade.GarantirTudo(contexto);
         contexto.SaveChanges();
     }
 }

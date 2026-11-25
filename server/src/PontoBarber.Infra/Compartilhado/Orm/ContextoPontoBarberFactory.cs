@@ -22,7 +22,7 @@ public sealed class ContextoPontoBarberFactory : IDesignTimeDbContextFactory<Con
                 "Defina ConnectionStrings__DefaultConnection para executar ferramentas de design-time do EF Core.");
 
         var opcoes = new DbContextOptionsBuilder<ContextoPontoBarber>()
-            .UseSqlServer(stringConexao, sql => sql.EnableRetryOnFailure(3))
+            .UseNpgsql(stringConexao, npgsql => npgsql.EnableRetryOnFailure(3))
             .Options;
 
         return new ContextoPontoBarber(opcoes, new ContextoTenantDesignTime());

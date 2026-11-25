@@ -12,7 +12,7 @@ public sealed class ConfiguracaoRegistroIdempotencia : ConfiguracaoEntidade<Regi
         base.Configure(builder);
 
         builder.ToTable("RegistrosIdempotencia");
-        builder.Property(registro => registro.UsuarioId).HasMaxLength(450).IsRequired();
+        builder.Property(registro => registro.UsuarioId).IsRequired();
         builder.Property(registro => registro.Chave).HasMaxLength(200).IsRequired();
         builder.Property(registro => registro.HashRequisicao).HasMaxLength(200).IsRequired();
         builder.Property(registro => registro.JsonResposta).HasMaxLength(4000);

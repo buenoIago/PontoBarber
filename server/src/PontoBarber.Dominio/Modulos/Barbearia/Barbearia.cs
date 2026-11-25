@@ -28,7 +28,8 @@ public sealed class Barbearia : EntidadeBase<Barbearia>
     public bool Ativo { get; private set; }
     public DateTime CriadoEmUtc { get; private set; }
     public DateTime AtualizadoEmUtc { get; private set; }
-    public byte[] RowVersion { get; private set; } = [];
+    /// <summary>Concorrência otimista mapeada para a coluna xmin do PostgreSQL.</summary>
+    public uint RowVersion { get; private set; }
 
     public static Barbearia Criar(
         string nome,

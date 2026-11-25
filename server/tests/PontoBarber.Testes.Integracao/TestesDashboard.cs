@@ -157,6 +157,7 @@ public sealed class TestesDashboard
                 Pagamento.Criar(outraBarbearia.Id, Guid.NewGuid(), 777m, FormaPagamento.Cash,
                     DateTime.UtcNow, donoId));
 
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 

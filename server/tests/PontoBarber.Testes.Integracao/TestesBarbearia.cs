@@ -91,12 +91,14 @@ public sealed class TestesBarbearia
         contexto.Set<Barbearia>().Add(Barbearia.Criar(
             "Primeira", "11999999999", "um@exemplo.com", "São Paulo", "Rua Um, 1",
             null, codigo, "America/Sao_Paulo", Guid.CreateVersion7()));
+        SemeaduraIntegridade.GarantirTudo(contexto);
         await contexto.SaveChangesAsync();
 
         contexto.Set<Barbearia>().Add(Barbearia.Criar(
             "Segunda", "11999999998", "dois@exemplo.com", "São Paulo", "Rua Dois, 2",
             null, codigo, "America/Sao_Paulo", Guid.CreateVersion7()));
 
+        SemeaduraIntegridade.GarantirTudo(contexto);
         await Assert.ThrowsExactlyAsync<DbUpdateException>(() => contexto.SaveChangesAsync());
     }
 

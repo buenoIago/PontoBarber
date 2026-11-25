@@ -1,4 +1,4 @@
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using PontoBarber.Aplicacao.Compartilhado;
 using PontoBarber.Dominio.Modulos.Profissionais;
@@ -124,7 +124,7 @@ public sealed class RepositorioProfissionalEmOrm(ContextoPontoBarber contexto) :
         contexto.SaveChangesAsync(cancellationToken);
 
     private static bool EhConflito(DbUpdateException excecao, string indice) =>
-        excecao.InnerException is SqlException sql &&
-        (sql.Number == 2601 || sql.Number == 2627) &&
-        sql.Message.Contains(indice, StringComparison.Ordinal);
+        excecao.InnerException is PostgresException postgres &&
+        postgres.SqlState == "23505" &&
+        postgres.MessageText.Contains(indice, StringComparison.Ordinal);
 }

@@ -1,5 +1,7 @@
+using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Infra.Compartilhado.Orm.Configuracoes;
 
@@ -22,5 +24,15 @@ public sealed class ConfiguracaoBloqueioAgenda : ConfiguracaoEntidade<BloqueioAg
             bloqueio.ProfissionalId,
             bloqueio.IniciaEmUtc
         }).HasDatabaseName("IX_Bloqueios_Barbearia_Profissional_Inicio");
+
+        builder.HasOne<BarbeariaEntidade>()
+            .WithMany()
+            .HasForeignKey(bloqueio => bloqueio.BarbeariaId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasOne<VinculoProfissional>()
+            .WithMany()
+            .HasForeignKey(bloqueio => new { bloqueio.BarbeariaId, bloqueio.ProfissionalId })
+            .HasPrincipalKey(vinculo => new { vinculo.BarbeariaId, vinculo.ProfissionalId })
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

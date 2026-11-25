@@ -1,5 +1,7 @@
+using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Profissionais;
 using PontoBarber.Infra.Compartilhado.Orm.Configuracoes;
 
@@ -20,8 +22,16 @@ public sealed class ConfiguracaoVinculoProfissional : ConfiguracaoEntidade<Vincu
         builder.Property(entidade => entidade.Cargo).HasConversion<int>().IsRequired();
         builder.Property(entidade => entidade.Situacao).HasConversion<int>().IsRequired();
 
-        builder.HasIndex(vinculo => new { vinculo.BarbeariaId, vinculo.ProfissionalId })
-            .IsUnique()
-            .HasDatabaseName("UX_Vinculos_Barbearia_Profissional");
+        builder.HasAlternateKey(vinculo => new { vinculo.BarbeariaId, vinculo.ProfissionalId })
+            .HasName("UX_Vinculos_Barbearia_Profissional");
+
+        builder.HasOne<BarbeariaEntidade>()
+            .WithMany()
+            .HasForeignKey(vinculo => vinculo.BarbeariaId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasOne<PerfilProfissional>()
+            .WithMany()
+            .HasForeignKey(vinculo => vinculo.ProfissionalId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

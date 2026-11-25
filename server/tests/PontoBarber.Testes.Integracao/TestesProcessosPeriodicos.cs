@@ -97,6 +97,7 @@ public sealed class TestesProcessosPeriodicos
         {
             var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
             contexto.Set<Agendamento>().AddRange(vencido, futuro, cancelado);
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -131,6 +132,7 @@ public sealed class TestesProcessosPeriodicos
                 Registro("exp1", agora.AddHours(-2), agora.AddHours(-1)),
                 Registro("exp2", agora.AddHours(-3), agora.AddHours(-2)),
                 Registro("vigente", agora.AddHours(-1), agora.AddHours(1)));
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -183,6 +185,7 @@ public sealed class TestesProcessosPeriodicos
         {
             var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
             contexto.Set<Agendamento>().Add(agendamento);
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -225,6 +228,7 @@ public sealed class TestesProcessosPeriodicos
         {
             var contexto = escopo.ServiceProvider.GetRequiredService<ContextoPontoBarber>();
             contexto.Set<Agendamento>().Add(agendamento);
+            SemeaduraIntegridade.GarantirTudo(contexto);
             await contexto.SaveChangesAsync();
         }
 
@@ -306,6 +310,7 @@ public sealed class TestesProcessosPeriodicos
             "Outra troca", "barbeiro-1", DateTime.UtcNow);
         contexto.Set<SugestaoHorario>().AddRange(vencida, vigente);
 
+        SemeaduraIntegridade.GarantirTudo(contexto);
         contexto.SaveChanges();
         return new Cenario(barbearia.Id, "cliente-1", barbeiro.Id);
     }

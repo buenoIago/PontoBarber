@@ -1,5 +1,8 @@
+using BarbeariaEntidade = PontoBarber.Dominio.Modulos.Barbearia.Barbearia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using PontoBarber.Dominio.Modulos.Agendamentos;
+using PontoBarber.Dominio.Modulos.Barbearia;
 using PontoBarber.Dominio.Modulos.Financeiro;
 using PontoBarber.Infra.Compartilhado.Orm.Configuracoes;
 
@@ -16,12 +19,22 @@ public sealed class ConfiguracaoPagamento : ConfiguracaoEntidade<Pagamento>
         builder.Property(pagamento => pagamento.Valor).HasColumnType("decimal(18,2)").IsRequired();
         builder.Property(pagamento => pagamento.Metodo).HasConversion<int>().IsRequired();
         builder.Property(pagamento => pagamento.RegistradoEmUtc).IsRequired();
-        builder.Property(pagamento => pagamento.RegistradoPorUsuarioId).HasMaxLength(450).IsRequired();
+        builder.Property(pagamento => pagamento.RegistradoPorUsuarioId).IsRequired();
 
         builder.HasIndex(pagamento => pagamento.AgendamentoId)
             .IsUnique()
             .HasDatabaseName("UX_Payments_Appointment");
         builder.HasIndex(pagamento => new { pagamento.BarbeariaId, pagamento.RegistradoEmUtc })
             .HasDatabaseName("IX_Payments_Tenant_Registered");
+
+        builder.HasOne<BarbeariaEntidade>()
+            .WithMany()
+            .HasForeignKey(pagamento => pagamento.BarbeariaId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasOne<Agendamento>()
+            .WithMany()
+            .HasForeignKey(pagamento => new { pagamento.BarbeariaId, pagamento.AgendamentoId })
+            .HasPrincipalKey(agendamento => new { agendamento.BarbeariaId, agendamento.Id })
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

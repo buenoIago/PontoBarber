@@ -91,8 +91,8 @@ public class TestesConvencaoPersistenciaTenant
 
         Assert.IsFalse(tenantId.IsNullable);
         Assert.AreEqual("BarbeariaId", tenantId.GetColumnName());
-        Assert.AreEqual("datetime2(3)", criadoEmUtc.GetColumnType());
-        Assert.AreEqual("datetime2(3)", opcionalUtc.GetColumnType());
+        Assert.AreEqual("timestamp with time zone", criadoEmUtc.GetColumnType());
+        Assert.AreEqual("timestamp with time zone", opcionalUtc.GetColumnType());
     }
 
     [TestMethod]
@@ -146,7 +146,7 @@ public class TestesConvencaoPersistenciaTenant
     {
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlServer(
+            optionsBuilder.UseNpgsql(
                 "Server=localhost;Database=PontoBarberProbe;Trusted_Connection=True;TrustServerCertificate=True");
         }
 
@@ -168,7 +168,7 @@ public class TestesConvencaoPersistenciaTenant
     {
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlServer(
+            optionsBuilder.UseNpgsql(
                 "Server=localhost;Database=PontoBarberProbe;Trusted_Connection=True;TrustServerCertificate=True");
         }
 
