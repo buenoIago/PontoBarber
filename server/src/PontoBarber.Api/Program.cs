@@ -97,6 +97,35 @@ if (app.Environment.IsDevelopment())
     {
         opcoes.RoutePrefix = "swagger";
         opcoes.SwaggerEndpoint("/openapi/v1.json", "PontoBarber API v1");
+        // Replica o comportamento do HttpClient do Angular: o cookie legível
+        // __Host-pb.xsrf é devolvido no header em métodos que alteram estado.
+        opcoes.UseRequestInterceptor($$"""
+            (request) => {
+                request.credentials = 'include';
+                const metodo = String(request.method || 'GET').toUpperCase();
+                if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(metodo)) {
+                    const headers = request.headers || (request.headers = {});
+                    const nomeHeader = '{{ConfiguracaoAuth.HeaderCsrf}}';
+                    const jaTemToken = typeof headers.get === 'function'
+                        ? !!headers.get(nomeHeader)
+                        : Object.keys(headers).some(
+                            (chave) => chave.toLowerCase() === nomeHeader.toLowerCase());
+                    if (!jaTemToken) {
+                        const nomeCookie = '{{ConfiguracaoAuth.CookieRequestToken}}=';
+                        const cookie = document.cookie
+                            .split(';')
+                            .map((parte) => parte.trim())
+                            .find((parte) => parte.startsWith(nomeCookie));
+                        if (cookie) {
+                            const token = decodeURIComponent(cookie.substring(nomeCookie.length));
+                            if (typeof headers.set === 'function') headers.set(nomeHeader, token);
+                            else headers[nomeHeader] = token;
+                        }
+                    }
+                }
+                return request;
+            }
+            """);
     });
 
     // Em Development a raiz é apenas a API; a SPA é servida pelo dev server do Angular.
