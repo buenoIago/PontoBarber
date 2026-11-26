@@ -1,0 +1,5 @@
+# Finais de linha: LF para arquivos de texto (código, configuração e documentação).
+* text=auto eol=lf
+
+# Arquivos binários não são normalizados.
+*.ico binary
