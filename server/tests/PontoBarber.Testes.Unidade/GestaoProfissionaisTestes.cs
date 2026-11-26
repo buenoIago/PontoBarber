@@ -121,6 +121,64 @@ public sealed class GestaoProfissionaisTestes
     }
 
     [TestMethod]
+    public async Task AlterarStatus_DeInativoParaAtivo_AtivaESalva()
+    {
+        var (servico, repositorio, _, vinculo) = CriarServico();
+        vinculo.Desativar();
+        var profissionalId = repositorio.PerfilAlvo!.Id;
+
+        var resposta = await servico.AlterarStatusAsync(
+            _barbeariaId, profissionalId, new AlterarStatusProfissionalRequest(true), _usuarioId, CancellationToken.None);
+
+        Assert.AreEqual("Ativo", resposta.Situacao);
+        Assert.AreEqual(StatusVinculo.Ativo, vinculo.Situacao);
+        Assert.IsTrue(repositorio.Salvou);
+    }
+
+    [TestMethod]
+    public async Task AlterarStatus_DeAtivoParaAtivo_NaoTransitaNemSalva()
+    {
+        var (servico, repositorio, _, vinculo) = CriarServico();
+        var profissionalId = repositorio.PerfilAlvo!.Id;
+
+        var resposta = await servico.AlterarStatusAsync(
+            _barbeariaId, profissionalId, new AlterarStatusProfissionalRequest(true), _usuarioId, CancellationToken.None);
+
+        Assert.AreEqual("Ativo", resposta.Situacao);
+        Assert.AreEqual(StatusVinculo.Ativo, vinculo.Situacao);
+        Assert.IsFalse(repositorio.Salvou);
+    }
+
+    [TestMethod]
+    public async Task AlterarStatus_DeAtivoParaInativo_DesativaESalva()
+    {
+        var (servico, repositorio, _, vinculo) = CriarServico();
+        var profissionalId = repositorio.PerfilAlvo!.Id;
+
+        var resposta = await servico.AlterarStatusAsync(
+            _barbeariaId, profissionalId, new AlterarStatusProfissionalRequest(false), _usuarioId, CancellationToken.None);
+
+        Assert.AreEqual("Inativo", resposta.Situacao);
+        Assert.AreEqual(StatusVinculo.Inativo, vinculo.Situacao);
+        Assert.IsTrue(repositorio.Salvou);
+    }
+
+    [TestMethod]
+    public async Task AlterarStatus_DeInativoParaInativo_NaoTransitaNemSalva()
+    {
+        var (servico, repositorio, _, vinculo) = CriarServico();
+        vinculo.Desativar();
+        var profissionalId = repositorio.PerfilAlvo!.Id;
+
+        var resposta = await servico.AlterarStatusAsync(
+            _barbeariaId, profissionalId, new AlterarStatusProfissionalRequest(false), _usuarioId, CancellationToken.None);
+
+        Assert.AreEqual("Inativo", resposta.Situacao);
+        Assert.AreEqual(StatusVinculo.Inativo, vinculo.Situacao);
+        Assert.IsFalse(repositorio.Salvou);
+    }
+
+    [TestMethod]
     public async Task AlterarStatus_ComSituacaoAusente_Rejeita()
     {
         var (servico, repositorio, _, _) = CriarServico();

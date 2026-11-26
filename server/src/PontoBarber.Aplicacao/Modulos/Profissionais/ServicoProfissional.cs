@@ -220,6 +220,12 @@ public sealed class ServicoProfissional(
 
         var (perfil, vinculo) = await ObterAlvoAsync(barbeariaId, profissionalId, cancellationToken);
 
+        // PATCH idempotente: o estado já solicitado não é uma transição e não
+        // deve violar as invariantes de Ativar/Desativar nem persistir nada.
+        var situacaoDesejada = request.Ativo.Value ? StatusVinculo.Ativo : StatusVinculo.Inativo;
+        if (vinculo.Situacao == situacaoDesejada)
+            return ParaResponse(perfil, vinculo.Situacao);
+
         if (request.Ativo.Value)
             vinculo.Ativar();
         else
