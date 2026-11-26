@@ -97,7 +97,7 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
                Igual(partes[2], "barbearias") &&
                Guid.TryParse(partes[3], out _) &&
                Igual(partes[4], "agendamentos") &&
-               Igual(partes[5], "public");
+               Igual(partes[5], "publico");
     }
 
     /// <summary>

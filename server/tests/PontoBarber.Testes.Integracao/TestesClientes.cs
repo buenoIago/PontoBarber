@@ -33,7 +33,7 @@ public sealed class TestesClientes
         CriarSchema(fabrica);
         var cenario = await CriarCenarioAsync(fabrica);
 
-        var lista = await Get(cenario.Dono, $"/api/v1/barbearias/{cenario.BarbeariaId}/customers");
+        var lista = await Get(cenario.Dono, $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes");
         Assert.AreEqual(HttpStatusCode.OK, lista.StatusCode);
         var corpo = await LerAsync(lista);
         Assert.AreEqual(1, corpo.GetProperty("total").GetInt32());
@@ -43,15 +43,15 @@ public sealed class TestesClientes
         Assert.IsFalse(cenario.SemAgendamentoId == cenario.ClienteAId);
 
         var porNome = await Get(cenario.Dono,
-            $"/api/v1/barbearias/{cenario.BarbeariaId}/customers?busca=Cliente%20Alvo");
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes?busca=Cliente%20Alvo");
         Assert.AreEqual(1, (await LerAsync(porNome)).GetProperty("total").GetInt32());
 
         var porEmail = await Get(cenario.Dono,
-            $"/api/v1/barbearias/{cenario.BarbeariaId}/customers?busca=cliente-alvo@");
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes?busca=cliente-alvo@");
         Assert.AreEqual(1, (await LerAsync(porEmail)).GetProperty("total").GetInt32());
 
         var semResultado = await Get(cenario.Dono,
-            $"/api/v1/barbearias/{cenario.BarbeariaId}/customers?busca=inexistente");
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes?busca=inexistente");
         Assert.AreEqual(0, (await LerAsync(semResultado)).GetProperty("total").GetInt32());
     }
 
@@ -63,18 +63,18 @@ public sealed class TestesClientes
         var cenario = await CriarCenarioAsync(fabrica);
 
         Assert.AreEqual(HttpStatusCode.Forbidden,
-            (await Get(cenario.Barbeiro, $"/api/v1/barbearias/{cenario.BarbeariaId}/customers")).StatusCode);
+            (await Get(cenario.Barbeiro, $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes")).StatusCode);
         Assert.AreEqual(HttpStatusCode.Forbidden,
-            (await Get(cenario.ClienteA, $"/api/v1/barbearias/{cenario.BarbeariaId}/customers")).StatusCode);
+            (await Get(cenario.ClienteA, $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes")).StatusCode);
         Assert.AreEqual(HttpStatusCode.Forbidden,
-            (await Get(cenario.OutroDono, $"/api/v1/barbearias/{cenario.BarbeariaId}/customers")).StatusCode);
+            (await Get(cenario.OutroDono, $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes")).StatusCode);
 
         var daOutra = await Get(cenario.Dono,
-            $"/api/v1/barbearias/{cenario.OutraBarbeariaId}/customers");
+            $"/api/v1/barbearias/{cenario.OutraBarbeariaId}/clientes");
         Assert.AreEqual(HttpStatusCode.Forbidden, daOutra.StatusCode);
 
         var detalheOutroCliente = await Get(cenario.Dono,
-            $"/api/v1/barbearias/{cenario.BarbeariaId}/customers/{cenario.ClienteBId}");
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes/{cenario.ClienteBId}");
         Assert.IsTrue(detalheOutroCliente.StatusCode
             is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
     }
@@ -87,7 +87,7 @@ public sealed class TestesClientes
         var cenario = await CriarCenarioAsync(fabrica);
 
         var resposta = await Get(cenario.Dono,
-            $"/api/v1/barbearias/{cenario.BarbeariaId}/customers/{cenario.ClienteAId}");
+            $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes/{cenario.ClienteAId}");
 
         Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
         var corpo = await LerAsync(resposta);
@@ -102,12 +102,12 @@ public sealed class TestesClientes
         CriarSchema(fabrica);
         var cenario = await CriarCenarioAsync(fabrica);
 
-        var atual = await Get(cenario.ClienteA, "/api/v1/me/customer-profile");
+        var atual = await Get(cenario.ClienteA, "/api/v1/minha-conta/perfil-cliente");
         Assert.AreEqual(HttpStatusCode.OK, atual.StatusCode);
         Assert.AreEqual(cenario.ClienteAId, (await LerAsync(atual)).GetProperty("id").GetString());
 
         var edicao = await EnviarAsync(cenario.ClienteA, HttpMethod.Put,
-            "/api/v1/me/customer-profile",
+            "/api/v1/minha-conta/perfil-cliente",
             new { nomeCompleto = "Cliente Atualizado", email = "cliente-novo@exemplo.com", telefone = "11999999999", id = "outro", tipo = "Professional" });
         Assert.AreEqual(HttpStatusCode.OK, edicao.StatusCode);
         var corpo = await LerAsync(edicao);
@@ -130,16 +130,16 @@ public sealed class TestesClientes
         var cenario = await CriarCenarioAsync(fabrica);
 
         var duplicado = await EnviarAsync(cenario.ClienteA, HttpMethod.Put,
-            "/api/v1/me/customer-profile",
+            "/api/v1/minha-conta/perfil-cliente",
             new { nomeCompleto = "Cliente Alvo", email = "cliente-sem-agendamento@exemplo.com", telefone = (string?)null });
         Assert.AreEqual(HttpStatusCode.Conflict, duplicado.StatusCode);
 
         var invalido = await EnviarAsync(cenario.ClienteA, HttpMethod.Put,
-            "/api/v1/me/customer-profile",
+            "/api/v1/minha-conta/perfil-cliente",
             new { nomeCompleto = "ab", email = "invalido", telefone = (string?)null });
         Assert.AreEqual(HttpStatusCode.BadRequest, invalido.StatusCode);
 
-        var atual = await Get(cenario.ClienteA, "/api/v1/me/customer-profile");
+        var atual = await Get(cenario.ClienteA, "/api/v1/minha-conta/perfil-cliente");
         var corpo = await LerAsync(atual);
         Assert.AreEqual("Cliente Alvo", corpo.GetProperty("nomeCompleto").GetString());
         Assert.AreEqual("cliente-alvo@exemplo.com", corpo.GetProperty("email").GetString());
@@ -151,7 +151,7 @@ public sealed class TestesClientes
         using var fabrica = CriarFabricaComBanco();
         CriarSchema(fabrica);
         var cenario = await CriarCenarioAsync(fabrica);
-        var rota = $"/api/v1/barbearias/{cenario.BarbeariaId}/customers";
+        var rota = $"/api/v1/barbearias/{cenario.BarbeariaId}/clientes";
 
         foreach (var metodo in new[] { HttpMethod.Post, HttpMethod.Put, HttpMethod.Delete, HttpMethod.Patch })
         {
@@ -240,7 +240,7 @@ public sealed class TestesClientes
     {
         var email = $"{prefixo}-{Guid.NewGuid():N}@exemplo.com";
         const string senha = "Senha123";
-        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/register/professional",
+        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/cadastro/profissional",
             new { nomeCompleto = prefixo, email, telefone = "11999999999", senha, confirmarSenha = senha });
         await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/login", new { email, senha });
     }

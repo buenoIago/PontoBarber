@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -13,7 +14,8 @@ namespace PontoBarber.Api.Modulos.Clientes;
 /// (CA-CLI-007).
 /// </summary>
 [ApiController]
-[Route("api/v1/barbearias/{barbeariaId:guid}/customers")]
+[Tags("Clientes")]
+[Route("api/v1/barbearias/{barbeariaId:guid}/clientes")]
 public sealed class ClientesController(ServicoClientes servico) : ControllerBase
 {
     [HttpGet]

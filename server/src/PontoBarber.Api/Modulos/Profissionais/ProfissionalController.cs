@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -12,6 +13,7 @@ namespace PontoBarber.Api.Modulos.Profissionais;
 /// identificado pelo vínculo ativo na barbearia da rota, nunca pelo corpo.
 /// </summary>
 [ApiController]
+[Tags("Profissionais")]
 [Route("api/v1/barbearias/{barbeariaId:guid}/profissionais")]
 public sealed class ProfissionalController(ServicoProfissional servico) : ControllerBase
 {

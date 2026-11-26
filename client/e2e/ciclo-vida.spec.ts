@@ -122,7 +122,7 @@ async function preparar(page: Page, conta: typeof contaCliente, sugestoes: unkno
   await page.route('**/api/v1/barbearias/b1/profissionais/p1/blocks', (rota) =>
     rota.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
-  await page.route(/\/api\/v1\/me\/agendamentos/, (rota) =>
+  await page.route(/\/api\/v1\/minha-conta\/agendamentos/, (rota) =>
     rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([agendamento]) }),
   );
   await page.route(/\/api\/v1\/barbearias\/b1\/agendamentos\/a1(\/historico|\/sugestoes|\?.*)?$/, (rota) => {

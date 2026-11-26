@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
@@ -9,12 +10,13 @@ using PontoBarber.Aplicacao.Modulos.Profissionais;
 namespace PontoBarber.Api.Modulos.Auth;
 
 [ApiController]
+[Tags("Autenticação")]
 [Route("api/v1/auth")]
 public sealed class AuthController(
     ServicoConta servicoConta,
     ServicoProfissional servicoProfissional) : ControllerBase
 {
-    [HttpPost("register/customer")]
+    [HttpPost("cadastro/cliente")]
     public async Task<IResult> CadastrarCliente(
         [FromBody] RegistroClienteRequest request,
         CancellationToken cancellationToken)
@@ -23,7 +25,7 @@ public sealed class AuthController(
         return Results.StatusCode(StatusCodes.Status201Created);
     }
 
-    [HttpPost("register/professional")]
+    [HttpPost("cadastro/profissional")]
     public async Task<IResult> CadastrarBarbeiro(
         [FromBody] RegistroProfissionalRequest request,
         CancellationToken cancellationToken)
@@ -32,7 +34,7 @@ public sealed class AuthController(
         return Results.StatusCode(StatusCodes.Status201Created);
     }
 
-    [HttpPost("otp/request")]
+    [HttpPost("otp/solicitar")]
     public async Task<IResult> SolicitarOtp(
         [FromBody] SolicitarOtpRequest request,
         CancellationToken cancellationToken)
@@ -42,7 +44,7 @@ public sealed class AuthController(
         return Results.Accepted(value: new { mensagem = "Se a conta existir, um código foi enviado." });
     }
 
-    [HttpPost("otp/verify")]
+    [HttpPost("otp/verificar")]
     public async Task<IResult> VerificarOtp(
         [FromBody] VerificarOtpRequest request,
         CancellationToken cancellationToken)

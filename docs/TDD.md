@@ -773,11 +773,11 @@ Códigos de erro estáveis:
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `POST` | `/api/v1/auth/register/customer` | Cadastrar cliente | Anônimo | RF-AUTH-002 |
-| `POST` | `/api/v1/auth/register/professional` | Cadastrar barbeiro | Anônimo | RF-AUTH-003 |
+| `POST` | `/api/v1/auth/cadastro/cliente` | Cadastrar cliente | Anônimo | RF-AUTH-002 |
+| `POST` | `/api/v1/auth/cadastro/profissional` | Cadastrar barbeiro | Anônimo | RF-AUTH-003 |
 | `POST` | `/api/v1/auth/login` | Autenticar profissional e emitir cookie | Anônimo | RF-AUTH-004 |
-| `POST` | `/api/v1/auth/otp/request` | Solicitar código OTP de cliente (`202` genérica) | Anônimo | RF-AUTH-004 |
-| `POST` | `/api/v1/auth/otp/verify` | Validar OTP e emitir cookie de cliente | Anônimo | RF-AUTH-004 |
+| `POST` | `/api/v1/auth/otp/solicitar` | Solicitar código OTP de cliente (`202` genérica) | Anônimo | RF-AUTH-004 |
+| `POST` | `/api/v1/auth/otp/verificar` | Validar OTP e emitir cookie de cliente | Anônimo | RF-AUTH-004 |
 | `POST` | `/api/v1/auth/logout` | Encerrar sessão | Autenticado | RF-AUTH-004 |
 | `GET` | `/api/v1/auth/me` | Perfil, vínculos e permissões | Autenticado | RF-AUTH-001, RF-AUTH-007 |
 | `PUT` | `/api/v1/auth/me` | Atualizar próprios dados | Autenticado | RF-CLI-005, RF-CLI-006 |
@@ -829,14 +829,14 @@ Códigos de erro estáveis:
 | `GET` | `/api/v1/barbearias/{barbeariaId}/agendamentos` | Agenda por período e filtros | Proprietário, Barbeiro | RF-AGD-001, RF-AGD-002, RF-AGD-003, RF-AGD-004 |
 | `GET` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}` | Detalhar agendamento | Proprietário, Barbeiro do agendamento, Cliente titular | RF-AGD-009 |
 | `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos` | Criar agendamento manual | Proprietário, Barbeiro | RF-AGD-005, RF-AGD-006, RF-AGD-007, RF-AGD-008 |
-| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/public` | Confirmar agendamento público | Cliente | RF-PUB-003, RF-PUB-005, RF-PUB-006 |
+| `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/publico` | Confirmar agendamento público | Cliente | RF-PUB-003, RF-PUB-005, RF-PUB-006 |
 | `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/cancelar` | Cancelar | Proprietário, Barbeiro do agendamento, Cliente titular | RF-AGD-011, RF-AGD-013, RF-AGD-014, RF-AGD-017 |
 | `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/remarcar` | Remarcar | Cliente titular, Proprietário, Barbeiro | RF-AGD-012 |
 | `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/sugestoes` | Sugerir novo horário | Barbeiro do agendamento | RF-AGD-015 |
 | `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/sugestoes/{sugestaoId}/aceitar` | Aceitar sugestão | Cliente titular | RF-AGD-016 |
 | `POST` | `/api/v1/barbearias/{barbeariaId}/agendamentos/{id}/sugestoes/{sugestaoId}/rejeitar` | Rejeitar sugestão | Cliente titular | RF-AGD-016 |
-| `GET` | `/api/v1/me/agendamentos` | Agendamentos do cliente | Cliente | RF-AGD-010 |
-| `GET` | `/api/v1/me/agendamentos/{id}` | Detalhe do próprio agendamento | Cliente titular | RF-AGD-009, RF-AGD-010 |
+| `GET` | `/api/v1/minha-conta/agendamentos` | Agendamentos do cliente | Cliente | RF-AGD-010 |
+| `GET` | `/api/v1/minha-conta/agendamentos/{id}` | Detalhe do próprio agendamento | Cliente titular | RF-AGD-009, RF-AGD-010 |
 
 ### Atendimento e pagamento
 
@@ -852,10 +852,10 @@ Códigos de erro estáveis:
 
 | Método | Caminho | Objetivo | Perfil autorizado | Requisitos |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/barbearias/{barbeariaId}/customers` | Listar e pesquisar clientes com agendamentos | Proprietário | RF-CLI-001, RF-CLI-002, RF-CLI-003 |
-| `GET` | `/api/v1/barbearias/{barbeariaId}/customers/{id}` | Consultar cliente relacionado | Proprietário | RF-CLI-002 |
-| `GET` | `/api/v1/me/customer-profile` | Consultar próprios dados | Cliente | RF-CLI-004 |
-| `PUT` | `/api/v1/me/customer-profile` | Editar próprios dados | Cliente | RF-CLI-005, RF-CLI-006 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/clientes` | Listar e pesquisar clientes com agendamentos | Proprietário | RF-CLI-001, RF-CLI-002, RF-CLI-003 |
+| `GET` | `/api/v1/barbearias/{barbeariaId}/clientes/{id}` | Consultar cliente relacionado | Proprietário | RF-CLI-002 |
+| `GET` | `/api/v1/minha-conta/perfil-cliente` | Consultar próprios dados | Cliente | RF-CLI-004 |
+| `PUT` | `/api/v1/minha-conta/perfil-cliente` | Editar próprios dados | Cliente | RF-CLI-005, RF-CLI-006 |
 
 ### Dashboard e notificações
 
@@ -887,7 +887,7 @@ Códigos de erro estáveis:
 
 ### Criar agendamento público
 
-**Entrada:** `POST /api/v1/barbearias/{barbeariaId}/agendamentos/public`
+**Entrada:** `POST /api/v1/barbearias/{barbeariaId}/agendamentos/publico`
 
 | Campo | Tipo | Obrigatório | Validação |
 | --- | --- | --- | --- |

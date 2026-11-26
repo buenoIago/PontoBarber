@@ -379,7 +379,7 @@ public sealed class TestesAtendimento
         var email = $"prof-{Guid.NewGuid():N}@exemplo.com";
         const string senha = "Senha123";
         Assert.AreEqual(HttpStatusCode.Created, (await EnviarAsync(
-            cliente, HttpMethod.Post, "/api/v1/auth/register/professional",
+            cliente, HttpMethod.Post, "/api/v1/auth/cadastro/profissional",
             new { nomeCompleto = "Profissional", email, telefone = "11999999999", senha, confirmarSenha = senha })).StatusCode);
         Assert.AreEqual(HttpStatusCode.NoContent, (await EnviarAsync(
             cliente, HttpMethod.Post, "/api/v1/auth/login", new { email, senha })).StatusCode);

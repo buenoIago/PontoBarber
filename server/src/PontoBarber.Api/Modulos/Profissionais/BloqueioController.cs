@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -9,6 +10,7 @@ namespace PontoBarber.Api.Modulos.Profissionais;
 
 /// <summary>Bloqueios pontuais da agenda do profissional (TDD §10.2).</summary>
 [ApiController]
+[Tags("Bloqueios")]
 [Route("api/v1/barbearias/{barbeariaId:guid}/profissionais/{id:guid}/blocks")]
 public sealed class BloqueioController(GestaoBloqueios servico) : ControllerBase
 {

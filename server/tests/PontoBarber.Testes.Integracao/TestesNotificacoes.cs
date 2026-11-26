@@ -276,7 +276,7 @@ public sealed class TestesNotificacoes
     {
         var email = $"{prefixo}-{Guid.NewGuid():N}@exemplo.com";
         const string senha = "Senha123";
-        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/register/professional",
+        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/cadastro/profissional",
             new { nomeCompleto = prefixo, email, telefone = "11999999999", senha, confirmarSenha = senha });
         await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/login", new { email, senha });
     }

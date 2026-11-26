@@ -50,7 +50,7 @@ describe('AgendamentosService', () => {
       true,
     );
 
-    const req = http.expectOne('/api/v1/barbearias/b1/agendamentos/public');
+    const req = http.expectOne('/api/v1/barbearias/b1/agendamentos/publico');
     expect(req.request.method).toBe('POST');
     expect(servico.carregando()).toBe(true);
     req.flush({});

@@ -238,7 +238,7 @@ public sealed class TestesCarga
     {
         var email = $"carga-{Guid.NewGuid():N}@exemplo.com";
         const string senha = "Senha123";
-        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/register/professional",
+        await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/cadastro/profissional",
             new { nomeCompleto = "Dono Carga", email, telefone = "11999999999", senha, confirmarSenha = senha },
             await ObterCsrfAsync(cliente));
         await EnviarAsync(cliente, HttpMethod.Post, "/api/v1/auth/login", new { email, senha },

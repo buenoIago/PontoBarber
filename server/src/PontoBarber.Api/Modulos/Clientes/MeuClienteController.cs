@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -8,7 +9,8 @@ using PontoBarber.Aplicacao.Modulos.Clientes;
 namespace PontoBarber.Api.Modulos.Clientes;
 
 [ApiController]
-[Route("api/v1/me/customer-profile")]
+[Tags("Meu Perfil de Cliente")]
+[Route("api/v1/minha-conta/perfil-cliente")]
 public sealed class MeuClienteController(ServicoClientes servico) : ControllerBase
 {
     [HttpGet]

@@ -163,7 +163,7 @@ async function preparar(page: Page, conta: typeof contaProprietario, modo: Modo)
     }),
   );
 
-  await page.route('**/api/v1/barbearias/b1/agendamentos/public', (rota) =>
+  await page.route('**/api/v1/barbearias/b1/agendamentos/publico', (rota) =>
     rota.fulfill({
       status: 201,
       contentType: 'application/json',
@@ -184,7 +184,7 @@ async function preparar(page: Page, conta: typeof contaProprietario, modo: Modo)
       body: JSON.stringify([agendamento]),
     });
   });
-  await page.route('**/api/v1/me/agendamentos', (rota) =>
+  await page.route('**/api/v1/minha-conta/agendamentos', (rota) =>
     rota.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -268,7 +268,7 @@ test('cliente completa o fluxo público de agendamento', async ({ page }) => {
 
 test('erro de conflito é exibido de forma compreensível', async ({ page }) => {
   await preparar(page, contaCliente, 'publico');
-  await page.route('**/api/v1/barbearias/b1/agendamentos/public', (rota) =>
+  await page.route('**/api/v1/barbearias/b1/agendamentos/publico', (rota) =>
     rota.fulfill({
       status: 409,
       contentType: 'application/problem+json',

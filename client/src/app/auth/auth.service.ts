@@ -46,14 +46,14 @@ export class AuthService {
 
   cadastrarCliente(dados: RegistroCliente): void {
     this.executar(
-      () => this.http.post('/api/v1/auth/register/customer', dados, { withCredentials: true }),
+      () => this.http.post('/api/v1/auth/cadastro/cliente', dados, { withCredentials: true }),
       () => this.sucessoState.set('Cadastro realizado. Solicite o código de acesso por e-mail.'),
     );
   }
 
   cadastrarProfissional(dados: RegistroProfissional): void {
     this.executar(
-      () => this.http.post('/api/v1/auth/register/professional', dados, { withCredentials: true }),
+      () => this.http.post('/api/v1/auth/cadastro/profissional', dados, { withCredentials: true }),
       () => this.sucessoState.set('Cadastro realizado. Entre com seu e-mail e senha.'),
     );
   }
@@ -70,7 +70,7 @@ export class AuthService {
     // Não limpar antes da resposta: um reenvio com falha deve manter a tela
     // de código aberta para o usuário poder tentar novamente.
     this.executar(
-      () => this.http.post('/api/v1/auth/otp/request', { email }, { withCredentials: true }),
+      () => this.http.post('/api/v1/auth/otp/solicitar', { email }, { withCredentials: true }),
       () => {
         this.emailOtpState.set(email);
         this.sucessoState.set('Se a conta existir, um código foi enviado por e-mail.');
@@ -81,7 +81,7 @@ export class AuthService {
   /** Valida o código e abre a sessão pelo cookie existente. */
   verificarCodigo(dados: VerificarOtp): void {
     this.executar(
-      () => this.http.post('/api/v1/auth/otp/verify', dados, { withCredentials: true }),
+      () => this.http.post('/api/v1/auth/otp/verificar', dados, { withCredentials: true }),
       () => {
         this.emailOtpState.set(null);
         this.carregarConta();
@@ -108,7 +108,7 @@ export class AuthService {
     this.executar(
       () =>
         this.http.put<{ nomeCompleto: string; email: string; telefone: string | null }>(
-          '/api/v1/me/customer-profile',
+          '/api/v1/minha-conta/perfil-cliente',
           dados,
           { withCredentials: true },
         ),

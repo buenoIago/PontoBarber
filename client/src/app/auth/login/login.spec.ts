@@ -74,7 +74,7 @@ describe('Login', () => {
     elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
     await fixture.whenStable();
 
-    const solicitacao = http.expectOne('/api/v1/auth/otp/request');
+    const solicitacao = http.expectOne('/api/v1/auth/otp/solicitar');
     expect(solicitacao.request.body).toEqual({ email: 'cliente@exemplo.com' });
     solicitacao.flush(null, { status: 202, statusText: 'Accepted' });
     http.verify();

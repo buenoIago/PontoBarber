@@ -129,7 +129,7 @@ public sealed class TestesBarbearia
         var email = "barbeiro-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
         var senha = "Senha123";
 
-        var cadastro = await PostComAntiforgeryAsync(cliente, "/api/v1/auth/register/professional", new
+        var cadastro = await PostComAntiforgeryAsync(cliente, "/api/v1/auth/cadastro/profissional", new
         {
             nomeCompleto = "Barbeiro Teste",
             email,

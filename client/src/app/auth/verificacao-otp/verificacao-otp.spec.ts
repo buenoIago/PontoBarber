@@ -35,7 +35,7 @@ describe('VerificacaoOtp', () => {
     http = TestBed.inject(HttpTestingController);
     auth = TestBed.inject(AuthService);
     auth.solicitarCodigo('cliente@exemplo.com');
-    http.expectOne('/api/v1/auth/otp/request').flush(null, {
+    http.expectOne('/api/v1/auth/otp/solicitar').flush(null, {
       status: 202,
       statusText: 'Accepted',
     });
@@ -64,7 +64,7 @@ describe('VerificacaoOtp', () => {
     elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
     await fixture.whenStable();
 
-    const verificacao = http.expectOne('/api/v1/auth/otp/verify');
+    const verificacao = http.expectOne('/api/v1/auth/otp/verificar');
     expect(verificacao.request.body).toEqual({ email: 'cliente@exemplo.com', codigo: '123456' });
     verificacao.flush(null, { status: 204, statusText: 'No Content' });
     http.expectOne('/api/v1/auth/me').flush({
@@ -84,7 +84,7 @@ describe('VerificacaoOtp', () => {
     botoes.find((botao) => botao.textContent?.trim() === 'Reenviar código')!.click();
     await fixture.whenStable();
 
-    const reenvio = http.expectOne('/api/v1/auth/otp/request');
+    const reenvio = http.expectOne('/api/v1/auth/otp/solicitar');
     expect(reenvio.request.body).toEqual({ email: 'cliente@exemplo.com' });
     reenvio.flush(null, { status: 202, statusText: 'Accepted' });
     http.verify();

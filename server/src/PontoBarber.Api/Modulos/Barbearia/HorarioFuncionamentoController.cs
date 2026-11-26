@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -9,6 +10,7 @@ namespace PontoBarber.Api.Modulos.Barbearia;
 
 /// <summary>Funcionamento semanal da barbearia (TDD §10.2).</summary>
 [ApiController]
+[Tags("Horários de Funcionamento")]
 [Route("api/v1/barbearias/{barbeariaId:guid}/horarios-funcionamento")]
 public sealed class HorarioFuncionamentoController(GestaoHorariosFuncionamento servico) : ControllerBase
 {

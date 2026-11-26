@@ -37,7 +37,7 @@ public sealed class TestesConta
         using var fabrica = new WebApplicationFactory<Program>();
         using var cliente = fabrica.CreateClient(_opcoesCliente);
 
-        var resposta = await PostAsync(cliente, "/api/v1/auth/register/professional", new
+        var resposta = await PostAsync(cliente, "/api/v1/auth/cadastro/profissional", new
         {
             nomeCompleto = "Profissional Teste",
             email = "profissional-divergente@exemplo.com",
@@ -80,7 +80,7 @@ public sealed class TestesConta
         using var fabrica = new WebApplicationFactory<Program>();
         using var cliente = fabrica.CreateClient(_opcoesCliente);
 
-        var resposta = await PostAsync(cliente, "/api/v1/auth/register/customer", new
+        var resposta = await PostAsync(cliente, "/api/v1/auth/cadastro/cliente", new
         {
             nomeCompleto = "",
             email = "",
@@ -99,7 +99,7 @@ public sealed class TestesConta
         using var cliente = fabrica.CreateClient(_opcoesCliente);
         var email = "cliente-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
 
-        var resposta = await PostAsync(cliente, "/api/v1/auth/register/customer", RegistroCliente(email));
+        var resposta = await PostAsync(cliente, "/api/v1/auth/cadastro/cliente", RegistroCliente(email));
 
         Assert.AreEqual(HttpStatusCode.Created, resposta.StatusCode);
         var usuario = await ObterUsuarioAsync(fabrica, email);
@@ -113,7 +113,7 @@ public sealed class TestesConta
         using var cliente = fabrica.CreateClient(_opcoesCliente);
         var email = "barbeiro-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
 
-        var resposta = await PostAsync(cliente, "/api/v1/auth/register/professional", RegistroProfissional(email));
+        var resposta = await PostAsync(cliente, "/api/v1/auth/cadastro/profissional", RegistroProfissional(email));
 
         Assert.AreEqual(HttpStatusCode.Created, resposta.StatusCode);
         var usuario = await ObterUsuarioAsync(fabrica, email);
@@ -127,8 +127,8 @@ public sealed class TestesConta
         using var cliente = fabrica.CreateClient(_opcoesCliente);
         var email = "duplicado-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
 
-        var primeiro = await PostAsync(cliente, "/api/v1/auth/register/customer", RegistroCliente(email));
-        var segundo = await PostAsync(cliente, "/api/v1/auth/register/customer", RegistroCliente(email));
+        var primeiro = await PostAsync(cliente, "/api/v1/auth/cadastro/cliente", RegistroCliente(email));
+        var segundo = await PostAsync(cliente, "/api/v1/auth/cadastro/cliente", RegistroCliente(email));
 
         Assert.AreEqual(HttpStatusCode.Created, primeiro.StatusCode);
         Assert.AreEqual(HttpStatusCode.Conflict, segundo.StatusCode);
@@ -163,7 +163,7 @@ public sealed class TestesConta
 
         Assert.AreEqual(
             HttpStatusCode.Created,
-            (await PostAsync(cliente, "/api/v1/auth/register/professional", RegistroProfissional(email))).StatusCode);
+            (await PostAsync(cliente, "/api/v1/auth/cadastro/profissional", RegistroProfissional(email))).StatusCode);
 
         for (var tentativa = 1; tentativa <= 5; tentativa++)
         {
@@ -292,7 +292,7 @@ public sealed class TestesConta
         var email = $"prof-{Guid.NewGuid():N}@exemplo.com";
         const string senha = "Senha123";
         Assert.AreEqual(HttpStatusCode.Created, (await PostAsync(cliente,
-            "/api/v1/auth/register/professional", new
+            "/api/v1/auth/cadastro/profissional", new
             {
                 nomeCompleto = "Profissional Teste",
                 email,

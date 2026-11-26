@@ -19,7 +19,7 @@ async function preparar(page: Page): Promise<void> {
       body: JSON.stringify({ itens: [], naoLidas: 0, pagina: 1, tamanho: 20 }),
     }),
   );
-  await page.route('**/api/v1/me/agendamentos', (rota) =>
+  await page.route('**/api/v1/minha-conta/agendamentos', (rota) =>
     rota.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
   await page.route('**/api/v1/barbearias/b1/servicos', (rota) =>

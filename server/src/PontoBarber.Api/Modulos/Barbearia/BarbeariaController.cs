@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -13,6 +14,7 @@ namespace PontoBarber.Api.Modulos.Barbearia;
 /// O usuário e o tenant são derivados da sessão e do vínculo, nunca do corpo.
 /// </summary>
 [ApiController]
+[Tags("Barbearias")]
 [Route("api/v1/barbearias")]
 public sealed class BarbeariaController(
     ServicoBarbearia servico,

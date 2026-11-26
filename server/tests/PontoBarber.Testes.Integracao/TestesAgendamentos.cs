@@ -316,7 +316,7 @@ public sealed class TestesAgendamentos
 
         var doDono = await cenario.Dono.GetAsync($"/api/v1/barbearias/{cenario.BarbeariaId}/agendamentos{filtro}");
         var doBarbeiro = await cenario.Profissional.GetAsync($"/api/v1/barbearias/{cenario.BarbeariaId}/agendamentos{filtro}");
-        var doCliente = await cenario.Cliente.GetAsync($"/api/v1/me/agendamentos{filtro}");
+        var doCliente = await cenario.Cliente.GetAsync($"/api/v1/minha-conta/agendamentos{filtro}");
 
         Assert.AreEqual(1, (await LerCorpoAsync(doDono)).GetArrayLength());
         Assert.AreEqual(1, (await LerCorpoAsync(doBarbeiro)).GetArrayLength());
@@ -737,7 +737,7 @@ public sealed class TestesAgendamentos
     }
 
     private static string PublicUrl(Guid barbeariaId) =>
-        $"/api/v1/barbearias/{barbeariaId}/agendamentos/public";
+        $"/api/v1/barbearias/{barbeariaId}/agendamentos/publico";
 
     private static DateTime ProximoInicio()
     {
@@ -871,7 +871,7 @@ public sealed class TestesAgendamentos
         var email = $"prof-{Guid.NewGuid():N}@exemplo.com";
         const string senha = "Senha123";
         Assert.AreEqual(HttpStatusCode.Created, (await EnviarComAntiforgeryAsync(
-            cliente, HttpMethod.Post, "/api/v1/auth/register/professional",
+            cliente, HttpMethod.Post, "/api/v1/auth/cadastro/profissional",
             new { nomeCompleto = "Profissional Teste", email, telefone = "11999999999", senha, confirmarSenha = senha })).StatusCode);
         Assert.AreEqual(HttpStatusCode.NoContent, (await EnviarComAntiforgeryAsync(
             cliente, HttpMethod.Post, "/api/v1/auth/login", new { email, senha })).StatusCode);

@@ -31,7 +31,7 @@ export class ClientesService {
     this.executar(
       () =>
         this.http.get<ListaClientes>(
-          `/api/v1/barbearias/${barbeariaId}/customers?${parametros.toString()}`,
+          `/api/v1/barbearias/${barbeariaId}/clientes?${parametros.toString()}`,
           { withCredentials: true },
         ),
       (resposta) => {
@@ -45,7 +45,7 @@ export class ClientesService {
   obter(barbeariaId: string, id: string): void {
     this.executar(
       () =>
-        this.http.get<Cliente>(`/api/v1/barbearias/${barbeariaId}/customers/${id}`, {
+        this.http.get<Cliente>(`/api/v1/barbearias/${barbeariaId}/clientes/${id}`, {
           withCredentials: true,
         }),
       (resposta) => this.selecionadoState.set(resposta),

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -9,6 +10,7 @@ using PontoBarber.Aplicacao.Modulos.Agendamentos.DTOs;
 namespace PontoBarber.Api.Modulos.Agendamentos;
 
 [ApiController]
+[Tags("Agendamentos")]
 [Route("api/v1/barbearias/{barbeariaId:guid}/agendamentos")]
 public sealed class AgendamentoController(
     ServicoAgendamentos servico,
@@ -65,7 +67,7 @@ public sealed class AgendamentoController(
                 barbeariaId, AgendamentoContracts.ParaRequest(contrato), usuarioId, cancellationToken)));
     }
 
-    [HttpPost("public")]
+    [HttpPost("publico")]
     [Authorize(Policy = ConfiguracaoAuth.PolíticaCliente)]
     public async Task<IResult> CriarPublico(
         Guid barbeariaId,

@@ -99,7 +99,7 @@ export class AgendamentosService {
     sucesso?: () => void,
   ): void {
     const rota = publico
-      ? `/api/v1/barbearias/${barbeariaId}/agendamentos/public`
+      ? `/api/v1/barbearias/${barbeariaId}/agendamentos/publico`
       : `/api/v1/barbearias/${barbeariaId}/agendamentos`;
 
     this.executar(
@@ -114,7 +114,7 @@ export class AgendamentosService {
   listarMeus(de: string, ate: string): void {
     this.executar(
       () =>
-        this.http.get<Agendamento[]>(`/api/v1/me/agendamentos?de=${de}&ate=${ate}`, {
+        this.http.get<Agendamento[]>(`/api/v1/minha-conta/agendamentos?de=${de}&ate=${ate}`, {
           withCredentials: true,
         }),
       (resposta) => this.agendaState.set(resposta),

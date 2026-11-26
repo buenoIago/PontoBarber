@@ -258,7 +258,7 @@ public sealed class TestesGestaoProfissionais
         var email = $"prof-{Guid.NewGuid():N}@exemplo.com";
         const string senha = "Senha123";
         var cadastro = await EnviarComAntiforgeryAsync(
-            cliente, HttpMethod.Post, "/api/v1/auth/register/professional",
+            cliente, HttpMethod.Post, "/api/v1/auth/cadastro/profissional",
             new { nomeCompleto = "Profissional Teste", email, telefone = "11999999999", senha, confirmarSenha = senha });
         Assert.AreEqual(HttpStatusCode.Created, cadastro.StatusCode);
 

@@ -134,8 +134,8 @@ Contrato OTP (Task 3.3):
 
 | Método | Rota | Resposta |
 | --- | --- | --- |
-| `POST` | `/api/v1/auth/otp/request` | `202` genérica, com ou sem conta existente |
-| `POST` | `/api/v1/auth/otp/verify` | `204` com cookie de sessão; `401` genérica para código inválido, expirado, usado ou após excesso de tentativas |
+| `POST` | `/api/v1/auth/otp/solicitar` | `202` genérica, com ou sem conta existente |
+| `POST` | `/api/v1/auth/otp/verificar` | `204` com cookie de sessão; `401` genérica para código inválido, expirado, usado ou após excesso de tentativas |
 
 O código tem 6 dígitos, expira em 5 minutos, é armazenado apenas como `salt + HMAC-SHA256`, é válido uma única vez e nunca aparece em logs ou respostas HTTP. Reenvios são limitados a 3 por janela de validade, com intervalo mínimo de 60 segundos; novo envio invalida o código anterior.
 

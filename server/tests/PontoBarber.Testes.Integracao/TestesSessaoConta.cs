@@ -120,7 +120,7 @@ public sealed class TestesSessaoConta
 
         var codigo = await AuthTestHelper.SolicitarCodigoAsync(cliente, email);
         var resposta = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo });
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo });
         Assert.AreEqual(HttpStatusCode.NoContent, resposta.StatusCode);
         var cookie = resposta.Headers.GetValues("Set-Cookie")
             .First(valor => valor.Contains("__Host-pb.auth", StringComparison.Ordinal));
@@ -261,7 +261,7 @@ public sealed class TestesSessaoConta
     {
         var email = "sessao-" + Guid.NewGuid().ToString("N")[..8] + "@exemplo.com";
         const string senha = "Senha123";
-        var resposta = await PostComAntiforgeryAsync(cliente, "/api/v1/auth/register/professional", new
+        var resposta = await PostComAntiforgeryAsync(cliente, "/api/v1/auth/cadastro/profissional", new
         {
             nomeCompleto = "Profissional Sessão",
             email,

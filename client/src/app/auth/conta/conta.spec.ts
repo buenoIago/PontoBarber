@@ -103,7 +103,7 @@ describe('Conta', () => {
     elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
     await fixture.whenStable();
 
-    const req = http.expectOne('/api/v1/me/customer-profile');
+    const req = http.expectOne('/api/v1/minha-conta/perfil-cliente');
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual({
       nomeCompleto: 'Nome Novo',

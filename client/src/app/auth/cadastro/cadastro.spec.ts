@@ -65,7 +65,7 @@ describe('Cadastro', () => {
     elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
     await fixture.whenStable();
 
-    const requisicao = http.expectOne('/api/v1/auth/register/customer');
+    const requisicao = http.expectOne('/api/v1/auth/cadastro/cliente');
     expect(requisicao.request.method).toBe('POST');
     expect(requisicao.request.body).toEqual({
       nomeCompleto: 'Nome Teste',
@@ -89,7 +89,7 @@ describe('Cadastro', () => {
     elemento.querySelector<HTMLFormElement>('form')?.dispatchEvent(new Event('submit'));
     await fixture.whenStable();
 
-    const requisicao = http.expectOne('/api/v1/auth/register/professional');
+    const requisicao = http.expectOne('/api/v1/auth/cadastro/profissional');
     expect(requisicao.request.body.senha).toBe('Senha123');
     requisicao.flush(null, { status: 201, statusText: 'Created' });
     http.verify();

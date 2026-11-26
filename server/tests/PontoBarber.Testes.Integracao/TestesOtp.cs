@@ -49,7 +49,7 @@ public sealed class TestesOtp
 
         EnviadorEmailMemoria.Limpar();
         var resposta = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/request", new { email });
+            cliente, "/api/v1/auth/otp/solicitar", new { email });
 
         Assert.AreEqual(HttpStatusCode.Accepted, resposta.StatusCode);
         Assert.IsNull(EnviadorEmailMemoria.UltimoCorpo(email));
@@ -63,7 +63,7 @@ public sealed class TestesOtp
         var email = $"prof-{Guid.NewGuid():N}@exemplo.com";
         const string senha = "Senha123";
         Assert.AreEqual(HttpStatusCode.Created, (await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/register/professional", new
+            cliente, "/api/v1/auth/cadastro/profissional", new
             {
                 nomeCompleto = "Profissional",
                 email,
@@ -74,7 +74,7 @@ public sealed class TestesOtp
 
         EnviadorEmailMemoria.Limpar();
         var resposta = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/request", new { email });
+            cliente, "/api/v1/auth/otp/solicitar", new { email });
 
         Assert.AreEqual(HttpStatusCode.Accepted, resposta.StatusCode);
         Assert.IsNull(EnviadorEmailMemoria.UltimoCorpo(email));
@@ -89,7 +89,7 @@ public sealed class TestesOtp
         var codigo = await AuthTestHelper.SolicitarCodigoAsync(cliente, email);
 
         var resposta = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo });
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo });
 
         Assert.AreEqual(HttpStatusCode.NoContent, resposta.StatusCode);
         Assert.IsTrue(resposta.Headers.GetValues("Set-Cookie")
@@ -106,7 +106,7 @@ public sealed class TestesOtp
         await AuthTestHelper.SolicitarCodigoAsync(cliente, email);
 
         var resposta = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo = "000000" });
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo = "000000" });
 
         Assert.AreEqual(HttpStatusCode.Unauthorized, resposta.StatusCode);
         var corpo = await LerCorpoAsync(resposta);
@@ -125,7 +125,7 @@ public sealed class TestesOtp
             .SetProperty(item => item.ExpiraEmUtc, DateTime.UtcNow.AddMinutes(-1)));
 
         var resposta = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo });
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo });
 
         Assert.AreEqual(HttpStatusCode.Unauthorized, resposta.StatusCode);
         Assert.AreEqual(CodigosErro.AutenticacaoCredenciaisInvalidas,
@@ -141,9 +141,9 @@ public sealed class TestesOtp
         var codigo = await AuthTestHelper.SolicitarCodigoAsync(cliente, email);
 
         Assert.AreEqual(HttpStatusCode.NoContent, (await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo })).StatusCode);
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo })).StatusCode);
         var resposta = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo });
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo });
 
         Assert.AreEqual(HttpStatusCode.Unauthorized, resposta.StatusCode);
     }
@@ -161,15 +161,15 @@ public sealed class TestesOtp
             .SetProperty(item => item.CriadoEmUtc, DateTime.UtcNow.AddSeconds(-61)));
         EnviadorEmailMemoria.Limpar();
         Assert.AreEqual(HttpStatusCode.Accepted, (await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/request", new { email })).StatusCode);
+            cliente, "/api/v1/auth/otp/solicitar", new { email })).StatusCode);
         var segundo = AuthTestHelper.ObterCodigo(email);
 
         var antigo = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo = primeiro });
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo = primeiro });
         Assert.AreEqual(HttpStatusCode.Unauthorized, antigo.StatusCode);
 
         Assert.AreEqual(HttpStatusCode.NoContent, (await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo = segundo })).StatusCode);
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo = segundo })).StatusCode);
     }
 
     [TestMethod]
@@ -186,7 +186,7 @@ public sealed class TestesOtp
         EnviadorEmailMemoria.Limpar();
 
         var resposta = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/request", new { email });
+            cliente, "/api/v1/auth/otp/solicitar", new { email });
 
         Assert.AreEqual(HttpStatusCode.Accepted, resposta.StatusCode);
         Assert.IsNull(EnviadorEmailMemoria.UltimoCorpo(email));
@@ -206,11 +206,11 @@ public sealed class TestesOtp
         EnviadorEmailMemoria.Limpar();
 
         Assert.AreEqual(HttpStatusCode.Accepted, (await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/request", new { email })).StatusCode);
+            cliente, "/api/v1/auth/otp/solicitar", new { email })).StatusCode);
         var codigo = AuthTestHelper.ObterCodigo(email);
 
         Assert.AreEqual(HttpStatusCode.NoContent, (await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo })).StatusCode);
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo })).StatusCode);
     }
 
     [TestMethod]
@@ -225,11 +225,11 @@ public sealed class TestesOtp
         for (var tentativa = 0; tentativa < CodigoOtp.MaximoTentativas; tentativa++)
         {
             Assert.AreEqual(HttpStatusCode.Unauthorized, (await AuthTestHelper.PostAsync(
-                cliente, "/api/v1/auth/otp/verify", new { email, codigo = invalido })).StatusCode);
+                cliente, "/api/v1/auth/otp/verificar", new { email, codigo = invalido })).StatusCode);
         }
 
         Assert.AreEqual(HttpStatusCode.Unauthorized, (await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email, codigo })).StatusCode);
+            cliente, "/api/v1/auth/otp/verificar", new { email, codigo })).StatusCode);
     }
 
     [TestMethod]
@@ -241,9 +241,9 @@ public sealed class TestesOtp
         var emailExistente = await AuthTestHelper.RegistrarClienteAsync(cliente);
 
         var respostaInexistente = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email = emailInexistente, codigo = "123456" });
+            cliente, "/api/v1/auth/otp/verificar", new { email = emailInexistente, codigo = "123456" });
         var respostaExistente = await AuthTestHelper.PostAsync(
-            cliente, "/api/v1/auth/otp/verify", new { email = emailExistente, codigo = "123456" });
+            cliente, "/api/v1/auth/otp/verificar", new { email = emailExistente, codigo = "123456" });
 
         Assert.AreEqual(respostaInexistente.StatusCode, respostaExistente.StatusCode);
         Assert.AreEqual(
@@ -260,7 +260,7 @@ public sealed class TestesOtp
         var codigo = await AuthTestHelper.SolicitarCodigoAsync(cliente, email);
 
         var respostas = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ =>
-            AuthTestHelper.PostAsync(cliente, "/api/v1/auth/otp/verify", new { email, codigo })));
+            AuthTestHelper.PostAsync(cliente, "/api/v1/auth/otp/verificar", new { email, codigo })));
 
         Assert.AreEqual(1, respostas.Count(resposta => resposta.StatusCode == HttpStatusCode.NoContent));
         Assert.AreEqual(3, respostas.Count(resposta => resposta.StatusCode == HttpStatusCode.Unauthorized));

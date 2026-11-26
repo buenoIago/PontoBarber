@@ -36,7 +36,7 @@ describe('Serviço de clientes', () => {
 
   it('should list clients with tenant and pagination', () => {
     servico.listar('b1', 'Alvo', 2);
-    const req = http.expectOne('/api/v1/barbearias/b1/customers?pagina=2&tamanho=20&busca=Alvo');
+    const req = http.expectOne('/api/v1/barbearias/b1/clientes?pagina=2&tamanho=20&busca=Alvo');
     expect(req.request.method).toBe('GET');
     req.flush({ itens: [cliente], total: 1, pagina: 2, tamanho: 20 });
     expect(servico.itens()).toEqual([cliente]);
@@ -45,7 +45,7 @@ describe('Serviço de clientes', () => {
 
   it('should fetch a related client', () => {
     servico.obter('b1', 'u1');
-    const req = http.expectOne('/api/v1/barbearias/b1/customers/u1');
+    const req = http.expectOne('/api/v1/barbearias/b1/clientes/u1');
     req.flush(cliente);
     expect(servico.selecionado()).toEqual(cliente);
   });

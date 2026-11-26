@@ -140,12 +140,12 @@ describe('AuthService', () => {
     };
 
     servico.cadastrarCliente(cliente);
-    const cadastroCliente = http.expectOne('/api/v1/auth/register/customer');
+    const cadastroCliente = http.expectOne('/api/v1/auth/cadastro/cliente');
     expect(cadastroCliente.request.body).toEqual(cliente);
     cadastroCliente.flush(null, { status: 201, statusText: 'Created' });
 
     servico.cadastrarProfissional(profissional);
-    const cadastroProfissional = http.expectOne('/api/v1/auth/register/professional');
+    const cadastroProfissional = http.expectOne('/api/v1/auth/cadastro/profissional');
     expect(cadastroProfissional.request.body).toEqual(profissional);
     cadastroProfissional.flush(null, { status: 201, statusText: 'Created' });
 
@@ -156,13 +156,13 @@ describe('AuthService', () => {
     configurar();
 
     servico.solicitarCodigo('cliente@exemplo.com');
-    const solicitacao = http.expectOne('/api/v1/auth/otp/request');
+    const solicitacao = http.expectOne('/api/v1/auth/otp/solicitar');
     expect(solicitacao.request.body).toEqual({ email: 'cliente@exemplo.com' });
     solicitacao.flush(null, { status: 202, statusText: 'Accepted' });
     expect(servico.emailOtp()).toBe('cliente@exemplo.com');
 
     servico.verificarCodigo({ email: 'cliente@exemplo.com', codigo: '123456' });
-    const verificacao = http.expectOne('/api/v1/auth/otp/verify');
+    const verificacao = http.expectOne('/api/v1/auth/otp/verificar');
     expect(verificacao.request.body).toEqual({ email: 'cliente@exemplo.com', codigo: '123456' });
     verificacao.flush(null, { status: 204, statusText: 'No Content' });
     http.expectOne('/api/v1/auth/me').flush({
@@ -183,7 +183,7 @@ describe('AuthService', () => {
 
     servico.solicitarCodigo('inexistente@exemplo.com');
     http
-      .expectOne('/api/v1/auth/otp/request')
+      .expectOne('/api/v1/auth/otp/solicitar')
       .flush(
         { title: 'Erro', status: 500, detail: 'Falha', code: 'erro.interno', traceId: 't' },
         { status: 500, statusText: 'Internal Server Error' },

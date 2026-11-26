@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -23,6 +24,7 @@ public sealed record DashboardContract(
     IReadOnlyList<ProximoAgendamentoContract> Proximos);
 
 [ApiController]
+[Tags("Painel")]
 [Route("api/v1/barbearias/{barbeariaId:guid}/dashboard")]
 public sealed class DashboardController(ServicoDashboard servico) : ControllerBase
 {

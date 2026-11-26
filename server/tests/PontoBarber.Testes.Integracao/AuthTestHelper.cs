@@ -19,7 +19,7 @@ public static partial class AuthTestHelper
         HttpClient cliente, string nome = "Cliente Teste", string? email = null)
     {
         email ??= $"cliente-{Guid.NewGuid():N}@exemplo.com";
-        var resposta = await PostAsync(cliente, "/api/v1/auth/register/customer", new
+        var resposta = await PostAsync(cliente, "/api/v1/auth/cadastro/cliente", new
         {
             nomeCompleto = nome,
             email,
@@ -32,7 +32,7 @@ public static partial class AuthTestHelper
     public static async Task<string> SolicitarCodigoAsync(HttpClient cliente, string email)
     {
         EnviadorEmailMemoria.Limpar();
-        var solicitacao = await PostAsync(cliente, "/api/v1/auth/otp/request", new { email });
+        var solicitacao = await PostAsync(cliente, "/api/v1/auth/otp/solicitar", new { email });
         Assert.AreEqual(HttpStatusCode.Accepted, solicitacao.StatusCode);
         return ObterCodigo(email);
     }
@@ -40,7 +40,7 @@ public static partial class AuthTestHelper
     public static async Task LoginClienteAsync(HttpClient cliente, string email)
     {
         var codigo = await SolicitarCodigoAsync(cliente, email);
-        var verificacao = await PostAsync(cliente, "/api/v1/auth/otp/verify", new { email, codigo });
+        var verificacao = await PostAsync(cliente, "/api/v1/auth/otp/verificar", new { email, codigo });
         Assert.AreEqual(HttpStatusCode.NoContent, verificacao.StatusCode);
     }
 

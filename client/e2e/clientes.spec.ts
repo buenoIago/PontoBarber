@@ -53,9 +53,9 @@ async function prepararDono(page: Page, itens: unknown[] = [cliente]): Promise<v
       }),
     }),
   );
-  await page.route(/\/api\/v1\/barbearias\/b1\/customers/, (rota) => {
+  await page.route(/\/api\/v1\/barbearias\/b1\/clientes/, (rota) => {
     const url = rota.request().url();
-    if (url.endsWith(`/customers/${cliente.id}`))
+    if (url.endsWith(`/clientes/${cliente.id}`))
       return rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(cliente) });
     return rota.fulfill({
       status: 200,
@@ -80,7 +80,7 @@ async function prepararDono(page: Page, itens: unknown[] = [cliente]): Promise<v
 test('proprietário lista, pesquisa e consulta clientes', async ({ page }) => {
   let busca = '';
   page.on('request', (requisicao) => {
-    if (requisicao.url().includes('/customers?'))
+    if (requisicao.url().includes('/clientes?'))
       busca = new URL(requisicao.url()).searchParams.get('busca') ?? '';
   });
   await prepararDono(page);
@@ -111,7 +111,7 @@ test('cliente edita somente os próprios dados', async ({ page }) => {
     rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(contaCliente) }),
   );
   let corpo: Record<string, unknown> | null = null;
-  await page.route('**/api/v1/me/customer-profile', (rota) => {
+  await page.route('**/api/v1/minha-conta/perfil-cliente', (rota) => {
     if (rota.request().method() === 'PUT') corpo = rota.request().postDataJSON();
     return rota.fulfill({
       status: 200,
@@ -137,7 +137,7 @@ test('erro de e-mail duplicado é exibido', async ({ page }) => {
   await page.route('**/api/v1/auth/me', (rota) =>
     rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(contaCliente) }),
   );
-  await page.route('**/api/v1/me/customer-profile', (rota) =>
+  await page.route('**/api/v1/minha-conta/perfil-cliente', (rota) =>
     rota.fulfill({
       status: 409,
       contentType: 'application/problem+json',

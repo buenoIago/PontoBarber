@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -24,6 +25,7 @@ public sealed record ListaNotificacoesContract(
     int Tamanho);
 
 [ApiController]
+[Tags("Notificações")]
 [Route("api/v1/notificacoes")]
 public sealed class NotificacoesController(ServicoNotificacoes servico) : ControllerBase
 {

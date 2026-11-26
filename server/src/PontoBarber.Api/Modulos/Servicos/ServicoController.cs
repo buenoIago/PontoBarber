@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Compartilhado;
@@ -12,6 +13,7 @@ namespace PontoBarber.Api.Modulos.Servicos;
 /// vínculo ativo do usuário; nenhum identificador é aceito do corpo.
 /// </summary>
 [ApiController]
+[Tags("Serviços")]
 [Route("api/v1/barbearias/{barbeariaId:guid}/servicos")]
 public sealed class ServicoController(GestaoServicos servico) : ControllerBase
 {
