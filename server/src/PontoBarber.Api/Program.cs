@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 using PontoBarber.Api.Compartilhado.Health;
 using PontoBarber.Api.Compartilhado.Http;
 using PontoBarber.Api.Compartilhado.Logging;
+using PontoBarber.Api.Compartilhado.Swagger;
 using PontoBarber.Api.Compartilhado.Tenant;
 using PontoBarber.Api.Modulos.Auth;
 using PontoBarber.Aplicacao.Auth;
@@ -26,7 +27,8 @@ using Serilog.Events;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(opcoes =>
+    opcoes.AddDocumentTransformer<OrdenarDocumentoSwaggerTransformer>());
 builder.Services.AddHttpContextAccessor();
 // AddIdentity (via AddInfrastructureServices) registra a autenticação e o cookie.
 builder.Services.AdicionarAuthApi();
@@ -102,7 +104,7 @@ if (app.Environment.IsDevelopment())
     {
         aplicacao = "PontoBarber API",
         ambiente = "Development"
-    }));
+    })).WithTags("API");
 }
 else
 {
