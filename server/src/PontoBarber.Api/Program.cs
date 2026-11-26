@@ -24,6 +24,41 @@ using PontoBarber.Infra.Modulos.Jobs;
 using Serilog;
 using Serilog.Events;
 
+// Carrega a configuração local do .env antes de montar o IConfiguration.
+// Valores já definidos no ambiente prevalecem e nada é registrado em log.
+if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")))
+{
+    var raiz = new DirectoryInfo(AppContext.BaseDirectory);
+    while (raiz is not null && !File.Exists(Path.Combine(raiz.FullName, ".env")))
+        raiz = raiz.Parent;
+
+    if (raiz is not null)
+    {
+        var valores = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var linha in File.ReadAllLines(Path.Combine(raiz.FullName, ".env")))
+        {
+            var texto = linha.Trim();
+            if (texto.Length == 0 || texto.StartsWith('#'))
+                continue;
+            var separador = texto.IndexOf('=');
+            if (separador <= 0)
+                continue;
+            valores[texto[..separador].Trim()] = texto[(separador + 1)..].Trim().Trim('"');
+        }
+
+        string? stringConexao = null;
+        if (valores.TryGetValue("ConnectionStrings__DefaultConnection", out var definida) &&
+            !string.IsNullOrWhiteSpace(definida))
+            stringConexao = definida;
+        else if (valores.TryGetValue("POSTGRES_USER", out var usuario) &&
+                 valores.TryGetValue("POSTGRES_PASSWORD", out var senha))
+            stringConexao = $"Host=localhost;Port=5432;Database=pontobarber;Username={usuario};Password={senha}";
+
+        if (!string.IsNullOrWhiteSpace(stringConexao))
+            Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", stringConexao);
+    }
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
